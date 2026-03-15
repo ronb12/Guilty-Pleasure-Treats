@@ -1,0 +1,600 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXContainerItemProxy section */
+		471236D72F66DDB200F4F356 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 471236BD2F66DDB000F4F356 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 471236C42F66DDB000F4F356;
+			remoteInfo = "Guilty Pleasure Treats";
+		};
+		471236E12F66DDB200F4F356 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 471236BD2F66DDB000F4F356 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 471236C42F66DDB000F4F356;
+			remoteInfo = "Guilty Pleasure Treats";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		471236C52F66DDB000F4F356 /* Guilty Pleasure Treats.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Guilty Pleasure Treats.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		471236D62F66DDB200F4F356 /* Guilty Pleasure TreatsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Guilty Pleasure TreatsTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		471236E02F66DDB200F4F356 /* Guilty Pleasure TreatsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Guilty Pleasure TreatsUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		471236E82F66DDB200F4F356 /* Exceptions for "Guilty Pleasure Treats" folder in "Guilty Pleasure Treats" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 471236C42F66DDB000F4F356 /* Guilty Pleasure Treats */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		471236C72F66DDB000F4F356 /* Guilty Pleasure Treats */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				471236E82F66DDB200F4F356 /* Exceptions for "Guilty Pleasure Treats" folder in "Guilty Pleasure Treats" target */,
+			);
+			path = "Guilty Pleasure Treats";
+			sourceTree = "<group>";
+		};
+		471236D92F66DDB200F4F356 /* Guilty Pleasure TreatsTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Guilty Pleasure TreatsTests";
+			sourceTree = "<group>";
+		};
+		471236E32F66DDB200F4F356 /* Guilty Pleasure TreatsUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Guilty Pleasure TreatsUITests";
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		471236C22F66DDB000F4F356 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		471236D32F66DDB200F4F356 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		471236DD2F66DDB200F4F356 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		471236BC2F66DDB000F4F356 = {
+			isa = PBXGroup;
+			children = (
+				471236C72F66DDB000F4F356 /* Guilty Pleasure Treats */,
+				471236D92F66DDB200F4F356 /* Guilty Pleasure TreatsTests */,
+				471236E32F66DDB200F4F356 /* Guilty Pleasure TreatsUITests */,
+				471236C62F66DDB000F4F356 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		471236C62F66DDB000F4F356 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				471236C52F66DDB000F4F356 /* Guilty Pleasure Treats.app */,
+				471236D62F66DDB200F4F356 /* Guilty Pleasure TreatsTests.xctest */,
+				471236E02F66DDB200F4F356 /* Guilty Pleasure TreatsUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		471236C42F66DDB000F4F356 /* Guilty Pleasure Treats */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 471236E92F66DDB200F4F356 /* Build configuration list for PBXNativeTarget "Guilty Pleasure Treats" */;
+			buildPhases = (
+				471236C12F66DDB000F4F356 /* Sources */,
+				471236C22F66DDB000F4F356 /* Frameworks */,
+				471236C32F66DDB000F4F356 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				471236C72F66DDB000F4F356 /* Guilty Pleasure Treats */,
+			);
+			name = "Guilty Pleasure Treats";
+			packageProductDependencies = (
+			);
+			productName = "Guilty Pleasure Treats";
+			productReference = 471236C52F66DDB000F4F356 /* Guilty Pleasure Treats.app */;
+			productType = "com.apple.product-type.application";
+		};
+		471236D52F66DDB200F4F356 /* Guilty Pleasure TreatsTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 471236EE2F66DDB200F4F356 /* Build configuration list for PBXNativeTarget "Guilty Pleasure TreatsTests" */;
+			buildPhases = (
+				471236D22F66DDB200F4F356 /* Sources */,
+				471236D32F66DDB200F4F356 /* Frameworks */,
+				471236D42F66DDB200F4F356 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				471236D82F66DDB200F4F356 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				471236D92F66DDB200F4F356 /* Guilty Pleasure TreatsTests */,
+			);
+			name = "Guilty Pleasure TreatsTests";
+			packageProductDependencies = (
+			);
+			productName = "Guilty Pleasure TreatsTests";
+			productReference = 471236D62F66DDB200F4F356 /* Guilty Pleasure TreatsTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		471236DF2F66DDB200F4F356 /* Guilty Pleasure TreatsUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 471236F12F66DDB200F4F356 /* Build configuration list for PBXNativeTarget "Guilty Pleasure TreatsUITests" */;
+			buildPhases = (
+				471236DC2F66DDB200F4F356 /* Sources */,
+				471236DD2F66DDB200F4F356 /* Frameworks */,
+				471236DE2F66DDB200F4F356 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				471236E22F66DDB200F4F356 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				471236E32F66DDB200F4F356 /* Guilty Pleasure TreatsUITests */,
+			);
+			name = "Guilty Pleasure TreatsUITests";
+			packageProductDependencies = (
+			);
+			productName = "Guilty Pleasure TreatsUITests";
+			productReference = 471236E02F66DDB200F4F356 /* Guilty Pleasure TreatsUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		471236BD2F66DDB000F4F356 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2620;
+				LastUpgradeCheck = 2620;
+				TargetAttributes = {
+					471236C42F66DDB000F4F356 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					471236D52F66DDB200F4F356 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = 471236C42F66DDB000F4F356;
+					};
+					471236DF2F66DDB200F4F356 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = 471236C42F66DDB000F4F356;
+					};
+				};
+			};
+			buildConfigurationList = 471236C02F66DDB000F4F356 /* Build configuration list for PBXProject "Guilty Pleasure Treats" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 471236BC2F66DDB000F4F356;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 471236C62F66DDB000F4F356 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				471236C42F66DDB000F4F356 /* Guilty Pleasure Treats */,
+				471236D52F66DDB200F4F356 /* Guilty Pleasure TreatsTests */,
+				471236DF2F66DDB200F4F356 /* Guilty Pleasure TreatsUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		471236C32F66DDB000F4F356 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		471236D42F66DDB200F4F356 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		471236DE2F66DDB200F4F356 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		471236C12F66DDB000F4F356 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		471236D22F66DDB200F4F356 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		471236DC2F66DDB200F4F356 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		471236D82F66DDB200F4F356 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 471236C42F66DDB000F4F356 /* Guilty Pleasure Treats */;
+			targetProxy = 471236D72F66DDB200F4F356 /* PBXContainerItemProxy */;
+		};
+		471236E22F66DDB200F4F356 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 471236C42F66DDB000F4F356 /* Guilty Pleasure Treats */;
+			targetProxy = 471236E12F66DDB200F4F356 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		471236EA2F66DDB200F4F356 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Guilty Pleasure Treats/Guilty_Pleasure_Treats.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4SQJ3AH62S;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Guilty Pleasure Treats/Info.plist";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bradleyvirtualsolutions.Guilty-Pleasure-Treats";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		471236EB2F66DDB200F4F356 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Guilty Pleasure Treats/Guilty_Pleasure_Treats.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4SQJ3AH62S;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Guilty Pleasure Treats/Info.plist";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bradleyvirtualsolutions.Guilty-Pleasure-Treats";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		471236EC2F66DDB200F4F356 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 4SQJ3AH62S;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		471236ED2F66DDB200F4F356 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 4SQJ3AH62S;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		471236EF2F66DDB200F4F356 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4SQJ3AH62S;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bradleyvirtualsolutions.Guilty-Pleasure-TreatsTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Guilty Pleasure Treats.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Guilty Pleasure Treats";
+			};
+			name = Debug;
+		};
+		471236F02F66DDB200F4F356 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4SQJ3AH62S;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bradleyvirtualsolutions.Guilty-Pleasure-TreatsTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Guilty Pleasure Treats.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Guilty Pleasure Treats";
+			};
+			name = Release;
+		};
+		471236F22F66DDB200F4F356 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4SQJ3AH62S;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bradleyvirtualsolutions.Guilty-Pleasure-TreatsUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "Guilty Pleasure Treats";
+			};
+			name = Debug;
+		};
+		471236F32F66DDB200F4F356 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4SQJ3AH62S;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bradleyvirtualsolutions.Guilty-Pleasure-TreatsUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "Guilty Pleasure Treats";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		471236C02F66DDB000F4F356 /* Build configuration list for PBXProject "Guilty Pleasure Treats" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				471236EC2F66DDB200F4F356 /* Debug */,
+				471236ED2F66DDB200F4F356 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		471236E92F66DDB200F4F356 /* Build configuration list for PBXNativeTarget "Guilty Pleasure Treats" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				471236EA2F66DDB200F4F356 /* Debug */,
+				471236EB2F66DDB200F4F356 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		471236EE2F66DDB200F4F356 /* Build configuration list for PBXNativeTarget "Guilty Pleasure TreatsTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				471236EF2F66DDB200F4F356 /* Debug */,
+				471236F02F66DDB200F4F356 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		471236F12F66DDB200F4F356 /* Build configuration list for PBXNativeTarget "Guilty Pleasure TreatsUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				471236F22F66DDB200F4F356 /* Debug */,
+				471236F32F66DDB200F4F356 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 471236BD2F66DDB000F4F356 /* Project object */;
+}
