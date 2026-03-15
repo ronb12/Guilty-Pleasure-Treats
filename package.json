@@ -1,0 +1,16 @@
+{
+  "name": "guilty-pleasure-treats-api",
+  "version": "1.0.0",
+  "description": "Vercel API for Guilty Pleasure Treats (Neon Postgres + Blob)",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.0",
+    "@vercel/blob": "^0.23.0",
+    "bcryptjs": "^2.4.3",
+    "jose": "^5.9.6",
+    "jsonwebtoken": "^9.0.2",
+    "jwks-rsa": "^3.1.0",
+    "pg": "^8.13.0"
+  }
+}

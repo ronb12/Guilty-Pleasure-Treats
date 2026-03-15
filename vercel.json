@@ -1,10 +1,13 @@
 {
-  "name": "guilty-pleasure-treats",
   "version": 2,
   "builds": [
-    { "src": "api/**/*.js", "use": "@vercel/node" }
+    { "src": "api/**/*.js", "use": "@vercel/node" },
+    { "src": "website/**", "use": "@vercel/static" }
   ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1" }
+  "rewrites": [
+    { "source": "/api", "destination": "/api/[[...path]]" },
+    { "source": "/api/:path*", "destination": "/api/[[...path]]?path=:path*" },
+    { "source": "/", "destination": "/website/index.html" },
+    { "source": "/:path*", "destination": "/website/:path*" }
   ]
 }
