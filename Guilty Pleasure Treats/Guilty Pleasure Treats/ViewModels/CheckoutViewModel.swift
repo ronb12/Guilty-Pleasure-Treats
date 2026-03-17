@@ -12,25 +12,117 @@ import Combine
 final class CheckoutViewModel: ObservableObject {
     @Published var customerName = ""
     @Published var customerPhone = ""
+    @Published var customerEmail = ""
     @Published var fulfillmentType: FulfillmentType = .pickup
-    @Published var scheduledDate = Date()
+    @Published var scheduledDate: Date = {
+        let min = Calendar.current.date(byAdding: .hour, value: AppConstants.minimumOrderLeadTimeHours, to: Date()) ?? Date()
+        return min
+    }()
+    /// From business settings (admin). Defaults to AppConstants until settings are loaded.
+    @Published var minimumOrderLeadTimeHours: Int = AppConstants.minimumOrderLeadTimeHours
+    @Published var street = ""
+    @Published var addressLine2 = ""
+    @Published var city = ""
+    @Published var state = ""
+    @Published var zip = ""
+    @Published var promoCode = ""
+    @Published var appliedPromotion: Promotion?
+    @Published var promoMessage: String?
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var lastCreatedOrderId: String?
     @Published var lastCreatedOrder: Order?
+    @Published var lastPaymentMethod: PaymentMethod = .payAtPickup
     
-    private let firebase = FirebaseService.shared
+    private let api = VercelService.shared
     private let cart = CartManager.shared
     private let auth = AuthService.shared
     
+    /// Earliest date/time the customer can select (now + minimum lead time). Prevents impossible last-minute requests.
+    var minScheduledDate: Date {
+        Calendar.current.date(byAdding: .hour, value: minimumOrderLeadTimeHours, to: Date()) ?? Date()
+    }
+
     var canCheckout: Bool {
-        !customerName.trimmingCharacters(in: .whitespaces).isEmpty &&
-        !customerPhone.trimmingCharacters(in: .whitespaces).isEmpty
+        guard !customerName.trimmingCharacters(in: .whitespaces).isEmpty,
+              !customerPhone.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+        if fulfillmentType == .delivery || fulfillmentType == .shipping {
+            return !street.trimmingCharacters(in: .whitespaces).isEmpty &&
+                   !city.trimmingCharacters(in: .whitespaces).isEmpty &&
+                   !state.trimmingCharacters(in: .whitespaces).isEmpty &&
+                   !zip.trimmingCharacters(in: .whitespaces).isEmpty
+        }
+        return true
+    }
+    
+    /// Formatted address for API (delivery/shipping only).
+    var deliveryAddressString: String? {
+        guard fulfillmentType == .delivery || fulfillmentType == .shipping else { return nil }
+        let parts = [
+            street.trimmingCharacters(in: .whitespaces),
+            addressLine2.trimmingCharacters(in: .whitespaces),
+            [city.trimmingCharacters(in: .whitespaces), state.trimmingCharacters(in: .whitespaces), zip.trimmingCharacters(in: .whitespaces)].filter { !$0.isEmpty }.joined(separator: ", ")
+        ].filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: "\n")
+    }
+    
+    // Order summary for display (matches placeOrder math).
+    var orderSummarySubtotal: Double {
+        cart.toOrderItems().reduce(0.0) { $0 + $1.subtotal }
+    }
+    var orderSummaryDiscount: Double { discountAmount }
+    var orderSummarySubtotalAfterDiscount: Double { max(0, orderSummarySubtotal - orderSummaryDiscount) }
+    var orderSummaryTax: Double { orderSummarySubtotalAfterDiscount * AppConstants.taxRate }
+    var orderSummaryTip: Double { cart.tipAmount }
+    var orderSummaryTotal: Double { orderSummarySubtotalAfterDiscount + orderSummaryTax + orderSummaryTip }
+    
+    var discountAmount: Double {
+        guard let promo = appliedPromotion else { return 0 }
+        let subtotal = cart.toOrderItems().reduce(0.0) { $0 + $1.subtotal }
+        switch promo.discountTypeEnum {
+        case .percent:
+            return subtotal * (promo.value / 100)
+        case .fixed:
+            return min(promo.value, subtotal)
+        case .none:
+            return 0
+        }
+    }
+    
+    func applyPromoCode() async {
+        let code = promoCode.trimmingCharacters(in: .whitespaces)
+        guard !code.isEmpty else {
+            appliedPromotion = nil
+            promoMessage = nil
+            return
+        }
+        do {
+            if let promo = try await api.fetchPromotion(byCode: code) {
+                appliedPromotion = promo
+                promoMessage = "Applied: \(promo.code)"
+            } else {
+                appliedPromotion = nil
+                promoMessage = "Invalid or expired code."
+            }
+        } catch {
+            appliedPromotion = nil
+            promoMessage = FriendlyErrorMessage.message(for: error)
+        }
+    }
+    
+    func clearPromoCode() {
+        promoCode = ""
+        appliedPromotion = nil
+        promoMessage = nil
     }
     
     func placeOrder(paymentMethod: PaymentMethod) async -> Bool {
         guard canCheckout else {
-            errorMessage = "Please enter name and phone number."
+            if fulfillmentType == .delivery || fulfillmentType == .shipping {
+                errorMessage = "Please enter name, phone, and full delivery address."
+            } else {
+                errorMessage = "Please enter name and phone number."
+            }
             return false
         }
         let orderItems = cart.toOrderItems()
@@ -40,8 +132,12 @@ final class CheckoutViewModel: ObservableObject {
         }
         
         let subtotal = orderItems.reduce(0) { $0 + $1.subtotal }
-        let tax = subtotal * AppConstants.taxRate
-        let total = subtotal + tax
+        let discount = discountAmount
+        let subtotalAfterDiscount = max(0, subtotal - discount)
+        let taxRate = AppConstants.taxRate
+        let tax = subtotalAfterDiscount * taxRate
+        let tip = cart.tipAmount
+        let total = subtotalAfterDiscount + tax + tip
         
         let customCakeOrderIds = cart.items.compactMap { item -> String? in
             guard let id = item.product.id, id.hasPrefix("custom-") else { return nil }
@@ -52,13 +148,16 @@ final class CheckoutViewModel: ObservableObject {
             return String(id.dropFirst("aicake-".count))
         }
         
+        let emailToUse = customerEmail.trimmingCharacters(in: .whitespaces).isEmpty ? auth.currentUser?.email : customerEmail.trimmingCharacters(in: .whitespaces)
         var order = Order(
             id: nil,
             userId: auth.currentUser?.uid,
             customerName: customerName.trimmingCharacters(in: .whitespaces),
             customerPhone: customerPhone.trimmingCharacters(in: .whitespaces),
+            customerEmail: emailToUse?.isEmpty == true ? nil : emailToUse,
+            deliveryAddress: deliveryAddressString,
             items: orderItems,
-            subtotal: subtotal,
+            subtotal: subtotalAfterDiscount,
             tax: tax,
             total: total,
             fulfillmentType: fulfillmentType.rawValue,
@@ -77,8 +176,9 @@ final class CheckoutViewModel: ObservableObject {
         defer { isLoading = false }
         
         do {
-            let orderId = try await firebase.createOrder(order)
+            let orderId = try await api.createOrder(order)
             order.id = orderId
+            lastPaymentMethod = paymentMethod
             
             switch paymentMethod {
             case .stripe, .applePay:
@@ -87,9 +187,10 @@ final class CheckoutViewModel: ObservableObject {
                     amountCents: amountCents,
                     orderId: orderId,
                     customerName: order.customerName,
-                    customerEmail: auth.currentUser?.email
+                    customerEmail: order.customerEmail
                 )
-            case .payAtPickup:
+            case .payByLink, .payAtPickup, .cashApp:
+                // Pay by link: owner sends Stripe link from Admin; customer pays in browser. No in-app payment.
                 break
             }
             
@@ -98,7 +199,7 @@ final class CheckoutViewModel: ObservableObject {
             lastCreatedOrder = order
             return true
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = FriendlyErrorMessage.message(for: error)
             return false
         }
     }
@@ -108,13 +209,25 @@ final class CheckoutViewModel: ObservableObject {
         lastCreatedOrder = nil
         customerName = ""
         customerPhone = ""
+        customerEmail = ""
         scheduledDate = Date()
         fulfillmentType = .pickup
+        street = ""
+        addressLine2 = ""
+        city = ""
+        state = ""
+        zip = ""
+        clearPromoCode()
     }
 }
 
 enum PaymentMethod {
+    /// Owner sends a Stripe payment link (from Admin); customer pays in browser. No in-app card collection.
+    case payByLink
+    /// Pay by card in the app now (Stripe Payment Sheet).
     case stripe
     case applePay
     case payAtPickup
+    /// Pay via Cash App / Venmo QR or link (owner sets tag in Business Settings).
+    case cashApp
 }

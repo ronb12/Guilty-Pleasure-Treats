@@ -23,7 +23,7 @@ struct ProductImageView: View {
                     case .success(let image):
                         image
                             .resizable()
-                            .aspectRatio(contentMode: .fill)
+                            .scaledToFit()
                     case .failure:
                         Image(systemName: placeholderName)
                             .resizable()

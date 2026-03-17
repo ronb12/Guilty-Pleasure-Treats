@@ -12,14 +12,19 @@ final class CartManager: ObservableObject {
     static let shared = CartManager()
     
     @Published private(set) var items: [CartItem] = []
-    
+    @Published var tipAmount: Double = 0
+
     var isEmpty: Bool { items.isEmpty }
     var itemCount: Int { items.reduce(0) { $0 + $1.quantity } }
     var subtotal: Double { items.reduce(0) { $0 + $1.subtotal } }
     var tax: Double { subtotal * AppConstants.taxRate }
-    var total: Double { subtotal + tax }
-    
+    var total: Double { subtotal + tax + tipAmount }
+
     private init() {}
+
+    func setTipAmount(_ amount: Double) {
+        tipAmount = max(0, amount)
+    }
     
     func add(product: Product, quantity: Int = 1, specialInstructions: String = "") {
         if let index = items.firstIndex(where: { $0.product.id == product.id && $0.specialInstructions == specialInstructions }) {
@@ -77,6 +82,7 @@ final class CartManager: ObservableObject {
     
     func clear() {
         items.removeAll()
+        tipAmount = 0
     }
     
     /// Convert current cart to Order items and clear cart.

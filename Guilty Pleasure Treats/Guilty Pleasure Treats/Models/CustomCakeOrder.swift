@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import FirebaseFirestore
 
 enum CakeSize: String, Codable, CaseIterable, Identifiable {
     case six = "6 inch"
@@ -38,7 +37,7 @@ enum FrostingType: String, Codable, CaseIterable, Identifiable {
 }
 
 struct CustomCakeOrder: Identifiable, Codable {
-    @DocumentID var id: String?
+    var id: String?
     var userId: String?
     var size: String
     var flavor: String

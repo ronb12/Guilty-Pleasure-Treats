@@ -61,7 +61,8 @@ final class ImageGenerationService {
             throw ImageGenerationError.invalidResponse(0, "Invalid response")
         }
         guard (200...299).contains(http.statusCode) else {
-            let message = String(data: data, encoding: .utf8)
+            let message = (try? JSONDecoder().decode([String: String].self, from: data))?["error"]
+                ?? String(data: data, encoding: .utf8)
             throw ImageGenerationError.invalidResponse(http.statusCode, message)
         }
         
@@ -76,7 +77,24 @@ final class ImageGenerationService {
         }
         let decoded = try JSONDecoder().decode(APIResponse.self, from: data)
         if let imageUrlString = decoded.imageUrl, let imageUrl = URL(string: imageUrlString) {
-            let (imageData, _) = try await URLSession.shared.data(from: imageUrl)
+            var request = URLRequest(url: imageUrl)
+            request.timeoutInterval = 120
+            request.setValue("GuiltyPleasureTreats/1.0", forHTTPHeaderField: "User-Agent")
+            request.setValue("image/png,image/*,*/*", forHTTPHeaderField: "Accept")
+            let (imageData, urlResponse) = try await URLSession.shared.data(for: request)
+            guard let http = urlResponse as? HTTPURLResponse else {
+                throw ImageGenerationError.invalidResponse(0, "Invalid response")
+            }
+            guard (200...299).contains(http.statusCode) else {
+                throw ImageGenerationError.invalidResponse(
+                    http.statusCode,
+                    "Image could not be loaded. Try again."
+                )
+            }
+            if let contentType = http.value(forHTTPHeaderField: "Content-Type"),
+               !contentType.lowercased().hasPrefix("image/") {
+                throw ImageGenerationError.noImageInResponse
+            }
             return imageData
         }
         if let base64 = decoded.imageBase64, let imageData = Data(base64Encoded: base64) {

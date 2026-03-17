@@ -14,7 +14,8 @@ export default async function handler(req, res) {
   }
 
   const body = req.body || {};
-  const email = body.email != null ? String(body.email) : '';
+  const emailRaw = body.email ?? body.Email ?? '';
+  const email = emailRaw != null ? String(emailRaw).trim() : '';
   const password = body.password != null ? String(body.password) : '';
   const displayName = body.displayName != null ? String(body.displayName).trim() : null;
 
@@ -27,7 +28,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedEmail = email.toLowerCase();
   if (!normalizedEmail) {
     return res.status(400).json({ error: 'Please enter a valid email address' });
   }
@@ -38,7 +39,7 @@ export default async function handler(req, res) {
   if (isNeonAuthConfigured()) {
     try {
       const result = await neonAuthSignUp(email, password, displayName);
-      if (result) {
+      if (result && result.success && result.token && result.user) {
         return res.status(201).json({
           token: result.token,
           user: {
@@ -50,10 +51,19 @@ export default async function handler(req, res) {
           },
         });
       }
+      const statusCode = result?.statusCode || 500;
+      const msg = result?.message || '';
+      const isDuplicate = statusCode === 409 || /already|exists|duplicate|in use/i.test(msg);
+      if (isDuplicate) {
+        return res.status(409).json({ error: 'An account with this email already exists. Try signing in instead.' });
+      }
+      return res.status(statusCode >= 400 && statusCode < 500 ? statusCode : 500).json({
+        error: msg && msg.length < 200 ? msg : 'Sign-up failed. Please try again.',
+      });
     } catch (err) {
       console.error('Neon Auth sign-up error', err);
+      return res.status(500).json({ error: 'Sign-up failed. Please try again.' });
     }
-    return res.status(409).json({ error: 'An account with this email already exists or sign-up failed' });
   }
 
   if (!hasDb() || !sql) {
@@ -64,13 +74,21 @@ export default async function handler(req, res) {
 
   let existing;
   try {
-    existing = await sql`SELECT id FROM users WHERE email = ${normalizedEmail} LIMIT 1`;
+    existing = await sql`SELECT id FROM users WHERE LOWER(TRIM(email)) = ${normalizedEmail} LIMIT 1`;
   } catch (err) {
     console.error('signup check existing', err);
     return res.status(500).json({ error: 'Unable to create account. Please try again.' });
   }
   if (existing.length) {
-    return res.status(409).json({ error: 'An account with this email already exists' });
+    let usedApple = false;
+    try {
+      const withApple = await sql`SELECT 1 FROM users WHERE LOWER(TRIM(email)) = ${normalizedEmail} AND apple_id IS NOT NULL AND TRIM(apple_id) != '' LIMIT 1`;
+      usedApple = withApple.length > 0;
+    } catch (_) { /* apple_id column may not exist in older DBs */ }
+    const message = usedApple
+      ? 'This email is already used with Sign in with Apple. Please sign in with Apple instead.'
+      : 'An account with this email already exists. Try signing in with your password.';
+    return res.status(409).json({ error: message });
   }
 
   let passwordHash;

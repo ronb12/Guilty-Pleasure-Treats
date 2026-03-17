@@ -1,5 +1,7 @@
 import { sql, hasDb } from '../api/lib/db.js';
 import { setCors, handleOptions } from '../api/lib/cors.js';
+import { getTokenFromRequest, getSession } from '../api/lib/auth.js';
+import { notifyNewOrder } from '../api/lib/apns.js';
 
 function rowToOrder(row) {
   if (!row) return null;
@@ -8,6 +10,8 @@ function rowToOrder(row) {
     userId: row.user_id ?? null,
     customerName: row.customer_name,
     customerPhone: row.customer_phone,
+    customerEmail: row.customer_email ?? null,
+    deliveryAddress: row.delivery_address ?? null,
     items: Array.isArray(row.items) ? row.items : (row.items && typeof row.items === 'object' ? (row.items.items ?? row.items) : []),
     subtotal: Number(row.subtotal),
     tax: Number(row.tax),
@@ -37,10 +41,15 @@ export default async function handler(req, res) {
       return res.status(200).json([]);
     }
     try {
-      const userId = (req.query || {}).userId;
-      const rows = userId
-        ? await sql`SELECT * FROM orders WHERE user_id = ${userId} ORDER BY created_at DESC LIMIT 100`
-        : await sql`SELECT * FROM orders ORDER BY created_at DESC LIMIT 100`;
+      const token = getTokenFromRequest(req);
+      const session = token ? await getSession(token) : null;
+      // No session → return no orders (so signed-out users never see others' orders)
+      if (!session) {
+        return res.status(200).json([]);
+      }
+      const rows = session.isAdmin
+        ? await sql`SELECT * FROM orders ORDER BY created_at DESC LIMIT 100`
+        : await sql`SELECT * FROM orders WHERE user_id = ${session.userId} ORDER BY created_at DESC LIMIT 100`;
       const orders = rows.map(rowToOrder);
       return res.status(200).json(orders);
     } catch (err) {
@@ -64,9 +73,11 @@ export default async function handler(req, res) {
       const tax = Number(body.tax) || 0;
       const total = Number(body.total) || subtotal + tax;
       const now = new Date().toISOString();
+      const customerEmail = body.customerEmail != null ? String(body.customerEmail).trim() || null : null;
+      const deliveryAddress = body.deliveryAddress != null ? String(body.deliveryAddress).trim() || null : null;
       const rows = await sql`
         INSERT INTO orders (
-          user_id, customer_name, customer_phone, items, subtotal, tax, total,
+          user_id, customer_name, customer_phone, customer_email, delivery_address, items, subtotal, tax, total,
           fulfillment_type, scheduled_pickup_date, status, stripe_payment_intent_id,
           manual_paid_at, created_at, updated_at, estimated_ready_time,
           custom_cake_order_ids, ai_cake_design_ids
@@ -74,6 +85,8 @@ export default async function handler(req, res) {
           ${body.userId ?? null},
           ${body.customerName ?? ''},
           ${body.customerPhone ?? ''},
+          ${customerEmail},
+          ${deliveryAddress},
           ${JSON.stringify(items)},
           ${subtotal},
           ${tax},
@@ -94,6 +107,18 @@ export default async function handler(req, res) {
       const row = rows[0];
       if (!row) {
         return res.status(500).json({ error: 'Failed to create order' });
+      }
+      // Notify owner(s) via APNs (fire-and-forget; do not block response)
+      try {
+        const tokenRows = await sql`SELECT device_token FROM push_tokens WHERE is_admin = true`;
+        const tokens = (tokenRows || []).map((r) => r.device_token).filter(Boolean);
+        if (tokens.length > 0) {
+          notifyNewOrder(tokens, row.id, body.customerName || 'Customer', total).catch((err) =>
+            console.error('push new order', err)
+          );
+        }
+      } catch (_) {
+        /* ignore */
       }
       return res.status(201).json({ id: row.id, createdAt: row.created_at });
     } catch (err) {

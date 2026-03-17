@@ -2,7 +2,7 @@
 //  OrderConfirmationView.swift
 //  Guilty Pleasure Treats
 //
-//  Order summary and estimated pickup time after checkout.
+//  Order summary and estimated pickup time after checkout. Shows Cash App / QR pay when that option was selected.
 //
 
 import SwiftUI
@@ -10,8 +10,10 @@ import SwiftUI
 struct OrderConfirmationView: View {
     let order: Order
     let orderId: String
+    var paymentMethod: PaymentMethod = .payAtPickup
     var onDismiss: (() -> Void)?
     @StateObject private var viewModel = CheckoutViewModel()
+    @State private var businessSettings: BusinessSettings?
     @Environment(\.dismiss) private var dismiss
     
     var body: some View {
@@ -31,6 +33,18 @@ struct OrderConfirmationView: View {
                     .foregroundStyle(AppConstants.Colors.textSecondary)
                     .multilineTextAlignment(.center)
                 
+                if paymentMethod == .payByLink {
+                    Text("You'll receive a secure payment link by text or email to pay by card. Complete payment when you get the link.")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.accent)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                
+                if paymentMethod == .cashApp, let settings = businessSettings, let tag = settings.cashAppTag, !tag.isEmpty {
+                    cashAppPaySection(tag: tag)
+                }
+                
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Text("Order #")
@@ -42,7 +56,7 @@ struct OrderConfirmationView: View {
                     
                     if let date = order.scheduledPickupDate {
                         HStack {
-                            Text("Pickup time")
+                            Text(order.fulfillmentEnum == .shipping ? "Ship date" : (order.fulfillmentEnum == .delivery ? "Delivery date" : "Pickup time"))
                             Spacer()
                             Text(date.dateAndTimeString)
                                 .fontWeight(.medium)
@@ -96,7 +110,39 @@ struct OrderConfirmationView: View {
         }
         .background(AppConstants.Colors.secondary)
         .navigationTitle("Confirmation")
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .navigationBarBackButtonHidden(true)
+        .task {
+            if paymentMethod == .cashApp {
+                businessSettings = try? await VercelService.shared.fetchBusinessSettings()
+            }
+        }
+    }
+    
+    private func cashAppPaySection(tag: String) -> some View {
+        let normalizedTag = tag.hasPrefix("$") ? tag : "$\(tag)"
+        let payURL = "https://cash.app/\(normalizedTag.dropFirst())"
+        return VStack(spacing: 12) {
+            Text("Pay with Cash App")
+                .font(.headline)
+                .foregroundStyle(AppConstants.Colors.textPrimary)
+            Text("Scan the code or open Cash App and send the amount to \(normalizedTag)")
+                .font(.caption)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
+                .multilineTextAlignment(.center)
+            Text("Amount: \(order.total.currencyFormatted)")
+                .font(.title2)
+                .fontWeight(.semibold)
+                .foregroundStyle(AppConstants.Colors.accent)
+            QRCodeView(content: payURL, size: 180)
+            if let url = URL(string: payURL) {
+                Link("Open in Cash App", destination: url)
+                    .font(.subheadline)
+                    .foregroundStyle(AppConstants.Colors.accent)
+            }
+        }
+        .padding()
+        .background(AppConstants.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
     }
 }

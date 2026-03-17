@@ -1,56 +1,64 @@
 /**
  * Single catch-all API route for Vercel Hobby (12 function limit).
  * Routes /api/* to the corresponding handler in api-src/.
+ * Uses dynamic import so handlers (and their deps) load only when needed, avoiding startup crashes.
  */
-import indexHandler from '../api-src/index.js';
-import healthHandler from '../api-src/health.js';
-import uploadHandler from '../api-src/upload.js';
-import productsHandler from '../api-src/products.js';
-import productIdHandler from '../api-src/products/id.js';
-import ordersHandler from '../api-src/orders.js';
-import orderIdHandler from '../api-src/orders/id.js';
-import authLogin from '../api-src/auth/login.js';
-import authSignup from '../api-src/auth/signup.js';
-import authMe from '../api-src/auth/me.js';
-import authLogout from '../api-src/auth/logout.js';
-import authApple from '../api-src/auth/apple.js';
-import usersMe from '../api-src/users/me.js';
-import settingsBusiness from '../api-src/settings/business.js';
-import promotionsIndex from '../api-src/promotions/index.js';
-import promotionsCode from '../api-src/promotions/code/code.js';
-import promotionsId from '../api-src/promotions/id.js';
-import customCakeOrdersIndex from '../api-src/custom-cake-orders/index.js';
-import customCakeOrdersId from '../api-src/custom-cake-orders/id.js';
-import aiCakeDesignsIndex from '../api-src/ai-cake-designs/index.js';
-import aiCakeDesignsId from '../api-src/ai-cake-designs/id.js';
-import customCakeOptions from '../api-src/custom-cake-options/index.js';
-import settingsCustomCakeOptions from '../api-src/settings/custom-cake-options.js';
+import path from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
 
-const routes = {
-  '': indexHandler,
-  health: healthHandler,
-  upload: uploadHandler,
-  products: productsHandler,
-  'products/id': productIdHandler,
-  orders: ordersHandler,
-  'orders/id': orderIdHandler,
-  'auth/login': authLogin,
-  'auth/signup': authSignup,
-  'auth/me': authMe,
-  'auth/logout': authLogout,
-  'auth/apple': authApple,
-  'users/me': usersMe,
-  'settings/business': settingsBusiness,
-  'promotions': promotionsIndex,
-  'promotions/code/code': promotionsCode,
-  'promotions/id': promotionsId,
-  'custom-cake-orders': customCakeOrdersIndex,
-  'custom-cake-orders/id': customCakeOrdersId,
-  'ai-cake-designs': aiCakeDesignsIndex,
-  'ai-cake-designs/id': aiCakeDesignsId,
-  'custom-cake-options': customCakeOptions,
-  'settings/custom-cake-options': settingsCustomCakeOptions,
-};
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const API_SRC = path.resolve(__dirname, '..', 'api-src');
+
+function modulePathFor(key) {
+  const fileMap = {
+    '': 'index.js',
+    health: 'health.js',
+    upload: 'upload.js',
+    products: 'products.js',
+    'products/id': 'products/id.js',
+    orders: 'orders.js',
+    'orders/id': 'orders/id.js',
+    'auth/login': 'auth/login.js',
+    'auth/signup': 'auth/signup.js',
+    'auth/me': 'auth/me.js',
+    'auth/logout': 'auth/logout.js',
+    'auth/apple': 'auth/apple.js',
+    'auth/set-password': 'auth/set-password.js',
+    'auth/forgot-password': 'auth/forgot-password.js',
+    'auth/reset-password': 'auth/reset-password.js',
+    'auth/delete-account': 'auth/delete-account.js',
+    'users/me': 'users/me.js',
+    'settings/business': 'settings/business.js',
+    promotions: 'promotions/index.js',
+    'promotions/code/code': 'promotions/code/code.js',
+    'promotions/id': 'promotions/id.js',
+    'custom-cake-orders': 'custom-cake-orders/index.js',
+    'custom-cake-orders/id': 'custom-cake-orders/id.js',
+    'ai-cake-designs': 'ai-cake-designs/index.js',
+    'ai-cake-designs/id': 'ai-cake-designs/id.js',
+    'custom-cake-options': 'custom-cake-options/index.js',
+    'settings/custom-cake-options': 'settings/custom-cake-options.js',
+    contact: 'contact/index.js',
+    'contact/id': 'contact/id.js',
+    'contact/id/reply': 'contact/reply.js',
+    'contact/replies': 'contact/replies.js',
+    'stripe/create-checkout-session': 'stripe/create-checkout-session.js',
+    'stripe/create-payment-intent': 'stripe/create-payment-intent.js',
+    'ai/generate-image': 'ai/generate-image.js',
+    'cake-gallery': 'cake-gallery/index.js',
+    'cake-gallery/id': 'cake-gallery/id.js',
+    'product-categories': 'product-categories/index.js',
+    'product-categories/id': 'product-categories/id.js',
+    customers: 'customers/index.js',
+    'customers/id': 'customers/id.js',
+    'push/register': 'push/register.js',
+    'analytics/summary': 'analytics/summary.js',
+  };
+  const file = fileMap[key];
+  if (!file) return null;
+  const fullPath = path.join(API_SRC, file);
+  return pathToFileURL(fullPath).href;
+}
 
 const BODY_READ_TIMEOUT_MS = 8000;
 
@@ -96,16 +104,7 @@ function readBody(req) {
   });
 }
 
-export default async function handler(req, res) {
-  await readBody(req);
-  if (typeof req.body === 'string') {
-    try {
-      req.body = req.body ? JSON.parse(req.body) : {};
-    } catch {
-      req.body = {};
-    }
-  }
-  if (req.body == null) req.body = {};
+function getPathKey(req) {
   let rawPath = req.query.path;
   if (typeof rawPath === 'string' && rawPath.startsWith('[[')) rawPath = null;
   if (rawPath == null) {
@@ -162,13 +161,95 @@ export default async function handler(req, res) {
     key = 'custom-cake-options';
   } else if (segs[0] === 'settings' && segs[1] === 'custom-cake-options') {
     key = 'settings/custom-cake-options';
+  } else if (segs[0] === 'contact') {
+    if (segs.length === 1) key = 'contact';
+    else if (segs[1] === 'replies') key = 'contact/replies';
+    else if (segs.length >= 3 && segs[2] === 'reply') {
+      key = 'contact/id/reply';
+      q.id = segs[1];
+    } else {
+      key = 'contact/id';
+      q.id = segs[1];
+    }
+  } else if (segs[0] === 'stripe' && segs[1] === 'create-checkout-session') {
+    key = 'stripe/create-checkout-session';
+  } else if (segs[0] === 'stripe' && segs[1] === 'create-payment-intent') {
+    key = 'stripe/create-payment-intent';
+  } else if (segs[0] === 'ai' && segs[1] === 'generate-image') {
+    key = 'ai/generate-image';
+  } else if (segs[0] === 'cake-gallery') {
+    if (segs.length === 1) key = 'cake-gallery';
+    else { key = 'cake-gallery/id'; q.id = segs[1]; }
+  } else if (segs[0] === 'product-categories') {
+    if (segs.length === 1) key = 'product-categories';
+    else { key = 'product-categories/id'; q.id = segs[1]; }
+  } else if (segs[0] === 'customers') {
+    if (segs.length === 1) key = 'customers';
+    else { key = 'customers/id'; q.id = segs[1]; }
+  } else if (segs[0] === 'push' && segs[1] === 'register') {
+    key = 'push/register';
+  } else if (segs[0] === 'analytics' && segs[1] === 'summary') {
+    key = 'analytics/summary';
+  }
+  return { key, q };
+}
+
+export default async function handler(req, res) {
+  const pathResult = getPathKey(req);
+  const key = pathResult.key;
+  req.query = pathResult.q;
+
+  const contentType = (req.headers && req.headers['content-type']) || '';
+  const isUploadMultipart = key === 'upload' && (req.method || '').toUpperCase() === 'POST' && contentType.includes('multipart/form-data');
+
+  if (!isUploadMultipart) {
+    await readBody(req);
+    if (typeof req.body === 'string') {
+      try {
+        req.body = req.body ? JSON.parse(req.body) : {};
+      } catch {
+        req.body = {};
+      }
+    }
+    if (req.body == null) req.body = {};
+  } else {
+    req.body = {};
   }
 
-  req.query = q;
-  const fn = routes[key];
-  if (!fn) {
+  // Inline health so we never fail on import (no db/neon loaded)
+  if (key === 'health') {
+    res.setHeader('Content-Type', 'application/json');
+    res.status(200).json({
+      ok: true,
+      service: 'Guilty Pleasure Treats API',
+      database: !!(process.env.POSTGRES_URL || process.env.DATABASE_URL),
+      timestamp: new Date().toISOString(),
+    });
+    return;
+  }
+
+  const modulePath = modulePathFor(key);
+  if (!modulePath) {
     res.status(404).json({ error: 'Not found' });
     return;
   }
-  return fn(req, res);
+  try {
+    const mod = await import(modulePath);
+    const fn = mod.default;
+    if (typeof fn !== 'function') {
+      if (!res.headersSent) res.status(500).json({ error: 'A server error occurred. Please try again.' });
+      return;
+    }
+    const result = fn(req, res);
+    if (result && typeof result.catch === 'function') {
+      return result.catch((err) => {
+        console.error('Route handler error', key, err);
+        if (!res.headersSent) res.status(500).json({ error: 'A server error occurred. Please try again.' });
+      });
+    }
+    return result;
+  } catch (err) {
+    console.error('Route handler error', key, err);
+    if (!res.headersSent) res.status(500).json({ error: 'A server error occurred. Please try again.' });
+  }
 }

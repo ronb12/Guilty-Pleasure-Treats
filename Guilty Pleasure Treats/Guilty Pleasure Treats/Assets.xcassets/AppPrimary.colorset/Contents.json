@@ -1,0 +1,14 @@
+{
+  "colors" : [
+    {
+      "color" : { "alpha" : 1, "blue" : 0.93, "green" : 0.89, "red" : 0.99 },
+      "idiom" : "universal"
+    },
+    {
+      "appearances" : [ { "appearance" : "luminosity", "value" : "dark" } ],
+      "color" : { "alpha" : 1, "blue" : 0.26, "green" : 0.18, "red" : 0.28 },
+      "idiom" : "universal"
+    }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}

@@ -54,7 +54,7 @@ Use this checklist before submitting to the App Store. Items marked ✅ are alre
 | **Support URL** | ⬜ | Working URL (e.g. website or contact page) |
 | **Privacy Policy URL** | ⬜ | Required if collecting data; must be a live URL |
 | **Age Rating** | ⬜ | Complete questionnaire in App Store Connect (likely 4+) |
-| **Pricing** | ⬜ | Free or paid; set availability |
+| **Pricing** | ⬜ | Free or paid; set in **Pricing and Availability**. See [docs/APP_STORE_PRICING.md](../docs/APP_STORE_PRICING.md). |
 
 ---
 

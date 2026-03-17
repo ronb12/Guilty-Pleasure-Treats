@@ -3,20 +3,23 @@
 //  Guilty Pleasure Treats
 //
 //  Stripe payment integration. Uses your backend to create PaymentIntents;
-//  replace baseURL with your own server or Firebase Cloud Functions.
+//  replace baseURL with your Vercel (or other) backend.
 //
 
+import Combine
 import Foundation
+
+#if !os(macOS)
 import StripePaymentSheet
+import UIKit
 
 final class StripeService: ObservableObject {
     static let shared = StripeService()
     
-    /// Your backend URL that creates PaymentIntents and returns client secret.
-    /// In production, use Firebase Cloud Functions or your API.
+    /// Backend URL that creates PaymentIntents and returns client secret (set in AppConstants).
     private let baseURL: String
     
-    private init(baseURL: String = "https://your-backend.com") {
+    private init(baseURL: String = AppConstants.stripeBackendURLString) {
         self.baseURL = baseURL
     }
     
@@ -48,9 +51,6 @@ final class StripeService: ObservableObject {
             configuration: configuration
         )
         
-        // Presenting must be done on main actor from a UI context.
-        // In a real app you'd get the top view controller and call paymentSheet.present(from: vc)
-        // For SwiftUI, use a wrapper that gets the window scene.
         await MainActor.run {
             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
                let rootVC = windowScene.windows.first?.rootViewController {
@@ -61,7 +61,6 @@ final class StripeService: ObservableObject {
                     case .canceled:
                         break
                     case .failed(let error):
-                        // Surface to user via callback or state in production
                         _ = error
                     }
                 }
@@ -71,7 +70,7 @@ final class StripeService: ObservableObject {
     
     /// Call your backend to create a PaymentIntent and return client_secret.
     private func createPaymentIntent(amountCents: Int, orderId: String) async throws -> String {
-        guard let url = URL(string: "\(baseURL)/create-payment-intent") else {
+        guard let url = URL(string: "\(baseURL)/api/stripe/create-payment-intent") else {
             throw StripeError.invalidURL
         }
         var request = URLRequest(url: url)
@@ -95,6 +94,22 @@ final class StripeService: ObservableObject {
         return decoded.clientSecret
     }
 }
+#else
+/// Stub for macOS: checkout/payments are not supported; use iPhone or iPad app.
+final class StripeService: ObservableObject {
+    static let shared = StripeService()
+    private init() {}
+    static func configure(publishableKey: String) {}
+    func presentPaymentSheet(
+        amountCents: Int,
+        orderId: String,
+        customerName: String,
+        customerEmail: String?
+    ) async throws {
+        throw StripeError.backendError("Checkout is not available on Mac. Please use the iPhone or iPad app.")
+    }
+}
+#endif
 
 enum StripeError: LocalizedError {
     case invalidURL

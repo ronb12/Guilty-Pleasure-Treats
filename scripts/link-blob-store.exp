@@ -1,0 +1,10 @@
+#!/usr/bin/expect -f
+# Link a new Blob store to the project (creates store, confirms link, presses Enter for environments)
+set timeout 60
+spawn vercel blob store add guilty-pleasure-treats-blob
+expect "Would you like to link"
+send "y\r"
+expect "Select environments"
+send "\r"
+expect eof
+wait

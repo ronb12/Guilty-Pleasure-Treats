@@ -14,15 +14,15 @@ final class HomeViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     
-    private let firebase = FirebaseService.shared
+    private let api = VercelService.shared
     
     func loadFeatured() async {
         isLoading = true
         errorMessage = nil
         do {
-            featuredProducts = try await firebase.fetchProducts(featuredOnly: true)
+            featuredProducts = try await api.fetchProducts(featuredOnly: true)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = FriendlyErrorMessage.message(for: error)
         }
         isLoading = false
     }

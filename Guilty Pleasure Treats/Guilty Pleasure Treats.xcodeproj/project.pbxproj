@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		471239E22F66F8A600F4F356 /* StripePaymentSheet in Frameworks */ = {isa = PBXBuildFile; productRef = 471236FB2F66DDB200F4F356 /* StripePaymentSheet */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		471236D72F66DDB200F4F356 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,6 +28,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		4702509D2F6845C900A92FC5 /* Guilty Pleasure Treats (Mac).app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Guilty Pleasure Treats (Mac).app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		471236C52F66DDB000F4F356 /* Guilty Pleasure Treats.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Guilty Pleasure Treats.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		471236D62F66DDB200F4F356 /* Guilty Pleasure TreatsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Guilty Pleasure TreatsTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		471236E02F66DDB200F4F356 /* Guilty Pleasure TreatsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Guilty Pleasure TreatsUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -65,6 +70,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				471239E22F66F8A600F4F356 /* StripePaymentSheet in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -76,6 +82,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		471236DD2F66DDB200F4F356 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A7B2C3C22F66DDB000F4F356 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -101,6 +114,7 @@
 				471236C52F66DDB000F4F356 /* Guilty Pleasure Treats.app */,
 				471236D62F66DDB200F4F356 /* Guilty Pleasure TreatsTests.xctest */,
 				471236E02F66DDB200F4F356 /* Guilty Pleasure TreatsUITests.xctest */,
+				4702509D2F6845C900A92FC5 /* Guilty Pleasure Treats (Mac).app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -125,6 +139,7 @@
 			);
 			name = "Guilty Pleasure Treats";
 			packageProductDependencies = (
+				471236FB2F66DDB200F4F356 /* StripePaymentSheet */,
 			);
 			productName = "Guilty Pleasure Treats";
 			productReference = 471236C52F66DDB000F4F356 /* Guilty Pleasure Treats.app */;
@@ -176,6 +191,28 @@
 			productReference = 471236E02F66DDB200F4F356 /* Guilty Pleasure TreatsUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		A7B2C3D42F66DDB000F4F356 /* Guilty Pleasure Treats (Mac) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A7B2C3E92F66DDB200F4F356 /* Build configuration list for PBXNativeTarget "Guilty Pleasure Treats (Mac)" */;
+			buildPhases = (
+				A7B2C3C12F66DDB000F4F356 /* Sources */,
+				A7B2C3C22F66DDB000F4F356 /* Frameworks */,
+				A7B2C3C32F66DDB000F4F356 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				471236C72F66DDB000F4F356 /* Guilty Pleasure Treats */,
+			);
+			name = "Guilty Pleasure Treats (Mac)";
+			packageProductDependencies = (
+			);
+			productName = "Guilty Pleasure Treats (Mac)";
+			productReference = 4702509D2F6845C900A92FC5 /* Guilty Pleasure Treats (Mac).app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -197,6 +234,9 @@
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = 471236C42F66DDB000F4F356;
 					};
+					A7B2C3D42F66DDB000F4F356 = {
+						CreatedOnToolsVersion = 26.2;
+					};
 				};
 			};
 			buildConfigurationList = 471236C02F66DDB000F4F356 /* Build configuration list for PBXProject "Guilty Pleasure Treats" */;
@@ -208,12 +248,16 @@
 			);
 			mainGroup = 471236BC2F66DDB000F4F356;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				471236F52F66DDB200F4F356 /* XCRemoteSwiftPackageReference "stripe-ios" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 471236C62F66DDB000F4F356 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				471236C42F66DDB000F4F356 /* Guilty Pleasure Treats */,
+				A7B2C3D42F66DDB000F4F356 /* Guilty Pleasure Treats (Mac) */,
 				471236D52F66DDB200F4F356 /* Guilty Pleasure TreatsTests */,
 				471236DF2F66DDB200F4F356 /* Guilty Pleasure TreatsUITests */,
 			);
@@ -242,6 +286,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A7B2C3C32F66DDB000F4F356 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -260,6 +311,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		471236DC2F66DDB200F4F356 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A7B2C3C12F66DDB000F4F356 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -294,6 +352,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Guilty Pleasure Treats/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Guilty Pleasure Treats";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -307,6 +367,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "com.bradleyvirtualsolutions.Guilty-Pleasure-Treats";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -328,6 +389,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Guilty Pleasure Treats/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Guilty Pleasure Treats";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -341,6 +404,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "com.bradleyvirtualsolutions.Guilty-Pleasure-Treats";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTS_MACCATALYST = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -403,12 +467,13 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -461,11 +526,12 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -479,7 +545,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 4SQJ3AH62S;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.bradleyvirtualsolutions.Guilty-Pleasure-TreatsTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -501,7 +567,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 4SQJ3AH62S;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.bradleyvirtualsolutions.Guilty-Pleasure-TreatsTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -555,6 +621,72 @@
 			};
 			name = Release;
 		};
+		A7B2C3EA2F66DDB200F4F356 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Guilty Pleasure Treats/Guilty_Pleasure_Treats_Mac.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4SQJ3AH62S;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Guilty Pleasure Treats";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Bradley Virtual Solutions. All rights reserved.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bradleyvirtualsolutions.Guilty-Pleasure-Treats";
+				PRODUCT_NAME = "Guilty Pleasure Treats (Mac)";
+				SDKROOT = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A7B2C3EB2F66DDB200F4F356 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "Guilty Pleasure Treats/Guilty_Pleasure_Treats_Mac.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4SQJ3AH62S;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Guilty Pleasure Treats";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Bradley Virtual Solutions. All rights reserved.";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.bradleyvirtualsolutions.Guilty-Pleasure-Treats";
+				PRODUCT_NAME = "Guilty Pleasure Treats (Mac)";
+				SDKROOT = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -594,7 +726,35 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		A7B2C3E92F66DDB200F4F356 /* Build configuration list for PBXNativeTarget "Guilty Pleasure Treats (Mac)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A7B2C3EA2F66DDB200F4F356 /* Debug */,
+				A7B2C3EB2F66DDB200F4F356 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		471236F52F66DDB200F4F356 /* XCRemoteSwiftPackageReference "stripe-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/stripe/stripe-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 24.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		471236FB2F66DDB200F4F356 /* StripePaymentSheet */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 471236F52F66DDB200F4F356 /* XCRemoteSwiftPackageReference "stripe-ios" */;
+			productName = StripePaymentSheet;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 471236BD2F66DDB000F4F356 /* Project object */;
 }

@@ -25,6 +25,8 @@ struct Product: Identifiable, Codable, Equatable {
     var name: String
     var productDescription: String
     var price: Double
+    /// Optional cost per unit (for margin/profit view in admin). Not shown to customers.
+    var cost: Double?
     var imageURL: String?
     var category: String
     var isFeatured: Bool
@@ -50,6 +52,7 @@ struct Product: Identifiable, Codable, Equatable {
         name: String,
         productDescription: String,
         price: Double,
+        cost: Double? = nil,
         imageURL: String? = nil,
         category: String,
         isFeatured: Bool = false,
@@ -61,6 +64,7 @@ struct Product: Identifiable, Codable, Equatable {
         self.name = name
         self.productDescription = productDescription
         self.price = price
+        self.cost = cost
         self.imageURL = imageURL
         self.category = category
         self.isFeatured = isFeatured

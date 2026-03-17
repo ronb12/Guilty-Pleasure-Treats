@@ -43,7 +43,7 @@ struct AICakeDesignerView: View {
         }
         .background(AppConstants.Colors.secondary)
         .navigationTitle("AI Cake Designer")
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .alert("Added to Cart", isPresented: $viewModel.addedToCart) {
             Button("OK", role: .cancel) { viewModel.addedToCart = false }
         } message: {
@@ -84,7 +84,7 @@ struct AICakeDesignerView: View {
     private func scrollableChips(
         _ options: [String],
         action: @escaping (String) -> Void,
-        selectedRaw: () -> String
+        selectedRaw: @escaping () -> String
     ) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
@@ -142,8 +142,8 @@ struct AICakeDesignerView: View {
             Text("Your design")
                 .font(.headline)
                 .foregroundStyle(AppConstants.Colors.textPrimary)
-            if let data = viewModel.generatedImageData, let uiImage = UIImage(data: data) {
-                Image(uiImage: uiImage)
+            if let data = viewModel.generatedImageData, let platformImage = PlatformImage(data: data) {
+                Image(platformImage: platformImage)
                     .resizable()
                     .scaledToFit()
                     .frame(maxWidth: .infinity)

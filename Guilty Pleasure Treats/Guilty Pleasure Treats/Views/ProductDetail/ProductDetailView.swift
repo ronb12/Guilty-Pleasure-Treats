@@ -8,33 +8,69 @@
 import SwiftUI
 
 struct ProductDetailView: View {
-    let product: Product
+    /// Initial product from menu/list; refreshed from API when view appears so owner changes (name, price, image) are shown.
+    @State private var product: Product
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var cart = CartManager.shared
+    @ObservedObject private var tabRouter = TabRouter.shared
     @State private var quantity = 1
     @State private var specialInstructions = ""
     @State private var addedToCart = false
     
+    init(product: Product) {
+        _product = State(initialValue: product)
+    }
+    
+    /// Refetch product by id when view appears so customer sees latest name, price, image after owner edits.
+    private var canRefetchProduct: Bool {
+        guard let id = product.id else { return false }
+        return !id.hasPrefix("sample-") && !id.hasPrefix("custom-") && !id.hasPrefix("aicake-")
+    }
+    
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 0) {
+                // 1. Image only – fixed height, no text overlay
                 ProductImageView(urlString: product.imageURL, placeholderName: "cupcake.and.candles.fill")
-                    .frame(height: 280)
-                
+                    .frame(height: 240)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+                    .accessibilityLabel("\(product.name) product image")
+                    .clipShape(
+                        UnevenRoundedRectangle(
+                            topLeadingRadius: AppConstants.Layout.cardCornerRadius,
+                            bottomLeadingRadius: 0,
+                            bottomTrailingRadius: 0,
+                            topTrailingRadius: AppConstants.Layout.cardCornerRadius
+                        )
+                    )
+
+                // 2. Product info (name, description, price) under the image, then quantity & Add to Cart
                 VStack(alignment: .leading, spacing: 16) {
-                    Text(product.name)
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundStyle(AppConstants.Colors.textPrimary)
-                    
+                    HStack(alignment: .top) {
+                        Text(product.name)
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundStyle(AppConstants.Colors.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 8)
+                        if product.isVegetarian {
+                            Label("Vegetarian", systemImage: "leaf.fill")
+                                .font(.caption)
+                                .foregroundStyle(AppConstants.Colors.accent)
+                        }
+                    }
+
                     Text(product.productDescription)
-                        .font(.body)
+                        .font(.subheadline)
                         .foregroundStyle(AppConstants.Colors.textSecondary)
-                    
+                        .fixedSize(horizontal: false, vertical: true)
+
                     Text(product.price.currencyFormatted)
                         .font(.title2)
                         .fontWeight(.semibold)
                         .foregroundStyle(AppConstants.Colors.accent)
-                    
+
                     if product.isSoldOut {
                         Text("Currently sold out")
                             .font(.subheadline)
@@ -45,15 +81,38 @@ struct ProductDetailView: View {
                         addToCartButton
                     }
                 }
-                .padding(.horizontal)
+                .padding(AppConstants.Layout.cardPadding)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(AppConstants.Colors.cardBackground)
+                .clipShape(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 0,
+                        bottomLeadingRadius: AppConstants.Layout.cardCornerRadius,
+                        bottomTrailingRadius: AppConstants.Layout.cardCornerRadius,
+                        topTrailingRadius: 0
+                    )
+                )
             }
+            .padding(.horizontal, AppConstants.Layout.screenHorizontalPadding)
             .padding(.bottom, 24)
         }
         .background(AppConstants.Colors.secondary)
         .navigationTitle(product.name)
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
+        .task {
+            guard canRefetchProduct, let id = product.id else { return }
+            if let updated = try? await VercelService.shared.fetchProduct(id: id) {
+                product = updated
+            }
+        }
         .alert("Added to Cart", isPresented: $addedToCart) {
-            Button("OK", role: .cancel) {}
+            Button("Continue Shopping") {
+                dismiss()
+            }
+            Button("View Cart") {
+                tabRouter.switchToCart()
+                dismiss()
+            }
         } message: {
             Text("\(quantity) x \(product.name) added to your cart.")
         }
@@ -106,5 +165,6 @@ struct ProductDetailView: View {
             }
             addedToCart = true
         }
+        .accessibilityHint("Adds \(product.name) to your cart")
     }
 }

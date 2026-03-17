@@ -1,0 +1,49 @@
+# Fastlane configuration for Guilty Pleasure Treats
+# Run: bundle exec fastlane beta
+# See docs/TESTFLIGHT.md for first-time setup (API key, App Store Connect).
+
+default_platform(:ios)
+
+platform :ios do
+  desc "Build and upload to TestFlight for beta testing"
+  lane :beta do
+    # Ensure we use the correct project path (run from repo root)
+    project_path = "Guilty Pleasure Treats/Guilty Pleasure Treats.xcodeproj"
+    scheme = "Guilty Pleasure Treats"
+
+    # Optional: bump build number (uncomment to auto-increment)
+    # increment_build_number(xcodeproj: project_path)
+
+    # Build the app for App Store / TestFlight
+    build_app(
+      project: project_path,
+      scheme: scheme,
+      export_method: "app-store",
+      clean: true,
+      output_directory: "./build",
+      output_name: "GuiltyPleasureTreats.ipa"
+    )
+
+    # Upload to TestFlight
+    # Uses App Store Connect API Key if fastlane/AppStoreConnectApiKey.json exists or env vars are set
+    api_key_path = File.join(__dir__, "AppStoreConnectApiKey.json")
+    upload_options = {
+      skip_waiting_for_build_processing: true,
+      changelog: "Beta build via Fastlane"
+    }
+    upload_options[:api_key_path] = api_key_path if File.exist?(api_key_path)
+    upload_to_testflight(upload_options)
+  end
+
+  desc "Build only (no upload)"
+  lane :build do
+    build_app(
+      project: "Guilty Pleasure Treats/Guilty Pleasure Treats.xcodeproj",
+      scheme: "Guilty Pleasure Treats",
+      export_method: "app-store",
+      clean: true,
+      output_directory: "./build",
+      output_name: "GuiltyPleasureTreats.ipa"
+    )
+  end
+end

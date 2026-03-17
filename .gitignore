@@ -35,4 +35,16 @@ Thumbs.db
 # Secrets / env (uncomment if you add .xcconfig or env files)
 # *.xcconfig
 # .env
+.env.neon
+.env.local
+.env.production
 # GoogleService-Info.plist
+.vercel
+
+# Fastlane
+fastlane/AppStoreConnectApiKey.json
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+.env*.local

@@ -1,6 +1,12 @@
 {
   "colors" : [
     {
+      "color" : { "alpha" : 1, "blue" : 0.549, "green" : 0.11, "red" : 0.914 },
+      "idiom" : "universal"
+    },
+    {
+      "appearances" : [ { "appearance" : "luminosity", "value" : "dark" } ],
+      "color" : { "alpha" : 1, "blue" : 0.65, "green" : 0.35, "red" : 0.93 },
       "idiom" : "universal"
     }
   ],

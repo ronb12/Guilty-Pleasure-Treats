@@ -42,7 +42,7 @@ struct CustomCakeBuilderView: View {
         }
         .background(AppConstants.Colors.secondary)
         .navigationTitle("Custom Cake")
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .sheet(isPresented: $showImagePicker) {
             ImagePicker(image: $viewModel.designImage)
         }
@@ -51,6 +51,8 @@ struct CustomCakeBuilderView: View {
         } message: {
             Text("Your custom cake has been added to the cart.")
         }
+        .task { await viewModel.loadOptions() }
+        .refreshable { await viewModel.loadOptions() }
     }
     
     private func sectionHeader(_ title: String) -> some View {
@@ -60,14 +62,22 @@ struct CustomCakeBuilderView: View {
     }
     
     private var sizePicker: some View {
-        VStack(spacing: 8) {
-            ForEach(CakeSize.allCases) { size in
-                builderOptionRow(
-                    title: size.rawValue,
-                    subtitle: size.price.currencyFormatted,
-                    isSelected: viewModel.selectedSize == size
-                ) {
-                    viewModel.selectedSize = size
+        Group {
+            if viewModel.optionsLoading && viewModel.sizes.isEmpty {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding()
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(viewModel.sizes) { size in
+                        builderOptionRow(
+                            title: size.label,
+                            subtitle: size.price.currencyFormatted,
+                            isSelected: viewModel.selectedSize?.id == size.id
+                        ) {
+                            viewModel.selectedSize = size
+                        }
+                    }
                 }
             }
         }
@@ -78,14 +88,22 @@ struct CustomCakeBuilderView: View {
     }
     
     private var flavorPicker: some View {
-        VStack(spacing: 8) {
-            ForEach(CakeFlavor.allCases) { flavor in
-                builderOptionRow(
-                    title: flavor.rawValue,
-                    subtitle: nil,
-                    isSelected: viewModel.selectedFlavor == flavor
-                ) {
-                    viewModel.selectedFlavor = flavor
+        Group {
+            if viewModel.optionsLoading && viewModel.flavors.isEmpty {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding()
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(viewModel.flavors) { flavor in
+                        builderOptionRow(
+                            title: flavor.label,
+                            subtitle: nil,
+                            isSelected: viewModel.selectedFlavor?.id == flavor.id
+                        ) {
+                            viewModel.selectedFlavor = flavor
+                        }
+                    }
                 }
             }
         }
@@ -96,14 +114,22 @@ struct CustomCakeBuilderView: View {
     }
     
     private var frostingPicker: some View {
-        VStack(spacing: 8) {
-            ForEach(FrostingType.allCases) { frosting in
-                builderOptionRow(
-                    title: frosting.rawValue,
-                    subtitle: nil,
-                    isSelected: viewModel.selectedFrosting == frosting
-                ) {
-                    viewModel.selectedFrosting = frosting
+        Group {
+            if viewModel.optionsLoading && viewModel.frostings.isEmpty {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding()
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(viewModel.frostings) { frosting in
+                        builderOptionRow(
+                            title: frosting.label,
+                            subtitle: nil,
+                            isSelected: viewModel.selectedFrosting?.id == frosting.id
+                        ) {
+                            viewModel.selectedFrosting = frosting
+                        }
+                    }
                 }
             }
         }
@@ -128,10 +154,9 @@ struct CustomCakeBuilderView: View {
                     }
                 }
                 Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(AppConstants.Colors.accent)
-                }
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.body)
+                    .foregroundStyle(isSelected ? AppConstants.Colors.accent : AppConstants.Colors.textSecondary.opacity(0.6))
             }
             .padding(.vertical, 4)
         }
@@ -158,7 +183,7 @@ struct CustomCakeBuilderView: View {
             } label: {
                 Group {
                     if let image = viewModel.designImage {
-                        Image(uiImage: image)
+                        Image(platformImage: image)
                             .resizable()
                             .scaledToFill()
                             .frame(height: 160)

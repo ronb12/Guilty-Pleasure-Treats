@@ -1,0 +1,19 @@
+# iOS app (not needed for Vercel)
+Guilty Pleasure Treats/
+GuiltyPleasureTreats/
+
+# Dependencies (Vercel installs fresh)
+node_modules/
+
+# Git and system
+.git/
+.DS_Store
+
+# Build artifacts
+build/
+DerivedData/
+*.xcworkspace
+xcuserdata/
+Pods/
+.swiftpm/
+.build/

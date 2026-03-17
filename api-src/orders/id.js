@@ -1,5 +1,7 @@
+import Stripe from 'stripe';
 import { sql, hasDb } from '../../api/lib/db.js';
 import { setCors, handleOptions } from '../../api/lib/cors.js';
+import { notifyOrderStatusUpdate } from '../../api/lib/apns.js';
 
 function rowToOrder(row) {
   if (!row) return null;
@@ -63,6 +65,31 @@ export default async function handler(req, res) {
       if (body.status !== undefined) {
         await sql`UPDATE orders SET status = ${String(body.status)}, updated_at = ${now} WHERE id = ${id}`;
         current.status = body.status;
+        // Notify customer of order status change (fire-and-forget)
+        const userId = current.user_id;
+        if (userId && body.status && body.status !== 'Pending') {
+          try {
+            const tokenRows = await sql`SELECT device_token FROM push_tokens WHERE user_id = ${userId} AND COALESCE(is_admin, false) = false`;
+            const token = tokenRows?.[0]?.device_token;
+            if (token) {
+              notifyOrderStatusUpdate(token, id, body.status).catch((err) =>
+                console.error('push order status', err)
+              );
+            }
+          } catch (_) {
+            /* ignore */
+          }
+        }
+        // When cancelling, create Stripe refund if order was paid via Stripe (fire-and-forget)
+        if (body.status === 'Cancelled' && current.stripe_payment_intent_id) {
+          const stripeSecret = process.env.STRIPE_SECRET_KEY;
+          if (stripeSecret && stripeSecret.startsWith('sk_')) {
+            const stripe = new Stripe(stripeSecret, { apiVersion: '2024-11-20.acacia' });
+            stripe.refunds
+              .create({ payment_intent: String(current.stripe_payment_intent_id) })
+              .catch((err) => console.error('Stripe refund on cancel', err));
+          }
+        }
       }
       if (body.manualPaidAt !== undefined) {
         const d = body.manualPaidAt ? new Date(body.manualPaidAt) : null;

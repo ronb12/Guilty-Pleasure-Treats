@@ -2,6 +2,8 @@
 
 A full iOS bakery ordering app built with **Swift**, **SwiftUI**, **MVVM**, **Firebase**, and **Stripe**. Customers can browse baked goods, add items to the cart, and place orders for pickup or delivery with Stripe or Apple Pay.
 
+**Note:** The active Xcode app lives in **`Guilty Pleasure Treats/`** (folder name with space). The **`GuiltyPleasureTreats/`** folder (no space) is legacy/duplicate; the main target and assets are under `Guilty Pleasure Treats/`.
+
 ## Features
 
 - **Splash Screen** – Bakery logo and name

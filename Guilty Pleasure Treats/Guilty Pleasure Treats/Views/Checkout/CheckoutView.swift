@@ -7,17 +7,21 @@
 
 import SwiftUI
 
-/// Wraps order + id for navigation destination.
-struct ConfirmedOrderItem: Identifiable {
+/// Wraps order + id + payment method for navigation destination.
+struct ConfirmedOrderItem: Identifiable, Hashable {
     let order: Order
     let orderId: String
+    let paymentMethod: PaymentMethod
     var id: String { orderId }
+    func hash(into hasher: inout Hasher) { hasher.combine(orderId) }
+    static func == (lhs: ConfirmedOrderItem, rhs: ConfirmedOrderItem) -> Bool { lhs.orderId == rhs.orderId }
 }
 
 struct CheckoutView: View {
     @StateObject private var viewModel = CheckoutViewModel()
     @StateObject private var auth = AuthService.shared
-    @State private var selectedPayment: PaymentMethod = .stripe
+    /// Pay by link until in-app Stripe is set up; owner sends link from Admin.
+    private static let paymentMethod: PaymentMethod = .payByLink
     @State private var confirmedOrder: ConfirmedOrderItem?
     
     var body: some View {
@@ -31,6 +35,9 @@ struct CheckoutView: View {
                 
                 contactSection
                 fulfillmentSection
+                addressSection
+                promoSection
+                orderSummarySection
                 paymentSection
                 
                 PrimaryButton(
@@ -45,10 +52,29 @@ struct CheckoutView: View {
         }
         .background(AppConstants.Colors.secondary)
         .navigationTitle("Checkout")
-        .navigationBarTitleDisplayMode(.inline)
+        .inlineNavigationTitle()
         .navigationDestination(item: $confirmedOrder) { item in
-            OrderConfirmationView(order: item.order, orderId: item.orderId) {
+            OrderConfirmationView(order: item.order, orderId: item.orderId, paymentMethod: item.paymentMethod) {
                 confirmedOrder = nil
+            }
+        }
+        .onAppear {
+            if viewModel.customerEmail.isEmpty, let email = auth.currentUser?.email {
+                viewModel.customerEmail = email
+            }
+            Task {
+                if let settings = try? await VercelService.shared.fetchBusinessSettings(),
+                   let hours = settings.minimumOrderLeadTimeHours, hours > 0 {
+                    await MainActor.run {
+                        viewModel.minimumOrderLeadTimeHours = hours
+                        if viewModel.scheduledDate < viewModel.minScheduledDate {
+                            viewModel.scheduledDate = viewModel.minScheduledDate
+                        }
+                    }
+                }
+            }
+            if viewModel.scheduledDate < viewModel.minScheduledDate {
+                viewModel.scheduledDate = viewModel.minScheduledDate
             }
         }
     }
@@ -58,19 +84,38 @@ struct CheckoutView: View {
             sectionLabel("Contact")
             TextField("Your name", text: $viewModel.customerName)
                 .textFieldStyle(.roundedBorder)
+                #if os(iOS)
                 .autocapitalization(.words)
+                #endif
             TextField("Phone number", text: $viewModel.customerPhone)
                 .textFieldStyle(.roundedBorder)
+                #if os(iOS)
                 .keyboardType(.phonePad)
+                #endif
+            TextField("Email (optional — for receipts)", text: $viewModel.customerEmail)
+                .textFieldStyle(.roundedBorder)
+                #if os(iOS)
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+                #endif
+                .autocorrectionDisabled()
         }
         .padding()
         .background(AppConstants.Colors.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
     }
     
+    private var dateTimeLabel: String {
+        switch viewModel.fulfillmentType {
+        case .pickup: return "Pickup date & time"
+        case .delivery: return "Delivery date & time"
+        case .shipping: return "Preferred ship date"
+        }
+    }
+
     private var fulfillmentSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionLabel("Pickup or Delivery")
+            sectionLabel("Pickup, delivery, or shipping")
             Picker("", selection: $viewModel.fulfillmentType) {
                 ForEach(FulfillmentType.allCases, id: \.self) { type in
                     Text(type.rawValue).tag(type)
@@ -78,9 +123,129 @@ struct CheckoutView: View {
             }
             .pickerStyle(.segmented)
             
-            sectionLabel("Pickup date & time")
-            DatePicker("", selection: $viewModel.scheduledDate, in: Date()...)
+            sectionLabel(dateTimeLabel)
+            DatePicker("", selection: $viewModel.scheduledDate, in: viewModel.minScheduledDate...)
                 .datePickerStyle(.compact)
+            Text("Orders require at least \(viewModel.minimumOrderLeadTimeHours) hours notice.")
+                .font(.caption)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
+        }
+        .padding()
+        .background(AppConstants.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+    }
+    
+    @ViewBuilder
+    private var addressSection: some View {
+        if viewModel.fulfillmentType == .delivery || viewModel.fulfillmentType == .shipping {
+            VStack(alignment: .leading, spacing: 12) {
+                sectionLabel(viewModel.fulfillmentType == .shipping ? "Shipping address" : "Delivery address")
+                TextField("Street address", text: $viewModel.street)
+                    .textFieldStyle(.roundedBorder)
+                TextField("Apt, suite, unit (optional)", text: $viewModel.addressLine2)
+                    .textFieldStyle(.roundedBorder)
+                HStack(spacing: 12) {
+                    TextField("City", text: $viewModel.city)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("State", text: $viewModel.state)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 80)
+                    TextField("ZIP", text: $viewModel.zip)
+                        .textFieldStyle(.roundedBorder)
+                        #if os(iOS)
+                        .keyboardType(.numberPad)
+                        #endif
+                        .frame(width: 90)
+                }
+            }
+            .padding()
+            .background(AppConstants.Colors.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+        }
+    }
+    
+    private var orderSummarySection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionLabel("Order total")
+            HStack {
+                Text("Subtotal")
+                Spacer()
+                Text(viewModel.orderSummarySubtotal.currencyFormatted)
+            }
+            .font(.subheadline)
+            .foregroundStyle(AppConstants.Colors.textSecondary)
+            if viewModel.orderSummaryDiscount > 0 {
+                HStack {
+                    Text("Discount")
+                    Spacer()
+                    Text("-\(viewModel.orderSummaryDiscount.currencyFormatted)")
+                        .foregroundStyle(.green)
+                }
+                .font(.subheadline)
+            }
+            HStack {
+                Text("Tax")
+                Spacer()
+                Text(viewModel.orderSummaryTax.currencyFormatted)
+            }
+            .font(.subheadline)
+            .foregroundStyle(AppConstants.Colors.textSecondary)
+            if viewModel.orderSummaryTip > 0 {
+                HStack {
+                    Text("Tip")
+                    Spacer()
+                    Text(viewModel.orderSummaryTip.currencyFormatted)
+                }
+                .font(.subheadline)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
+            }
+            Divider()
+            HStack {
+                Text("Total")
+                    .fontWeight(.semibold)
+                Spacer()
+                Text(viewModel.orderSummaryTotal.currencyFormatted)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(AppConstants.Colors.accent)
+            }
+            .font(.subheadline)
+            .foregroundStyle(AppConstants.Colors.textPrimary)
+        }
+        .padding()
+        .background(AppConstants.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+    }
+    
+    private var promoSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionLabel("Promo code")
+            HStack {
+                TextField("Enter code", text: $viewModel.promoCode)
+                    .textFieldStyle(.roundedBorder)
+                    #if os(iOS)
+                    .textInputAutocapitalization(.characters)
+                    #endif
+                    .disabled(viewModel.appliedPromotion != nil)
+                Button(viewModel.appliedPromotion != nil ? "Remove" : "Apply") {
+                    if viewModel.appliedPromotion != nil {
+                        viewModel.clearPromoCode()
+                    } else {
+                        Task { await viewModel.applyPromoCode() }
+                    }
+                }
+                .foregroundStyle(AppConstants.Colors.accent)
+                .disabled(viewModel.promoCode.trimmingCharacters(in: .whitespaces).isEmpty && viewModel.appliedPromotion == nil)
+            }
+            if let msg = viewModel.promoMessage {
+                Text(msg)
+                    .font(.caption)
+                    .foregroundStyle(viewModel.appliedPromotion != nil ? .green : AppConstants.Colors.textSecondary)
+            }
+            if viewModel.appliedPromotion != nil, viewModel.discountAmount > 0 {
+                Text("Discount: -\(viewModel.discountAmount.currencyFormatted)")
+                    .font(.subheadline)
+                    .foregroundStyle(.green)
+            }
         }
         .padding()
         .background(AppConstants.Colors.cardBackground)
@@ -90,12 +255,16 @@ struct CheckoutView: View {
     private var paymentSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionLabel("Payment")
-            Picker("", selection: $selectedPayment) {
-                Text("Card (Stripe)").tag(PaymentMethod.stripe)
-                Text("Apple Pay").tag(PaymentMethod.applePay)
-                Text("Pay at Pickup").tag(PaymentMethod.payAtPickup)
+            HStack {
+                Image(systemName: "link.circle.fill")
+                    .foregroundStyle(AppConstants.Colors.accent)
+                Text("Pay by link")
+                    .font(.subheadline)
+                    .foregroundStyle(AppConstants.Colors.textPrimary)
             }
-            .pickerStyle(.menu)
+            Text("Place your order now. The shop will send you a secure payment link by text or email to pay by card.")
+                .font(.caption)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
         }
         .padding()
         .background(AppConstants.Colors.cardBackground)
@@ -110,11 +279,11 @@ struct CheckoutView: View {
     }
     
     private func placeOrder() async {
-        let success = await viewModel.placeOrder(paymentMethod: selectedPayment)
+        let success = await viewModel.placeOrder(paymentMethod: Self.paymentMethod)
         if success,
            let order = viewModel.lastCreatedOrder,
            let orderId = viewModel.lastCreatedOrderId {
-            confirmedOrder = ConfirmedOrderItem(order: order, orderId: orderId)
+            confirmedOrder = ConfirmedOrderItem(order: order, orderId: orderId, paymentMethod: viewModel.lastPaymentMethod)
         }
     }
 }

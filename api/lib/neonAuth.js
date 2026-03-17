@@ -8,6 +8,13 @@ import { sql, hasDb } from './db.js';
 const NEON_AUTH_URL = process.env.NEON_AUTH_URL?.replace(/\/$/, '');
 const JWKS_URL = NEON_AUTH_URL ? `${NEON_AUTH_URL}/.well-known/jwks.json` : null;
 
+/** Origin to send to Neon Auth. Must match a domain you add in Neon Console → Auth → Domains. Use AUTH_ORIGIN for a custom domain. */
+function getAuthOrigin() {
+  const origin = process.env.AUTH_ORIGIN?.trim();
+  if (origin) return origin.replace(/\/$/, '');
+  return 'https://guilty-pleasure-treats.vercel.app';
+}
+
 let remoteJWKS = null;
 function getJWKS() {
   if (!JWKS_URL) return null;
@@ -111,10 +118,14 @@ export async function getOrCreateUserFromNeonPayload(payload) {
  */
 export async function neonAuthSignIn(email, password) {
   if (!NEON_AUTH_URL) return null;
+  const origin = getAuthOrigin();
   const signInRes = await fetch(`${NEON_AUTH_URL}/sign-in/email`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: String(email).trim(), password: String(password) }),
+    headers: { 'Content-Type': 'application/json', Origin: origin },
+    body: JSON.stringify({
+      email: String(email).trim(),
+      password: String(password),
+    }),
     redirect: 'manual',
   });
   const setCookie = signInRes.headers.get('set-cookie') || signInRes.headers.get('Set-Cookie');
@@ -137,12 +148,15 @@ export async function neonAuthSignIn(email, password) {
 
 /**
  * Proxy sign-up to Neon Auth: POST sign-up/email, then GET token, return JWT + user.
+ * On success returns { success: true, token, user }.
+ * On failure returns { success: false, statusCode, message } so callers can return 409 only when email really exists.
  */
 export async function neonAuthSignUp(email, password, name) {
-  if (!NEON_AUTH_URL) return null;
+  if (!NEON_AUTH_URL) return { success: false, statusCode: 503, message: 'Neon Auth not configured' };
+  const origin = getAuthOrigin();
   const signUpRes = await fetch(`${NEON_AUTH_URL}/sign-up/email`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Origin: origin },
     body: JSON.stringify({
       email: String(email).trim(),
       password: String(password),
@@ -150,20 +164,34 @@ export async function neonAuthSignUp(email, password, name) {
     }),
     redirect: 'manual',
   });
+  let message = '';
+  try {
+    const text = await signUpRes.text();
+    message = (text && text.length < 500) ? text : '';
+    if (message) {
+      try {
+        const j = JSON.parse(text);
+        message = j.message || j.error || message;
+      } catch (_) {}
+    }
+  } catch (_) {}
   const setCookie = signUpRes.headers.get('set-cookie') || signUpRes.headers.get('Set-Cookie');
   const cookieValue = setCookie ? setCookie.split(';')[0].trim() : null;
-  if (!cookieValue || !signUpRes.ok) return null;
+  if (!cookieValue || !signUpRes.ok) {
+    const isDuplicate = signUpRes.status === 409 || /already|exists|duplicate|in use/i.test(message);
+    return { success: false, statusCode: signUpRes.status || 500, message: message || 'Sign-up failed' };
+  }
   const tokenRes = await fetch(`${NEON_AUTH_URL}/token`, {
     method: 'GET',
     headers: { Cookie: cookieValue },
   });
-  if (!tokenRes.ok) return null;
+  if (!tokenRes.ok) return { success: false, statusCode: tokenRes.status || 500, message: 'Could not get session' };
   const tokenJson = await tokenRes.json();
   const jwt = tokenJson?.token;
-  if (!jwt) return null;
+  if (!jwt) return { success: false, statusCode: 500, message: 'Invalid token response' };
   const payload = await verifyNeonJWT(jwt);
-  if (!payload) return null;
+  if (!payload) return { success: false, statusCode: 500, message: 'Invalid token' };
   const user = await getOrCreateUserFromNeonPayload(payload);
-  if (!user) return null;
-  return { token: jwt, user };
+  if (!user) return { success: false, statusCode: 500, message: 'Could not create user' };
+  return { success: true, token: jwt, user };
 }

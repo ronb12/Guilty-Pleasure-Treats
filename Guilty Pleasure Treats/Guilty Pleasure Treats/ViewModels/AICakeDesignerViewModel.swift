@@ -5,8 +5,13 @@
 //  AI Cake Designer: build prompt from size/flavor/frosting + user description, generate image, confirm and add to cart.
 //
 
+import Combine
 import Foundation
+#if os(iOS)
 import UIKit
+#else
+import AppKit
+#endif
 
 @MainActor
 final class AICakeDesignerViewModel: ObservableObject {
@@ -21,7 +26,7 @@ final class AICakeDesignerViewModel: ObservableObject {
     @Published var addedToCart = false
     
     private let imageService = ImageGenerationService.shared
-    private let firebase = FirebaseService.shared
+    private let api = VercelService.shared
     private let cart = CartManager.shared
     private let auth = AuthService.shared
     
@@ -51,9 +56,13 @@ final class AICakeDesignerViewModel: ObservableObject {
         defer { isGenerating = false }
         do {
             let data = try await imageService.generateImage(prompt: prompt)
-            generatedImageData = data
+            if PlatformImage(data: data) != nil {
+                generatedImageData = data
+            } else {
+                errorMessage = "The image could not be displayed. Try again or use a different description."
+            }
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = FriendlyErrorMessage.message(for: error)
         }
     }
     
@@ -80,15 +89,15 @@ final class AICakeDesignerViewModel: ObservableObject {
             createdAt: nil
         )
         do {
-            let docId = try await firebase.saveAICakeDesignOrder(order)
+            let docId = try await api.saveAICakeDesignOrder(order)
             order.id = docId
-            let imageURL = try await firebase.uploadAICakeDesignImage(data: imageData, designId: docId)
+            let imageURL = try await api.uploadAICakeDesignImage(data: imageData, designId: docId)
             order.generatedImageURL = imageURL
-            try await firebase.updateAICakeDesignOrder(order)
+            try await api.updateAICakeDesignOrder(order)
             cart.addAICakeDesign(order)
             addedToCart = true
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = FriendlyErrorMessage.message(for: error)
         }
     }
     

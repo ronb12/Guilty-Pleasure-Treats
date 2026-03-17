@@ -88,7 +88,17 @@ struct OrderRowView: View {
                     .background(statusColor.opacity(0.2))
                     .clipShape(Capsule())
             }
-            
+            if !isAdmin {
+                HStack(spacing: 6) {
+                    Text("Order status:")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                    Text(order.status)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(statusColor)
+                }
+            }
             Text(order.customerName)
                 .font(.headline)
                 .foregroundStyle(AppConstants.Colors.textPrimary)

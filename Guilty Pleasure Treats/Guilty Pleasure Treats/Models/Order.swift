@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import FirebaseFirestore
 
 enum OrderStatus: String, Codable, CaseIterable {
     case pending = "Pending"
@@ -20,6 +19,7 @@ enum OrderStatus: String, Codable, CaseIterable {
 enum FulfillmentType: String, Codable, CaseIterable {
     case pickup = "Pickup"
     case delivery = "Delivery"
+    case shipping = "Shipping"
 }
 
 /// Order item snapshot (product info at time of order).
@@ -35,10 +35,12 @@ struct OrderItem: Codable, Identifiable {
 }
 
 struct Order: Identifiable, Codable {
-    @DocumentID var id: String?
+    var id: String?
     var userId: String?
     var customerName: String
     var customerPhone: String
+    var customerEmail: String? = nil
+    var deliveryAddress: String? = nil
     var items: [OrderItem]
     var subtotal: Double
     var tax: Double
@@ -47,6 +49,8 @@ struct Order: Identifiable, Codable {
     var scheduledPickupDate: Date?
     var status: String
     var stripePaymentIntentId: String?
+    /// Set when owner records receiving cash/card/check/Cash App payment in person.
+    var manualPaidAt: Date?
     var createdAt: Date?
     var updatedAt: Date?
     var estimatedReadyTime: Date?
@@ -60,6 +64,8 @@ struct Order: Identifiable, Codable {
         case userId
         case customerName
         case customerPhone
+        case customerEmail
+        case deliveryAddress
         case items
         case subtotal
         case tax
@@ -68,11 +74,17 @@ struct Order: Identifiable, Codable {
         case scheduledPickupDate
         case status
         case stripePaymentIntentId
+        case manualPaidAt
         case createdAt
         case updatedAt
         case estimatedReadyTime
         case customCakeOrderIds
         case aiCakeDesignIds
+    }
+    
+    /// True if order was paid via Stripe or marked paid manually.
+    var isPaid: Bool {
+        (stripePaymentIntentId != nil && !(stripePaymentIntentId?.isEmpty ?? true)) || manualPaidAt != nil
     }
     
     var statusEnum: OrderStatus? { OrderStatus(rawValue: status) }

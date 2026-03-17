@@ -1,0 +1,38 @@
+# Run Neon setup (schema + admin user) from GitHub Actions.
+# You run it once; it applies api/neon-setup.sql to the DB.
+#
+# Setup:
+#   1. Get your Neon connection string: Neon Console → Connection details → copy (postgresql://...).
+#   2. In this repo: Settings → Secrets and variables → Actions → New repository secret.
+#      Name: POSTGRES_URL   Value: (paste the connection string).
+#   3. Actions → "Neon setup" → Run workflow → Run workflow.
+#
+name: Neon setup
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Neon setup (schema + admin user)
+        env:
+          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
+        run: |
+          if [ -z "$POSTGRES_URL" ]; then
+            echo "::error::Add POSTGRES_URL to repo secrets (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+          node scripts/run-neon-setup.js

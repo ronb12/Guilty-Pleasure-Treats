@@ -63,11 +63,23 @@ export default async function handler(req, res) {
   }
 
   const appleId = decoded.sub;
-  const email = decoded.email || null;
+  const email = decoded.email ? String(decoded.email).trim().toLowerCase() : null;
 
+  // 1) Find by Apple ID (user has signed in with Apple before)
   let rows = await sql`SELECT id, email, display_name, is_admin, points FROM users WHERE apple_id = ${appleId} LIMIT 1`;
   let user = rows[0];
 
+  // 2) If no Apple user, check for existing account with same email (link Apple to email/password account)
+  if (!user && email) {
+    rows = await sql`SELECT id, email, display_name, is_admin, points FROM users WHERE email = ${email} LIMIT 1`;
+    const existingByEmail = rows[0];
+    if (existingByEmail) {
+      await sql`UPDATE users SET apple_id = ${appleId}, updated_at = NOW() WHERE id = ${existingByEmail.id}`;
+      user = { ...existingByEmail, email: existingByEmail.email };
+    }
+  }
+
+  // 3) Otherwise create new user (first time Sign in with Apple)
   if (!user) {
     const displayName = fullName ? [fullName.givenName, fullName.familyName].filter(Boolean).join(' ') : null;
     const isAdmin = process.env.OWNER_EMAILS?.split(',').map((e) => e.trim().toLowerCase()).includes((email || '').toLowerCase()) ?? false;

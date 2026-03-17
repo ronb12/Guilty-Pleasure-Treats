@@ -16,14 +16,16 @@ export async function verifyPassword(password, hash) {
 
 export async function createSession(userId) {
   if (!hasDb() || !sql) return null;
+  const uid = userId != null ? String(userId) : null;
+  if (!uid) return null;
   const id = randomUUID();
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + SESSION_DAYS);
   await sql`
     INSERT INTO sessions (id, user_id, expires_at)
-    VALUES (${id}, ${userId}, ${expiresAt})
+    VALUES (${id}, ${uid}, ${expiresAt})
   `;
-  return { id, userId, expiresAt };
+  return { id, userId: uid, expiresAt };
 }
 
 /** True if the token looks like a JWT (three base64 parts). */

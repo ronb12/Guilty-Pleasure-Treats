@@ -12,7 +12,7 @@ enum LegalContent {
     static let privacyPolicyMarkdown = """
     # Privacy Policy — Guilty Pleasure Treats
 
-    **Last updated:** March 2026 | **Operator:** Bradley Virtual Solutions
+    **Last updated:** March 2026 | **Operator:** Guilty Pleasure Treats
 
     Guilty Pleasure Treats ("we," "our," or "us") respects your privacy. This policy describes what information we collect when you use our mobile app and how we use and protect it.
 
@@ -49,7 +49,7 @@ enum LegalContent {
     static let termsOfServiceMarkdown = """
     # Terms of Service — Guilty Pleasure Treats
 
-    **Last updated:** March 2026 | **Operator:** Bradley Virtual Solutions
+    **Last updated:** March 2026 | **Operator:** Guilty Pleasure Treats
 
     By using the Guilty Pleasure Treats app, you agree to these Terms. If you do not agree, do not use the app.
 

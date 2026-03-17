@@ -3,8 +3,11 @@ import { setCors, handleOptions } from '../api/lib/cors.js';
 import { getTokenFromRequest, getSession } from '../api/lib/auth.js';
 
 const placeholderProducts = [
-  { id: '1', name: 'Classic Cupcake', category: 'Cupcakes', price: 3.5, description: '', imageURL: null, isFeatured: false, isSoldOut: false, isVegetarian: false, stockQuantity: null, lowStockThreshold: null, createdAt: null, updatedAt: null },
-  { id: '2', name: 'Chocolate Chip Cookie', category: 'Cookies', price: 2.5, description: '', imageURL: null, isFeatured: false, isSoldOut: false, isVegetarian: false, stockQuantity: null, lowStockThreshold: null, createdAt: null, updatedAt: null },
+  { id: '1', name: 'Classic Cupcake', category: 'Cupcakes', price: 3.5, description: '', imageURL: null, isFeatured: false, isSoldOut: false, isVegetarian: false, stockQuantity: 24, lowStockThreshold: 5, createdAt: null, updatedAt: null },
+  { id: '2', name: 'Chocolate Chip Cookie', category: 'Cookies', price: 2.5, description: '', imageURL: null, isFeatured: false, isSoldOut: false, isVegetarian: false, stockQuantity: 36, lowStockThreshold: 8, createdAt: null, updatedAt: null },
+  { id: '3', name: 'Vanilla Bean Cupcake', category: 'Cupcakes', price: 3.99, description: '', imageURL: null, isFeatured: false, isSoldOut: false, isVegetarian: false, stockQuantity: 12, lowStockThreshold: 4, createdAt: null, updatedAt: null },
+  { id: '4', name: 'Birthday Cake (6 inch)', category: 'Cakes', price: 28, description: '', imageURL: null, isFeatured: true, isSoldOut: false, isVegetarian: false, stockQuantity: 3, lowStockThreshold: 1, createdAt: null, updatedAt: null },
+  { id: '5', name: 'Chocolate Fudge Brownie', category: 'Brownies', price: 4, description: '', imageURL: null, isFeatured: false, isSoldOut: false, isVegetarian: false, stockQuantity: 20, lowStockThreshold: 5, createdAt: null, updatedAt: null },
 ];
 
 function rowToProduct(row) {
@@ -15,6 +18,7 @@ function rowToProduct(row) {
     productDescription: row.description ?? '',
     description: row.description ?? '',
     price: Number(row.price),
+    cost: row.cost != null ? Number(row.cost) : null,
     imageURL: row.image_url ?? null,
     category: row.category,
     isFeatured: Boolean(row.is_featured),
@@ -49,28 +53,14 @@ export default async function handler(req, res) {
     const isVegetarian = Boolean(body.isVegetarian);
     const stockQuantity = body.stockQuantity != null ? Number(body.stockQuantity) : null;
     const lowStockThreshold = body.lowStockThreshold != null ? Number(body.lowStockThreshold) : null;
+    const cost = body.cost != null && body.cost !== '' ? Number(body.cost) : null;
     const rows = await sql`
-      INSERT INTO products (name, description, price, image_url, category, is_featured, is_sold_out, is_vegetarian, stock_quantity, low_stock_threshold)
-      VALUES (${name}, ${description}, ${price}, ${imageURL}, ${category}, ${isFeatured}, ${isSoldOut}, ${isVegetarian}, ${stockQuantity}, ${lowStockThreshold})
+      INSERT INTO products (name, description, price, cost, image_url, category, is_featured, is_sold_out, is_vegetarian, stock_quantity, low_stock_threshold)
+      VALUES (${name}, ${description}, ${price}, ${cost}, ${imageURL}, ${category}, ${isFeatured}, ${isSoldOut}, ${isVegetarian}, ${stockQuantity}, ${lowStockThreshold})
       RETURNING *
     `;
     const row = rows[0];
-    return res.status(201).json({
-      id: row.id,
-      name: row.name,
-      productDescription: row.description,
-      description: row.description,
-      price: Number(row.price),
-      imageURL: row.image_url,
-      category: row.category,
-      isFeatured: row.is_featured,
-      isSoldOut: row.is_sold_out,
-      isVegetarian: row.is_vegetarian,
-      stockQuantity: row.stock_quantity,
-      lowStockThreshold: row.low_stock_threshold,
-      createdAt: row.created_at?.toISOString?.() ?? null,
-      updatedAt: row.updated_at?.toISOString?.() ?? null,
-    });
+    return res.status(201).json(rowToProduct(row));
   }
 
   if (req.method !== 'GET') {

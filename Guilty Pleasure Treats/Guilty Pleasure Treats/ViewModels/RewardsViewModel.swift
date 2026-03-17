@@ -5,6 +5,7 @@
 //  Loads user points, lists rewards, redeems (deduct points + add free item to cart).
 //
 
+import Combine
 import Foundation
 
 @MainActor
@@ -14,7 +15,7 @@ final class RewardsViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var successMessage: String?
     
-    private let firebase = FirebaseService.shared
+    private let api = VercelService.shared
     private let auth = AuthService.shared
     private let cart = CartManager.shared
     
@@ -30,10 +31,10 @@ final class RewardsViewModel: ObservableObject {
         errorMessage = nil
         defer { isLoading = false }
         do {
-            let profile = try await firebase.fetchUserProfile(uid: uid)
+            let profile = try await api.fetchUserProfile(uid: uid)
             points = profile?.points ?? 0
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = FriendlyErrorMessage.message(for: error)
         }
     }
     
@@ -52,7 +53,7 @@ final class RewardsViewModel: ObservableObject {
         successMessage = nil
         defer { isLoading = false }
         do {
-            let ok = try await firebase.redeemPoints(uid: uid, points: reward.pointsRequired)
+            let ok = try await api.redeemPoints(uid: uid, points: reward.pointsRequired)
             guard ok else {
                 errorMessage = "Not enough points."
                 return
@@ -61,7 +62,7 @@ final class RewardsViewModel: ObservableObject {
             cart.add(product: reward.productToAdd, quantity: 1, specialInstructions: "")
             successMessage = "\(reward.name) added to cart!"
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = FriendlyErrorMessage.message(for: error)
         }
     }
     

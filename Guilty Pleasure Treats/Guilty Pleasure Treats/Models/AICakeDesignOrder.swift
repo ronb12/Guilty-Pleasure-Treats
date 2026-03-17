@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import FirebaseFirestore
 
 /// Frosting options for AI Cake Designer (matches user-facing labels).
 enum AIDesignFrosting: String, Codable, CaseIterable, Identifiable {
@@ -17,7 +16,7 @@ enum AIDesignFrosting: String, Codable, CaseIterable, Identifiable {
 }
 
 struct AICakeDesignOrder: Identifiable, Codable {
-    @DocumentID var id: String?
+    var id: String?
     var userId: String?
     var size: String
     var flavor: String

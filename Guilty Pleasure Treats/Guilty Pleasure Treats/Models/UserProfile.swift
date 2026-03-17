@@ -2,11 +2,10 @@
 //  UserProfile.swift
 //  Guilty Pleasure Treats
 //
-//  User profile and admin flag for Firebase Auth users.
+//  User profile and admin flag (Vercel/Neon).
 //
 
 import Foundation
-import FirebaseFirestore
 
 struct UserProfile: Codable {
     var uid: String
