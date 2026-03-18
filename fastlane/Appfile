@@ -1,6 +1,0 @@
-# App Store Connect / Apple ID app metadata
-# See docs/TESTFLIGHT.md for setup.
-
-app_identifier("com.bradleyvirtualsolutions.Guilty-Pleasure-Treats")
-# team_id("XXXXXXXXXX")  # Optional: uncomment if you have multiple teams
-# apple_id("your@email.com")  # Optional: used if not using App Store Connect API Key

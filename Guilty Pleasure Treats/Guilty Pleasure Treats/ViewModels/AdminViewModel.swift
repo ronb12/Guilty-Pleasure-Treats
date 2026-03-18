@@ -76,8 +76,11 @@ final class AdminViewModel: ObservableObject {
     @Published var aiCakeDesignOrders: [AICakeDesignOrder] = []
     @Published var customCakeOptions: CustomCakeOptionsResponse?
     @Published var contactMessages: [ContactMessage] = []
+    @Published var sentAdminMessages: [AdminMessage] = []
     @Published var cakeGalleryItems: [GalleryCakeItem] = []
     @Published var productCategories: [ProductCategoryItem] = []
+    @Published var reviews: [Review] = []
+    @Published var events: [Event] = []
     @Published var savedCustomers: [SavedCustomer] = []
     @Published var totalCustomerCount: Int = 0
     @Published var isLoading = false
@@ -388,11 +391,8 @@ final class AdminViewModel: ObservableObject {
         errorMessage = nil
         do {
             products = try await api.fetchProducts()
-            if products.isEmpty {
-                products = Self.sampleProductsForDisplay()
-            }
         } catch {
-            products = Self.sampleProductsForDisplay()
+            products = []
             errorMessage = FriendlyErrorMessage.message(for: error)
         }
         isLoading = false
@@ -401,15 +401,6 @@ final class AdminViewModel: ObservableObject {
                 count: lowStockProducts.count,
                 firstProductName: lowStockProducts.first?.name
             )
-        }
-    }
-
-    /// Same sample products as the menu fallback, so Admin Products matches what customers see when API is empty or fails.
-    private static func sampleProductsForDisplay() -> [Product] {
-        SampleDataService.sampleProducts.enumerated().map { index, p in
-            var product = p
-            product.id = "sample-\(index)"
-            return product
         }
     }
 
@@ -542,6 +533,7 @@ final class AdminViewModel: ObservableObject {
                 )
             }
         } catch {
+            orders = []
             errorMessage = FriendlyErrorMessage.message(for: error)
         }
     }
@@ -577,16 +569,6 @@ final class AdminViewModel: ObservableObject {
     }
     
     func updateProduct(_ product: Product, newImage: PlatformImage?) async {
-        if product.id?.hasPrefix("sample-") == true {
-            if let idx = products.firstIndex(where: { $0.id == product.id }) {
-                var updated = product
-                if newImage != nil { updated.updatedAt = Date() }
-                products[idx] = updated
-                successMessage = "Inventory updated (demo)."
-            }
-            editingProduct = nil
-            return
-        }
         do {
             if let img = newImage, let id = product.id, let jpeg = img.jpegData(compressionQuality: 0.7) {
                 let url = try await api.uploadProductImage(data: jpeg, productId: id)
@@ -607,12 +589,6 @@ final class AdminViewModel: ObservableObject {
 
     func deleteProduct(_ product: Product) async {
         guard let id = product.id else { return }
-        if id.hasPrefix("sample-") {
-            products.removeAll { $0.id == id }
-            if editingProduct?.id == id { editingProduct = nil }
-            successMessage = "Removed from inventory (demo)."
-            return
-        }
         do {
             try await api.deleteProduct(id: id)
             if editingProduct?.id == id { editingProduct = nil }
@@ -645,7 +621,7 @@ final class AdminViewModel: ObservableObject {
                     try? await api.addPoints(uid: uid, points: pointsToAdd)
                 }
             }
-            successMessage = "Order updated."
+            setSuccessMessageAutoClearing("Order updated.")
             await loadOrders()
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)
@@ -655,7 +631,7 @@ final class AdminViewModel: ObservableObject {
     func markOrderAsPaid(orderId: String) async {
         do {
             try await api.updateOrderManualPaid(orderId: orderId)
-            successMessage = "Marked as paid."
+            setSuccessMessageAutoClearing("Marked as paid.")
             await loadOrders()
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)
@@ -699,11 +675,33 @@ final class AdminViewModel: ObservableObject {
         successMessage = nil
     }
 
+    /// Call to dismiss the success banner (e.g. user tap). Also used after auto-clear delay.
+    func clearSuccessMessage() {
+        successMessage = nil
+    }
+
+    /// Sets success message and clears it after 2.5 seconds so it doesn’t stay stuck (e.g. after “Marked as paid”).
+    private func setSuccessMessageAutoClearing(_ message: String) {
+        successMessage = message
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            successMessage = nil
+        }
+    }
+
     func loadContactMessages() async {
         do {
             contactMessages = try await api.fetchContactMessages()
         } catch {
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            contactMessages = []
+        }
+    }
+
+    func loadSentAdminMessages() async {
+        do {
+            sentAdminMessages = try await api.fetchSentAdminMessages()
+        } catch {
+            sentAdminMessages = []
         }
     }
 
@@ -726,11 +724,36 @@ final class AdminViewModel: ObservableObject {
         }
     }
 
+    /// Load replies for a contact message (admin thread view). Returns empty array on error.
+    func loadRepliesForContactMessage(messageId: String) async -> [ContactMessageReply] {
+        do {
+            return try await api.fetchRepliesForContactMessage(messageId: messageId)
+        } catch {
+            return []
+        }
+    }
+
+    /// Send a new message to a customer (not a reply to contact form). Customer must have app account (userId from orders).
+    func sendAdminMessage(toUserId: String, body: String) async {
+        do {
+            try await api.sendAdminMessage(toUserId: toUserId, body: body)
+            successMessage = "Message sent. Customer will see it in Account → Messages."
+            await loadSentAdminMessages()
+        } catch {
+            errorMessage = FriendlyErrorMessage.message(for: error)
+        }
+    }
+
+    /// Customers from orders who have an app account (userId). Use for "Send new message" recipient list.
+    var customersWithUserId: [AdminCustomer] {
+        customers.filter { $0.key.hasPrefix("u:") }
+    }
+
     func loadBusinessSettings() async {
         do {
             businessSettings = try await api.fetchBusinessSettings() ?? BusinessSettings()
         } catch {
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            businessSettings = nil
         }
     }
 
@@ -757,7 +780,7 @@ final class AdminViewModel: ObservableObject {
         do {
             promotions = try await api.fetchPromotions()
         } catch {
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            promotions = []
         }
     }
     
@@ -798,22 +821,24 @@ final class AdminViewModel: ObservableObject {
             customCakeOrders = try await custom
             aiCakeDesignOrders = try await ai
         } catch {
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            customCakeOrders = []
+            aiCakeDesignOrders = []
         }
     }
 
+    /// Load cake options from the same API as the Custom Cake maker so Admin shows the same list.
     func loadCustomCakeOptions() async {
         do {
-            customCakeOptions = try await api.fetchCustomCakeOptionsSettings()
+            customCakeOptions = try await api.fetchCustomCakeOptions()
         } catch {
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            customCakeOptions = CustomCakeOptionsResponse(sizes: [], flavors: [], frostings: [], toppings: [])
         }
     }
 
-    func saveCustomCakeOptions(sizes: [CakeSizeOption], flavors: [CakeFlavorOption], frostings: [FrostingOption]) async {
+    func saveCustomCakeOptions(sizes: [CakeSizeOption], flavors: [CakeFlavorOption], frostings: [FrostingOption], toppings: [ToppingOption] = []) async {
         do {
-            try await api.saveCustomCakeOptions(sizes: sizes, flavors: flavors, frostings: frostings)
-            customCakeOptions = CustomCakeOptionsResponse(sizes: sizes, flavors: flavors, frostings: frostings)
+            try await api.saveCustomCakeOptions(sizes: sizes, flavors: flavors, frostings: frostings, toppings: toppings)
+            customCakeOptions = CustomCakeOptionsResponse(sizes: sizes, flavors: flavors, frostings: frostings, toppings: toppings.isEmpty ? nil : toppings)
             successMessage = "Custom cake options saved."
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)
@@ -824,7 +849,7 @@ final class AdminViewModel: ObservableObject {
         do {
             cakeGalleryItems = try await api.fetchGalleryCakes()
         } catch {
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            cakeGalleryItems = []
         }
     }
 
@@ -850,6 +875,70 @@ final class AdminViewModel: ObservableObject {
             try await api.deleteGalleryCake(id: id)
             successMessage = "Removed from gallery."
             await loadCakeGallery()
+        } catch {
+            errorMessage = FriendlyErrorMessage.message(for: error)
+        }
+    }
+
+    // MARK: - Reviews
+    func loadReviews() async {
+        do {
+            reviews = try await api.fetchReviews()
+        } catch {
+            reviews = []
+        }
+    }
+
+    func updateReview(id: String, author: String?, text: String?, stars: Int?, displayOrder: Int?) async {
+        do {
+            try await api.updateReview(id: id, author: author, text: text, stars: stars, displayOrder: displayOrder)
+            successMessage = "Review updated."
+            await loadReviews()
+        } catch {
+            errorMessage = FriendlyErrorMessage.message(for: error)
+        }
+    }
+
+    func deleteReview(id: String) async {
+        do {
+            try await api.deleteReview(id: id)
+            successMessage = "Review removed."
+            await loadReviews()
+        } catch {
+            errorMessage = FriendlyErrorMessage.message(for: error)
+        }
+    }
+
+    // MARK: - Events
+    func loadEvents() async {
+        do {
+            events = try await api.fetchEvents()
+        } catch {
+            events = []
+        }
+    }
+
+    func addEvent(title: String, date: String, time: String?, location: String, description: String, flyerURL: String?, displayOrder: Int) async throws {
+        _ = try await api.addEvent(title: title, date: date, time: time, location: location, description: description, flyerURL: flyerURL, displayOrder: displayOrder)
+        successMessage = "Event added."
+        await loadEvents()
+    }
+
+    func updateEvent(id: String, title: String?, date: String?, time: String?, location: String?, description: String?, flyerURL: String?, displayOrder: Int?) async {
+        do {
+            try await api.updateEvent(id: id, title: title, date: date, time: time, location: location, description: description, flyerURL: flyerURL, displayOrder: displayOrder)
+            successMessage = "Event updated."
+            await loadEvents()
+        } catch {
+            errorMessage = FriendlyErrorMessage.message(for: error)
+        }
+    }
+
+    func deleteEvent(id: String) async {
+        do {
+            try await api.deleteEvent(id: id)
+            successMessage = "Event removed."
+            await loadEvents()
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)
         }
