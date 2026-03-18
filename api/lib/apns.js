@@ -118,3 +118,30 @@ export async function notifyNewMessage(deviceTokens, messageId, fromName, subjec
     console.error('APNs sendMany new message', err?.reason ?? err);
   }
 }
+
+/**
+ * Send "new event" or "event updated" push to all customer device tokens.
+ */
+export async function notifyNewEvent(deviceTokens, eventTitle, eventDate, isUpdate = false) {
+  if (!Array.isArray(deviceTokens) || deviceTokens.length === 0) return;
+  const title = isUpdate ? 'Event updated' : 'New event';
+  const body = eventDate
+    ? `${eventTitle} – ${eventDate}`
+    : eventTitle;
+  const data = { type: 'new_event' };
+  const client = cachedClient ?? getClient();
+  if (!client) return;
+  cachedClient = client;
+  const notifications = deviceTokens.map((token) =>
+    new Notification(token, {
+      alert: { title, body },
+      sound: 'default',
+      data,
+    })
+  );
+  try {
+    await client.sendMany(notifications);
+  } catch (err) {
+    console.error('APNs sendMany new event', err?.reason ?? err);
+  }
+}

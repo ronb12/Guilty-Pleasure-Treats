@@ -4,12 +4,16 @@ import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
 
 function rowToOrder(row) {
   if (!row) return null;
+  const toppings = row.toppings != null
+    ? (Array.isArray(row.toppings) ? row.toppings : (typeof row.toppings === 'string' ? JSON.parse(row.toppings || '[]') : []))
+    : [];
   return {
     id: row.id,
     userId: row.user_id ?? null,
     size: row.size,
     flavor: row.flavor,
     frosting: row.frosting,
+    toppings: toppings.length > 0 ? toppings : undefined,
     message: row.message ?? '',
     designImageURL: row.design_image_url ?? null,
     price: Number(row.price),
@@ -34,13 +38,15 @@ export default async function handler(req, res) {
     const size = body.size ?? '6 inch';
     const flavor = body.flavor ?? 'Vanilla';
     const frosting = body.frosting ?? 'Vanilla Buttercream';
+    const toppings = Array.isArray(body.toppings) ? body.toppings : [];
     const message = body.message ?? '';
     const designImageURL = body.designImageURL ?? null;
     const price = Number(body.price) ?? 24;
+    const toppingsJson = JSON.stringify(toppings);
 
     const rows = await sql`
-      INSERT INTO custom_cake_orders (user_id, size, flavor, frosting, message, design_image_url, price)
-      VALUES (${userId}, ${size}, ${flavor}, ${frosting}, ${message}, ${designImageURL}, ${price})
+      INSERT INTO custom_cake_orders (user_id, size, flavor, frosting, toppings, message, design_image_url, price)
+      VALUES (${userId}, ${size}, ${flavor}, ${frosting}, ${toppingsJson}::jsonb, ${message}, ${designImageURL}, ${price})
       RETURNING *
     `;
     return res.status(201).json(rowToOrder(rows[0]));

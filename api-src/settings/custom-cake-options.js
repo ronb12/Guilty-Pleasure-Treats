@@ -24,10 +24,17 @@ async function getOptions() {
     sql`SELECT id, label, sort_order FROM cake_flavors ORDER BY sort_order ASC, label ASC`,
     sql`SELECT id, label, sort_order FROM frosting_types ORDER BY sort_order ASC, label ASC`,
   ]);
+  let toppingsRows = [];
+  try {
+    toppingsRows = await sql`SELECT id, label, sort_order FROM cake_toppings ORDER BY sort_order ASC, label ASC`;
+  } catch {
+    // cake_toppings may not exist until migration is run
+  }
   return {
     sizes: (sizesRows || []).map(rowToSize).filter(Boolean),
     flavors: (flavorsRows || []).map(rowToOption).filter(Boolean),
     frostings: (frostingsRows || []).map(rowToOption).filter(Boolean),
+    toppings: (toppingsRows || []).map(rowToOption).filter(Boolean),
   };
 }
 
@@ -57,6 +64,7 @@ export default async function handler(req, res) {
     const sizes = Array.isArray(body.sizes) ? body.sizes : [];
     const flavors = Array.isArray(body.flavors) ? body.flavors : [];
     const frostings = Array.isArray(body.frostings) ? body.frostings : [];
+    const toppings = Array.isArray(body.toppings) ? body.toppings : [];
 
     await sql`DELETE FROM cake_sizes`;
     for (let i = 0; i < sizes.length; i++) {
@@ -83,6 +91,15 @@ export default async function handler(req, res) {
       const label = String(f?.label ?? '').trim();
       if (label) {
         await sql`INSERT INTO frosting_types (label, sort_order) VALUES (${label}, ${i})`;
+      }
+    }
+
+    await sql`DELETE FROM cake_toppings`;
+    for (let i = 0; i < toppings.length; i++) {
+      const t = toppings[i];
+      const label = String(t?.label ?? '').trim();
+      if (label) {
+        await sql`INSERT INTO cake_toppings (label, sort_order) VALUES (${label}, ${i})`;
       }
     }
 

@@ -1,9 +1,9 @@
 /**
  * Saved customers: list (admin) and create (admin).
  */
-import { sql, hasDb } from '../api/lib/db.js';
-import { setCors, handleOptions } from '../api/lib/cors.js';
-import { getTokenFromRequest, getSession } from '../api/lib/auth.js';
+import { sql, hasDb } from '../../api/lib/db.js';
+import { setCors, handleOptions } from '../../api/lib/cors.js';
+import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
 
 function combinedAddress(row) {
   const street = row.street?.trim();

@@ -33,10 +33,17 @@ export default async function handler(req, res) {
     sql`SELECT id, label, sort_order FROM cake_flavors ORDER BY sort_order ASC, label ASC`,
     sql`SELECT id, label, sort_order FROM frosting_types ORDER BY sort_order ASC, label ASC`,
   ]);
+  let toppingsRows = [];
+  try {
+    toppingsRows = await sql`SELECT id, label, sort_order FROM cake_toppings ORDER BY sort_order ASC, label ASC`;
+  } catch {
+    // cake_toppings table may not exist until migration is run
+  }
 
   const sizes = (sizesRows || []).map(rowToSize).filter(Boolean);
   const flavors = (flavorsRows || []).map(rowToOption).filter(Boolean);
   const frostings = (frostingsRows || []).map(rowToOption).filter(Boolean);
+  const toppings = (toppingsRows || []).map(rowToOption).filter(Boolean);
 
-  return res.status(200).json({ sizes, flavors, frostings });
+  return res.status(200).json({ sizes, flavors, frostings, toppings });
 }

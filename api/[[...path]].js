@@ -41,7 +41,10 @@ function modulePathFor(key) {
     contact: 'contact/index.js',
     'contact/id': 'contact/id.js',
     'contact/id/reply': 'contact/reply.js',
+    'contact/id/replies': 'contact/replies-id.js',
     'contact/replies': 'contact/replies.js',
+    'admin-messages': 'admin-messages.js',
+    messages: 'messages/index.js',
     'stripe/create-checkout-session': 'stripe/create-checkout-session.js',
     'stripe/create-payment-intent': 'stripe/create-payment-intent.js',
     'ai/generate-image': 'ai/generate-image.js',
@@ -53,6 +56,10 @@ function modulePathFor(key) {
     'customers/id': 'customers/id.js',
     'push/register': 'push/register.js',
     'analytics/summary': 'analytics/summary.js',
+    reviews: 'reviews/index.js',
+    'reviews/id': 'reviews/id.js',
+    events: 'events/index.js',
+    'events/id': 'events/id.js',
   };
   const file = fileMap[key];
   if (!file) return null;
@@ -164,7 +171,10 @@ function getPathKey(req) {
   } else if (segs[0] === 'contact') {
     if (segs.length === 1) key = 'contact';
     else if (segs[1] === 'replies') key = 'contact/replies';
-    else if (segs.length >= 3 && segs[2] === 'reply') {
+    else if (segs.length >= 3 && segs[2] === 'replies') {
+      key = 'contact/id/replies';
+      q.id = segs[1];
+    } else if (segs.length >= 3 && segs[2] === 'reply') {
       key = 'contact/id/reply';
       q.id = segs[1];
     } else {
@@ -190,6 +200,16 @@ function getPathKey(req) {
     key = 'push/register';
   } else if (segs[0] === 'analytics' && segs[1] === 'summary') {
     key = 'analytics/summary';
+  } else if (segs[0] === 'reviews') {
+    if (segs.length === 1) key = 'reviews';
+    else { key = 'reviews/id'; q.id = segs[1]; }
+  } else if (segs[0] === 'events') {
+    if (segs.length === 1) key = 'events';
+    else { key = 'events/id'; q.id = segs[1]; }
+  } else if (segs[0] === 'admin-messages') {
+    key = 'admin-messages';
+  } else if (segs[0] === 'messages' && segs.length === 1) {
+    key = 'messages';
   }
   return { key, q };
 }
@@ -233,23 +253,24 @@ export default async function handler(req, res) {
     res.status(404).json({ error: 'Not found' });
     return;
   }
+  const authErrorMsg = key === 'auth/login' ? 'Sign in failed. Please try again.' : 'A server error occurred. Please try again.';
   try {
     const mod = await import(modulePath);
     const fn = mod.default;
     if (typeof fn !== 'function') {
-      if (!res.headersSent) res.status(500).json({ error: 'A server error occurred. Please try again.' });
+      if (!res.headersSent) res.status(500).json({ error: authErrorMsg });
       return;
     }
     const result = fn(req, res);
     if (result && typeof result.catch === 'function') {
       return result.catch((err) => {
-        console.error('Route handler error', key, err);
-        if (!res.headersSent) res.status(500).json({ error: 'A server error occurred. Please try again.' });
+        console.error('Route handler error', key, err?.message || err, err?.stack);
+        if (!res.headersSent) res.status(500).json({ error: authErrorMsg });
       });
     }
     return result;
   } catch (err) {
-    console.error('Route handler error', key, err);
-    if (!res.headersSent) res.status(500).json({ error: 'A server error occurred. Please try again.' });
+    console.error('Route handler error', key, err?.message || err, err?.stack);
+    if (!res.headersSent) res.status(500).json({ error: authErrorMsg });
   }
 }

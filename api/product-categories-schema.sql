@@ -15,5 +15,6 @@ INSERT INTO product_categories (name, display_order) VALUES
   ('Cookies', 1),
   ('Cakes', 2),
   ('Brownies', 3),
-  ('Seasonal Treats', 4)
+  ('Seasonal Treats', 4),
+  ('Treat 4 Paws', 5)
 ON CONFLICT (name) DO NOTHING;

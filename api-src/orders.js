@@ -48,8 +48,8 @@ export default async function handler(req, res) {
         return res.status(200).json([]);
       }
       const rows = session.isAdmin
-        ? await sql`SELECT * FROM orders ORDER BY created_at DESC LIMIT 100`
-        : await sql`SELECT * FROM orders WHERE user_id = ${session.userId} ORDER BY created_at DESC LIMIT 100`;
+        ? await sql`SELECT * FROM orders ORDER BY created_at DESC LIMIT 500`
+        : await sql`SELECT * FROM orders WHERE user_id = ${session.userId} ORDER BY created_at DESC LIMIT 500`;
       const orders = rows.map(rowToOrder);
       return res.status(200).json(orders);
     } catch (err) {

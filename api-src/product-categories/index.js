@@ -1,9 +1,9 @@
 /**
  * Product categories: public list; admin can POST new category.
  */
-import { sql, hasDb } from '../api/lib/db.js';
-import { setCors, handleOptions } from '../api/lib/cors.js';
-import { getTokenFromRequest, getSession } from '../api/lib/auth.js';
+import { sql, hasDb } from '../../api/lib/db.js';
+import { setCors, handleOptions } from '../../api/lib/cors.js';
+import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
 
 const DEFAULT_CATEGORIES = [
   { id: 'default-1', name: 'Cupcakes', displayOrder: 0 },

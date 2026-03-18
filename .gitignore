@@ -48,3 +48,6 @@ fastlane/Preview.html
 fastlane/screenshots
 fastlane/test_output
 .env*.local
+
+# Node (API)
+node_modules/

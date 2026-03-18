@@ -3,6 +3,13 @@ import { setCors, handleOptions } from '../../api/lib/cors.js';
 import { verifyPassword, createSession } from '../../api/lib/auth.js';
 import { isNeonAuthConfigured, neonAuthSignIn } from '../../api/lib/neonAuth.js';
 
+function sendServerError(res, message = 'Sign in failed. Please try again.') {
+  if (res.headersSent) return;
+  try {
+    res.status(500).json({ error: message });
+  } catch (_) {}
+}
+
 export default async function handler(req, res) {
   setCors(res);
   if (req.method === 'OPTIONS') {
@@ -54,7 +61,7 @@ export default async function handler(req, res) {
     try {
       rows = await sql`SELECT id, email, display_name, password_hash, is_admin, points FROM users WHERE email = ${normalizedEmail} LIMIT 1`;
     } catch (err) {
-      console.error('login db error', err);
+      console.error('login db error', err?.message || err, err?.code || err?.code_);
       const code = err?.code || err?.code_;
       if (code === '42P01' || (err?.message && err.message.includes('does not exist'))) {
         return res.status(503).json({ error: 'Database setup incomplete. Run the schema in Neon (users/sessions tables).' });
@@ -78,8 +85,8 @@ export default async function handler(req, res) {
       const hash = user.password_hash && String(user.password_hash).trim();
       valid = hash && hash.startsWith('$2') ? await verifyPassword(password, hash) : false;
     } catch (err) {
-      console.error('login verify password', err);
-      return res.status(500).json({ error: 'Sign in failed. Please try again.' });
+      console.error('login verify password', err?.message || err);
+      return sendServerError(res);
     }
     if (!valid) {
       return res.status(401).json({ error: 'Invalid email or password' });
@@ -90,11 +97,11 @@ export default async function handler(req, res) {
     try {
       session = await createSession(userId);
     } catch (err) {
-      console.error('login createSession', err);
-      return res.status(500).json({ error: 'Signed in but session could not be created. Please try again.' });
+      console.error('login createSession', err?.message || err, err?.code || err?.code_);
+      return sendServerError(res, 'Signed in but session could not be created. Please try again.');
     }
     if (!session) {
-      return res.status(500).json({ error: 'Failed to create session' });
+      return sendServerError(res, 'Failed to create session');
     }
 
     return res.status(200).json({
@@ -108,11 +115,7 @@ export default async function handler(req, res) {
       },
     });
   } catch (err) {
-    console.error('login handler error', err);
-    try {
-      if (!res.headersSent) res.status(500).json({ error: 'Sign in failed. Please try again.' });
-    } catch (resErr) {
-      console.error('login send error response', resErr);
-    }
+    console.error('login handler error', err?.message || err, err?.stack);
+    sendServerError(res);
   }
 }
