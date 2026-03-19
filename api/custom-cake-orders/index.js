@@ -71,6 +71,31 @@ export default async function handler(req, res) {
       }
       return res.status(200).json((rows || []).map(rowToCustomCake));
     } catch (err) {
+      if (err?.code === '42703') {
+        try {
+          let rows;
+          if (isAdmin) {
+            rows = await sql`
+              SELECT id, user_id, order_id, size, flavor, frosting, message, design_image_url, price, created_at
+              FROM custom_cake_orders
+              ORDER BY created_at DESC NULLS LAST
+              LIMIT 500
+            `;
+          } else {
+            rows = await sql`
+              SELECT id, user_id, order_id, size, flavor, frosting, message, design_image_url, price, created_at
+              FROM custom_cake_orders
+              WHERE user_id::text = ${String(session.userId)}
+              ORDER BY created_at DESC NULLS LAST
+              LIMIT 200
+            `;
+          }
+          return res.status(200).json((rows || []).map(rowToCustomCake));
+        } catch (fallbackErr) {
+          console.error('[custom-cake-orders] GET fallback', fallbackErr);
+          return res.status(500).json({ error: 'Failed to fetch custom cake orders' });
+        }
+      }
       if (err?.code === '42P01') return res.status(200).json([]);
       console.error('[custom-cake-orders] GET', err);
       return res.status(500).json({ error: 'Failed to fetch custom cake orders' });
@@ -96,11 +121,21 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'size, flavor, and frosting are required' });
     }
     try {
-      const [row] = await sql`
-        INSERT INTO custom_cake_orders (user_id, size, flavor, frosting, toppings, message, design_image_url, price)
-        VALUES (${uid}, ${size}, ${flavor}, ${frosting}, ${JSON.stringify(toppingsArr)}::jsonb, ${message}, ${designImageURL}, ${price})
-        RETURNING id, user_id, order_id, size, flavor, frosting, toppings, message, design_image_url, price, created_at
-      `;
+      let row;
+      try {
+        [row] = await sql`
+          INSERT INTO custom_cake_orders (user_id, size, flavor, frosting, toppings, message, design_image_url, price)
+          VALUES (${uid}, ${size}, ${flavor}, ${frosting}, ${JSON.stringify(toppingsArr)}::jsonb, ${message}, ${designImageURL}, ${price})
+          RETURNING id, user_id, order_id, size, flavor, frosting, toppings, message, design_image_url, price, created_at
+        `;
+      } catch (insertErr) {
+        if (insertErr?.code !== '42703') throw insertErr;
+        [row] = await sql`
+          INSERT INTO custom_cake_orders (user_id, size, flavor, frosting, message, design_image_url, price)
+          VALUES (${uid}, ${size}, ${flavor}, ${frosting}, ${message}, ${designImageURL}, ${price})
+          RETURNING id, user_id, order_id, size, flavor, frosting, message, design_image_url, price, created_at
+        `;
+      }
       return res.status(201).json({ id: row?.id?.toString?.() ?? row?.id });
     } catch (err) {
       if (err?.code === '42P01') return res.status(503).json({ error: 'Service unavailable' });
