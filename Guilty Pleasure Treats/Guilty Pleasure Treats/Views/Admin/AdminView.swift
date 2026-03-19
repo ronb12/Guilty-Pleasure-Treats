@@ -1212,7 +1212,7 @@ struct AddManualOrderSheet: View {
             return sum + price * Double(max(0, row.quantity))
         }
     }
-    private var tax: Double { subtotal * AppConstants.taxRate }
+    private var tax: Double { subtotal * (viewModel.businessSettings?.taxRate ?? AppConstants.taxRate) }
     private var total: Double { subtotal + tax }
 
     var body: some View {
@@ -1769,7 +1769,7 @@ struct CustomerDetailSheet: View {
 
     private var matchingSavedCustomer: SavedCustomer? {
         viewModel.savedCustomers.first { saved in
-            saved.phone.trimmingCharacters(in: .whitespaces) == customer.phone.trimmingCharacters(in: .whitespaces)
+            normalizePhoneForMatch(saved.phone) == normalizePhoneForMatch(customer.phone)
                 || saved.name.trimmingCharacters(in: .whitespaces).lowercased() == customer.displayName.trimmingCharacters(in: .whitespaces).lowercased()
         }
     }

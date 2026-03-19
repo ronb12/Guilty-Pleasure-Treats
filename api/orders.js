@@ -5,6 +5,7 @@
 import { sql, hasDb } from '../api/lib/db.js';
 import { getTokenFromRequest, getSession } from '../api/lib/auth.js';
 import { setCors, handleOptions } from '../api/lib/cors.js';
+import { computeOrderTotals, orderTotalsToDollars, normalizeFulfillmentType, toCents } from './lib/orderTotals.js';
 
 function rowToOrder(row) {
   if (!row) return null;
@@ -77,7 +78,7 @@ export default async function handler(req, res) {
                  stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
                  custom_cake_order_ids, ai_cake_design_ids
           FROM orders
-          WHERE user_id = ${uid}
+          WHERE user_id::text = ${String(uid)}
           ORDER BY created_at DESC NULLS LAST
           LIMIT 200
         `;
@@ -93,6 +94,11 @@ export default async function handler(req, res) {
   if ((req.method || '').toUpperCase() === 'POST') {
     if (!hasDb() || !sql) return res.status(503).json({ error: 'Service unavailable' });
     const body = req.body || {};
+    const requestId = req.headers?.['x-vercel-request-id']
+      ?? req.headers?.['x-vercel-id']
+      ?? req.headers?.['x-request-id']
+      ?? req.headers?.['x-correlation-id']
+      ?? null;
     const customerName = String(body.customerName ?? body.customer_name ?? '').trim();
     const customerPhone = String(body.customerPhone ?? body.customer_phone ?? '').trim();
     const items = Array.isArray(body.items) ? body.items : [];
@@ -122,23 +128,84 @@ export default async function handler(req, res) {
     }));
 
     try {
+      // Validate/normalize fulfillment early (so we can validate delivery address too).
+      const normalizedFulfillmentType = normalizeFulfillmentType(fulfillmentType);
+      const deliveryAddressStr = deliveryAddress == null ? '' : String(deliveryAddress).trim();
+      const hasDeliveryAddress = deliveryAddressStr.length > 0;
+      const deliveryAddressClean = hasDeliveryAddress ? deliveryAddressStr : null;
+
+      if ((normalizedFulfillmentType === 'Delivery' || normalizedFulfillmentType === 'Shipping') && !deliveryAddressClean) {
+        return res.status(400).json({ error: 'Delivery address is required. Please try again.', details: [{ requestId }] });
+      }
+      if (normalizedFulfillmentType === 'Pickup' && deliveryAddressClean) {
+        return res.status(400).json({ error: 'Pickup orders must not include a delivery address. Please try again.', details: [{ requestId }] });
+      }
+
+      // Compute/validate totals server-side from business settings.
+      const [settingsRow] = await sql`SELECT value_json FROM business_settings WHERE key = 'main' LIMIT 1`;
+      const v = settingsRow?.value_json ?? {};
+      const taxRate = v.tax_rate_percent != null ? Number(v.tax_rate_percent) / 100 : 0.08;
+      const deliveryFee = v.delivery_fee != null ? Number(v.delivery_fee) : 0;
+      const shippingFee = v.shipping_fee != null ? Number(v.shipping_fee) : 0;
+
+      // Sanity check: client discounted subtotal should not be greater than item subtotal.
+      // (We allow slight cents drift.)
+      const itemsSubtotalCents = items.reduce((sum, i) => {
+        const price = Number(i?.price ?? 0);
+        const qty = Number(i?.quantity ?? 0);
+        if (!Number.isFinite(price) || !Number.isFinite(qty)) return sum;
+        const cents = Math.round(price * 100);
+        const q = Math.trunc(qty);
+        if (q < 0) return sum;
+        return sum + cents * q;
+      }, 0);
+      const discountedSubtotalCents = toCents(subtotal, 'subtotal');
+      if (discountedSubtotalCents > itemsSubtotalCents + 1) {
+        return res.status(400).json({
+          error: 'Order subtotal looks invalid. Please try again.',
+          details: [{ requestId }],
+        });
+      }
+
+      let totals;
+      try {
+        totals = computeOrderTotals({
+          discountedSubtotal: subtotal,
+          totalClient: total,
+          taxRate,
+          fulfillmentType: normalizedFulfillmentType,
+          deliveryFee,
+          shippingFee,
+        });
+      } catch (totErr) {
+        console.error('[orders] POST totals validation failed', { requestId, message: totErr?.message });
+        return res.status(400).json({ error: 'Invalid order totals. Please try again.', details: [{ requestId }] });
+      }
+
+      // Validate client tax matches what the server would compute (prevents tampering).
+      const taxClientCents = toCents(tax, 'tax');
+      if (Math.abs(taxClientCents - totals.taxCents) > 1) {
+        return res.status(400).json({ error: 'Invalid order totals. Please try again.', details: [{ requestId }] });
+      }
+      const computed = orderTotalsToDollars(totals);
+
       const [row] = await sql`
         INSERT INTO orders (user_id, customer_name, customer_phone, customer_email, delivery_address, items,
           subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status, stripe_payment_intent_id,
           estimated_ready_time, custom_cake_order_ids, ai_cake_design_ids)
-        VALUES (${userId}, ${customerName}, ${customerPhone}, ${customerEmail ?? null}, ${deliveryAddress ?? null}, ${JSON.stringify(itemsJson)},
-          ${subtotal}, ${tax}, ${total}, ${fulfillmentType}, ${scheduledPickupDate ? new Date(scheduledPickupDate) : null}, ${status}, ${stripePaymentIntentId ?? null},
+        VALUES (${userId}, ${customerName}, ${customerPhone}, ${customerEmail ?? null}, ${deliveryAddressClean}, ${JSON.stringify(itemsJson)},
+          ${computed.subtotal}, ${computed.tax}, ${computed.total}, ${normalizedFulfillmentType}, ${scheduledPickupDate ? new Date(scheduledPickupDate) : null}, ${status}, ${stripePaymentIntentId ?? null},
           ${estimatedReadyTime ? new Date(estimatedReadyTime) : null}, ${customCakeOrderIds}, ${aiCakeDesignIds})
         RETURNING id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
           subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status, stripe_payment_intent_id,
           manual_paid_at, created_at, updated_at, estimated_ready_time, custom_cake_order_ids, ai_cake_design_ids
       `;
       const order = rowToOrder(row);
-      return res.status(201).json({ id: order.id });
+      return res.status(201).json({ id: order.id, subtotal: order.subtotal, tax: order.tax, total: order.total });
     } catch (err) {
       if (err?.code === '42P01') return res.status(503).json({ error: 'Service unavailable' });
-      console.error('[orders] POST', err);
-      return res.status(500).json({ error: 'Failed to create order' });
+      console.error('[orders] POST', { requestId, err });
+      return res.status(500).json({ error: 'Failed to create order', details: [{ requestId }] });
     }
   }
 

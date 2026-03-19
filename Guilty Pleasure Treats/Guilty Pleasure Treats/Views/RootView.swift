@@ -49,6 +49,13 @@ struct RootView: View {
             }
         }
         .onAppear {
+            Task {
+                if let settings = try? await VercelService.shared.fetchBusinessSettings() {
+                    await MainActor.run {
+                        CartManager.shared.taxRate = settings.taxRate
+                    }
+                }
+            }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
                 withAnimation(.easeOut(duration: 0.35)) {
                     showSplash = false

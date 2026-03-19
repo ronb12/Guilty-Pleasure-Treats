@@ -164,7 +164,7 @@ enum SampleDataService {
         func daysAgo(_ n: Int) -> Date {
             cal.date(byAdding: .day, value: -n, to: today) ?? today
         }
-        let taxRate = 0.08
+        let taxRate = AppConstants.taxRate
         func tax(_ subtotal: Double) -> Double { subtotal * taxRate }
         func total(_ subtotal: Double) -> Double { subtotal + tax(subtotal) }
 

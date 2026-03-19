@@ -9,7 +9,8 @@
     "deploy": "npm run vercel:sync && vercel --prod",
     "neon:context": "neonctl set-context",
     "neon:connect": "bash scripts/neon-connect.sh",
-    "neon:run-schema": "node scripts/run-missing-tables.js"
+    "neon:run-schema": "node scripts/run-missing-tables.js",
+    "test:order-totals": "node scripts/test-order-totals.js"
   },
   "devDependencies": {
     "neonctl": "^1.15.0"

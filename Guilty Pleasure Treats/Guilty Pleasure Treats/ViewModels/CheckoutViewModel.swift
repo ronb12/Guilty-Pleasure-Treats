@@ -24,6 +24,8 @@ final class CheckoutViewModel: ObservableObject {
     @Published var deliveryFee: Double = 0
     /// Shipping fee in dollars (from business settings). Applied when fulfillment is Shipping.
     @Published var shippingFee: Double = 0
+    /// Tax rate as decimal (e.g. 0.08). Loaded from business settings on checkout; must match server for order creation.
+    @Published var taxRate: Double = AppConstants.taxRate
     @Published var street = ""
     @Published var addressLine2 = ""
     @Published var city = ""
@@ -76,7 +78,7 @@ final class CheckoutViewModel: ObservableObject {
     }
     var orderSummaryDiscount: Double { discountAmount }
     var orderSummarySubtotalAfterDiscount: Double { max(0, orderSummarySubtotal - orderSummaryDiscount) }
-    var orderSummaryTax: Double { orderSummarySubtotalAfterDiscount * AppConstants.taxRate }
+    var orderSummaryTax: Double { orderSummarySubtotalAfterDiscount * taxRate }
     var orderSummaryTip: Double { cart.tipAmount }
     /// Delivery fee when fulfillment is Delivery.
     var orderSummaryDeliveryFee: Double { fulfillmentType == .delivery ? deliveryFee : 0 }
@@ -145,7 +147,6 @@ final class CheckoutViewModel: ObservableObject {
         let subtotal = orderItems.reduce(0) { $0 + $1.subtotal }
         let discount = discountAmount
         let subtotalAfterDiscount = max(0, subtotal - discount)
-        let taxRate = AppConstants.taxRate
         let tax = subtotalAfterDiscount * taxRate
         let tip = cart.tipAmount
         let deliveryFeeAmount = fulfillmentType == .delivery ? deliveryFee : 0
@@ -189,13 +190,17 @@ final class CheckoutViewModel: ObservableObject {
         defer { isLoading = false }
         
         do {
-            let orderId = try await api.createOrder(order)
-            order.id = orderId
+            let created = try await api.createOrder(order)
+            order.id = created.id
+            order.subtotal = created.subtotal
+            order.tax = created.tax
+            order.total = created.total
+            let orderId = created.id
             lastPaymentMethod = paymentMethod
             
             switch paymentMethod {
             case .stripe, .applePay:
-                let amountCents = Int(total * 100)
+                let amountCents = Int(order.total * 100)
                 try await StripeService.shared.presentPaymentSheet(
                     amountCents: amountCents,
                     orderId: orderId,

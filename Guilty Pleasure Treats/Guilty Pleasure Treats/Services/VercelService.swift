@@ -230,7 +230,7 @@ final class VercelService {
 
     // MARK: - Orders
 
-    func createOrder(_ order: Order) async throws -> String {
+    func createOrder(_ order: Order) async throws -> OrderCreateResponse {
         guard let base = baseURL else { throw VercelNotConfiguredError() }
         let url = base.appendingPathComponent("api/orders")
         var req = URLRequest(url: url)
@@ -242,7 +242,7 @@ final class VercelService {
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
         try validateResponse(http, data: data)
         let created = try decoder.decode(OrderCreateResponse.self, from: data)
-        return created.id
+        return created
     }
 
     func fetchOrders(userId: String?) async throws -> [Order] {
@@ -1109,8 +1109,11 @@ struct VercelAPIError: LocalizedError {
     var errorDescription: String? { message }
 }
 
-private struct OrderCreateResponse: Decodable {
+struct OrderCreateResponse: Decodable {
     let id: String
+    let subtotal: Double
+    let tax: Double
+    let total: Double
 }
 
 // MARK: - Bakery API (order status, refund, business hours, export CSV)

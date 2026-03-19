@@ -13,11 +13,13 @@ final class CartManager: ObservableObject {
     
     @Published private(set) var items: [CartItem] = []
     @Published var tipAmount: Double = 0
+    /// Decimal rate (e.g. 0.08). Synced from business settings when cart/checkout load settings; fallback `AppConstants.taxRate`.
+    @Published var taxRate: Double = AppConstants.taxRate
 
     var isEmpty: Bool { items.isEmpty }
     var itemCount: Int { items.reduce(0) { $0 + $1.quantity } }
     var subtotal: Double { items.reduce(0) { $0 + $1.subtotal } }
-    var tax: Double { subtotal * AppConstants.taxRate }
+    var tax: Double { subtotal * taxRate }
     var total: Double { subtotal + tax + tipAmount }
 
     private init() {}
