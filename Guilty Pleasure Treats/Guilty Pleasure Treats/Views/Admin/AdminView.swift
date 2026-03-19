@@ -295,7 +295,9 @@ struct AdminCategoriesView: View {
                             showEditCategory = true
                         }
                             .foregroundStyle(AppConstants.Colors.accent)
+                            .buttonStyle(.borderless)
                         Button("Delete", role: .destructive, action: { categoryToDelete = item })
+                            .buttonStyle(.borderless)
                     }
                 }
             }
