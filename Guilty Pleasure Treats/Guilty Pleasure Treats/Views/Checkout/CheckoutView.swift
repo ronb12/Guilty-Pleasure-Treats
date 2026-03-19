@@ -93,7 +93,6 @@ struct CheckoutView: View {
                         }
                         viewModel.deliveryFee = max(0, settings.deliveryFee ?? 0)
                         viewModel.shippingFee = max(0, settings.shippingFee ?? 0)
-                        viewModel.taxRate = settings.taxRate
                         CartManager.shared.taxRate = settings.taxRate
                     }
                 }

@@ -230,13 +230,19 @@ final class VercelService {
 
     // MARK: - Orders
 
-    func createOrder(_ order: Order) async throws -> OrderCreateResponse {
+    func createOrder(_ order: Order, idempotencyKey: String? = nil) async throws -> OrderCreateResponse {
         guard let base = baseURL else { throw VercelNotConfiguredError() }
         let url = base.appendingPathComponent("api/orders")
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let body = orderPayload(from: order)
+        if let key = idempotencyKey?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty {
+            req.setValue(key, forHTTPHeaderField: "Idempotency-Key")
+        }
+        var body = orderPayload(from: order)
+        if let key = idempotencyKey?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty {
+            body["idempotencyKey"] = key
+        }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
