@@ -77,6 +77,9 @@ export default async function handler(req, res) {
       if (!rows.length) return res.status(404).json({ error: 'Not found' });
       return res.status(200).json(rowToCategory(rows[0]));
     } catch (err) {
+      if (err?.code === '23505') {
+        return res.status(409).json({ error: 'A category with this name already exists' });
+      }
       console.error('[product-categories/id] PATCH', err);
       return res.status(500).json({ error: 'Failed to update category' });
     }
