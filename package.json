@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "packageManager": "npm@10.9.0",
+  "scripts": {
+    "vercel:sync": "bash scripts/sync-api-for-vercel.sh",
+    "deploy": "npm run vercel:sync && vercel --prod"
+  },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.0",
     "@vercel/blob": "^0.23.0",

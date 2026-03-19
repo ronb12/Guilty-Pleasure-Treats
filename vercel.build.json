@@ -1,0 +1,1 @@
+{"buildCommand": "node scripts/sync-api-for-vercel.js"}

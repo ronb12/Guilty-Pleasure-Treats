@@ -1,3 +1,5 @@
 # Xcode user state (window layout, etc.)
 xcuserdata/
 *.xcuserstate
+.vercel
+.git.bak
