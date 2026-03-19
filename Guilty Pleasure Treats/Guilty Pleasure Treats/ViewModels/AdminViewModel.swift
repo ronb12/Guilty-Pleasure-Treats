@@ -435,6 +435,19 @@ final class AdminViewModel: ObservableObject {
         }
     }
 
+    /// Success toast on Categories tab; auto-clears after a few seconds (user can still tap Dismiss).
+    private func setCategoryOperationSuccess(_ message: String) {
+        successMessage = message
+        let marker = message
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            guard let self else { return }
+            if self.successMessage == marker {
+                self.successMessage = nil
+            }
+        }
+    }
+
     func loadProductCategories() async {
         do {
             productCategories = try await api.fetchProductCategories()
@@ -475,7 +488,7 @@ final class AdminViewModel: ObservableObject {
         #endif
         do {
             try await api.updateProductCategory(id: item.id, name: n, displayOrder: displayOrder ?? item.displayOrder)
-            successMessage = "Category updated."
+            setCategoryOperationSuccess("Category updated.")
             await loadProductCategories()
             #if DEBUG
             print("[AdminViewModel] updateCategory success id=\(item.id)")
@@ -499,7 +512,7 @@ final class AdminViewModel: ObservableObject {
         do {
             try await api.deleteProductCategory(id: item.id)
             productCategories.removeAll { $0.id == item.id }
-            successMessage = "Category removed."
+            setCategoryOperationSuccess("Category removed.")
             await loadProductCategories()
         } catch {
             categoryErrorMessage = FriendlyErrorMessage.message(for: error)
@@ -799,8 +812,10 @@ final class AdminViewModel: ObservableObject {
         successMessage = nil
     }
 
+    /// Clears category error banner and any success toast shown on the Categories tab (`successMessage` is shared across Admin).
     func dismissCategoryBanner() {
         categoryErrorMessage = nil
+        successMessage = nil
     }
 
     func loadContactMessages() async {

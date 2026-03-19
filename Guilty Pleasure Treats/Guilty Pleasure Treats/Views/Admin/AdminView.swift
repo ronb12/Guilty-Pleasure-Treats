@@ -348,13 +348,22 @@ struct AdminCategoriesView: View {
                         .padding()
                 }
                 if let msg = viewModel.successMessage {
-                    Text(msg)
-                        .font(.caption)
-                        .foregroundStyle(.green)
-                        .padding(8)
-                        .background(Color.green.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .padding()
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text(msg)
+                            .font(.subheadline)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 8)
+                        Button("Dismiss", action: { viewModel.dismissCategoryBanner() })
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.green)
+                    }
+                    .padding()
+                    .background(Color.green.opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.buttonCornerRadius))
+                    .padding()
                 }
             }
         }
