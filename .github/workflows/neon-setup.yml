@@ -1,0 +1,13 @@
+# Optional: document Neon DB setup. Schema is run manually or via run-missing-tables.js with POSTGRES_URL.
+# To create tables in Neon: run scripts/run-all-schema-in-neon.sql and scripts/add-events-reviews-schema.sql
+# in the Neon SQL Editor, or run: node --env-file=.env.neon scripts/run-missing-tables.js (with POSTGRES_URL set).
+name: Neon setup (doc)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  doc:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Neon schema is applied manually. See scripts/run-missing-tables.js and scripts/*.sql"

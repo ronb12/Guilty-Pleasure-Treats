@@ -19,4 +19,9 @@ async function query(...args) {
 
 // Tagged template for sql`SELECT ...`. When no DB URL, return empty array.
 const sqlTag = sql || (async function noop() { return []; });
-module.exports = { sql: sqlTag, query };
+
+function hasDb() {
+  return !!connectionString;
+}
+
+module.exports = { sql: sqlTag, query, hasDb };
