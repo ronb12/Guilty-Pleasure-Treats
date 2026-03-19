@@ -835,7 +835,12 @@ final class VercelService {
         guard let token = authToken, !token.isEmpty else {
             throw VercelAPIError(message: "Please sign in again.", statusCode: 401)
         }
-        var req = URLRequest(url: base.appendingPathComponent("api/product-categories/\(id)"))
+        var comp = URLComponents(url: base.appendingPathComponent("api/product-categories/id"), resolvingAgainstBaseURL: false)!
+        comp.queryItems = [URLQueryItem(name: "id", value: id)]
+        guard let url = comp.url else {
+            throw VercelAPIError(message: "Invalid category URL", statusCode: 0)
+        }
+        var req = URLRequest(url: url)
         req.httpMethod = "PATCH"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -859,7 +864,12 @@ final class VercelService {
 
     func deleteProductCategory(id: String) async throws {
         guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
-        var req = URLRequest(url: base.appendingPathComponent("api/product-categories/\(id)"))
+        var comp = URLComponents(url: base.appendingPathComponent("api/product-categories/id"), resolvingAgainstBaseURL: false)!
+        comp.queryItems = [URLQueryItem(name: "id", value: id)]
+        guard let url = comp.url else {
+            throw VercelAPIError(message: "Invalid category URL", statusCode: 0)
+        }
+        var req = URLRequest(url: url)
         req.httpMethod = "DELETE"
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         let (data, res) = try await session.data(for: req)
