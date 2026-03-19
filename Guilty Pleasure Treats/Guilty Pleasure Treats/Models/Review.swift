@@ -14,6 +14,9 @@ struct Review: Identifiable, Codable {
     var text: String?
     var createdAt: Date?
     var productId: String?
+    /// When set, review is for this order (DoorDash-style order review).
+    var orderId: String?
+    var userId: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -22,5 +25,7 @@ struct Review: Identifiable, Codable {
         case text
         case createdAt = "created_at"
         case productId = "product_id"
+        case orderId = "order_id"
+        case userId = "user_id"
     }
 }

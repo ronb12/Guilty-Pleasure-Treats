@@ -76,6 +76,8 @@ final class AdminViewModel: ObservableObject {
     @Published var aiCakeDesignOrders: [AICakeDesignOrder] = []
     @Published var customCakeOptions: CustomCakeOptionsResponse?
     @Published var contactMessages: [ContactMessage] = []
+    @Published var reviews: [Review] = []
+    @Published var events: [Event] = []
     @Published var cakeGalleryItems: [GalleryCakeItem] = []
     @Published var productCategories: [ProductCategoryItem] = []
     @Published var savedCustomers: [SavedCustomer] = []
@@ -89,6 +91,9 @@ final class AdminViewModel: ObservableObject {
 
     /// When set, Messages tab should select and show this contact message (e.g. from push tap). Cleared after applying.
     @Published var scrollToMessageId: String?
+
+    /// When set from a contact message "View order", switch to Orders tab and present this order; cleared after opening.
+    @Published var pendingOrderIdToOpen: String?
 
     /// When non-nil, show payment link sheet (URL to copy/share). When error is set, show error in same sheet.
     @Published var paymentLinkURL: URL?
@@ -745,6 +750,22 @@ final class AdminViewModel: ObservableObject {
         }
     }
 
+    func loadReviews() async {
+        do {
+            reviews = try await api.fetchReviews()
+        } catch {
+            reviews = []
+        }
+    }
+
+    func loadEvents() async {
+        do {
+            events = try await api.fetchEvents()
+        } catch {
+            events = []
+        }
+    }
+
     func markContactMessageRead(_ message: ContactMessage) async {
         do {
             try await api.markContactMessageRead(id: message.id)
@@ -842,10 +863,38 @@ final class AdminViewModel: ObservableObject {
 
     func loadCustomCakeOptions() async {
         do {
-            customCakeOptions = try await api.fetchCustomCakeOptionsSettings()
+            var options = try await api.fetchCustomCakeOptionsSettings()
+            // When API returns empty options, use the same defaults as the Custom Cake builder so Admin shows what customers see.
+            if options.sizes.isEmpty || options.flavors.isEmpty || options.frostings.isEmpty {
+                let defaults = Self.defaultCakeOptionsForDisplay()
+                if options.sizes.isEmpty { options.sizes = defaults.sizes }
+                if options.flavors.isEmpty { options.flavors = defaults.flavors }
+                if options.frostings.isEmpty { options.frostings = defaults.frostings }
+                if options.toppings == nil || options.toppings?.isEmpty == true { options.toppings = defaults.toppings }
+            }
+            customCakeOptions = options
         } catch {
+            // On error, show builder defaults so admin can still see and edit the same list as the cake maker.
+            customCakeOptions = Self.defaultCakeOptionsForDisplay()
             errorMessage = FriendlyErrorMessage.message(for: error)
         }
+    }
+
+    /// Same default options as CustomCakeBuilderViewModel.useEnumFallback() so Admin Cake Options matches what appears in the cake maker.
+    private static func defaultCakeOptionsForDisplay() -> CustomCakeOptionsResponse {
+        let sizes = CakeSize.allCases.enumerated().map { i, s in
+            CakeSizeOption(optionId: nil, label: s.rawValue, price: s.price, sortOrder: i)
+        }
+        let flavors = CakeFlavor.allCases.enumerated().map { i, f in
+            CakeFlavorOption(optionId: nil, label: f.rawValue, sortOrder: i)
+        }
+        let frostings = FrostingType.allCases.enumerated().map { i, f in
+            FrostingOption(optionId: nil, label: f.rawValue, sortOrder: i)
+        }
+        let toppings = CakeTopping.allCases.enumerated().map { i, t in
+            ToppingOption(optionId: nil, label: t.rawValue, price: t.price, sortOrder: i)
+        }
+        return CustomCakeOptionsResponse(sizes: sizes, flavors: flavors, frostings: frostings, toppings: toppings)
     }
 
     func saveCustomCakeOptions(sizes: [CakeSizeOption], flavors: [CakeFlavorOption], frostings: [FrostingOption], toppings: [ToppingOption]) async {

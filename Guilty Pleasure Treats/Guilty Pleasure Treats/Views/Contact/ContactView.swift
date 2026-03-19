@@ -13,6 +13,10 @@ struct ContactView: View {
     @State private var email = ""
     @State private var subject = ""
     @State private var message = ""
+    /// Empty = general inquiry; otherwise order id for "regarding this order".
+    @State private var selectedOrderIdForMessage: String = ""
+    @State private var userOrders: [Order] = []
+    @State private var ordersLoading = false
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var success = false
@@ -22,6 +26,14 @@ struct ContactView: View {
 
     private let api = VercelService.shared
     private let auth = AuthService.shared
+
+    private var regardingOptions: [(id: String, label: String)] {
+        [("", "General inquiry (no order)")] + userOrders.compactMap { o in
+            guard let id = o.id else { return nil }
+            let dateStr = o.createdAt.map { $0.formatted(date: .abbreviated, time: .omitted) } ?? "Order"
+            return (id, "Order from \(dateStr) – \(o.total.currencyFormatted)")
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -66,6 +78,24 @@ struct ContactView: View {
                                 .font(.subheadline.weight(.medium))
                             TextField("e.g. Order question", text: $subject)
                                 .textFieldStyle(.roundedBorder)
+                        }
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Regarding (optional)")
+                                .font(.subheadline.weight(.medium))
+                            Text("Link this message to an order so we can help you faster.")
+                                .font(.caption)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
+                            if ordersLoading {
+                                ProgressView()
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            } else if regardingOptions.count > 1 {
+                                Picker("", selection: $selectedOrderIdForMessage) {
+                                    ForEach(regardingOptions, id: \.id) { opt in
+                                        Text(opt.label).tag(opt.id)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                            }
                         }
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Message")
@@ -114,6 +144,7 @@ struct ContactView: View {
                 if message.isEmpty, let m = initialMessage { message = m }
                 if email.isEmpty, let e = auth.currentUser?.email { email = e }
             }
+            .task { await loadUserOrders() }
         }
     }
 
@@ -133,11 +164,23 @@ struct ContactView: View {
                 email: trimmedEmail,
                 subject: subject.isEmpty ? nil : subject.trimmingCharacters(in: .whitespaces),
                 message: trimmedMessage,
-                userId: auth.currentUser?.uid
+                userId: auth.currentUser?.uid,
+                orderId: selectedOrderIdForMessage.isEmpty ? nil : selectedOrderIdForMessage
             )
             success = true
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)
+        }
+    }
+
+    private func loadUserOrders() async {
+        guard let uid = auth.currentUser?.uid else { return }
+        ordersLoading = true
+        defer { ordersLoading = false }
+        do {
+            userOrders = try await api.fetchOrders(userId: uid)
+        } catch {
+            userOrders = []
         }
     }
 }

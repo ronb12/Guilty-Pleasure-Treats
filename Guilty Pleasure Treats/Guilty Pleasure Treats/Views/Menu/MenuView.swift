@@ -75,18 +75,10 @@ struct MenuView: View {
         return products.filter { $0.category == cat }
     }
 
-    /// Height of the sticky header (search + chips); scroll content pads by this so it doesn’t sit under the bar.
-    private static let stickyHeaderHeight: CGFloat = 170
-
     var body: some View {
-        ZStack(alignment: .top) {
-            // Scrollable content only — fills space; top padding so content scrolls under the sticky header
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    Color.clear
-                        .frame(height: Self.stickyHeaderHeight)
-                    // Content starts here (spacer above is under sticky header)
-                    Toggle(isOn: $showOnlyVegetarian) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Toggle(isOn: $showOnlyVegetarian) {
                         Label("Show only vegetarian", systemImage: "leaf.fill")
                             .font(.subheadline)
                             .foregroundStyle(AppConstants.Colors.textPrimary)
@@ -168,18 +160,12 @@ struct MenuView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 24)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(AppConstants.Colors.secondary)
-
-            // Sticky header: fixed at top; only the chip row scrolls horizontally
-            VStack(spacing: 0) {
-                menuStickyHeader
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                Spacer(minLength: 0)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .frame(height: Self.stickyHeaderHeight)
-            .background(AppConstants.Colors.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(AppConstants.Colors.secondary)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            menuStickyHeader
+                .background(AppConstants.Colors.secondary)
         }
         .macOSConstrainedContent()
         .navigationTitle("Menu")

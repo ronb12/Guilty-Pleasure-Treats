@@ -53,6 +53,8 @@ function modulePathFor(key) {
     'customers/id': 'customers/id.js',
     'push/register': 'push/register.js',
     'analytics/summary': 'analytics/summary.js',
+    reviews: 'reviews/index.js',
+    events: 'events/index.js',
   };
   const file = fileMap[key];
   if (!file) return null;
@@ -190,6 +192,10 @@ function getPathKey(req) {
     key = 'push/register';
   } else if (segs[0] === 'analytics' && segs[1] === 'summary') {
     key = 'analytics/summary';
+  } else if (segs[0] === 'reviews') {
+    key = 'reviews';
+  } else if (segs[0] === 'events') {
+    key = 'events';
   }
   return { key, q };
 }

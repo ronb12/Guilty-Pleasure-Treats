@@ -434,20 +434,21 @@ final class VercelService {
 
     // MARK: - Contact messages
 
-    /// Submit a contact message (no auth required).
-    func submitContactMessage(name: String?, email: String, subject: String?, message: String, userId: String?) async throws {
+    /// Submit a contact message (no auth required). orderId is optional (message about a specific order).
+    func submitContactMessage(name: String?, email: String, subject: String?, message: String, userId: String?, orderId: String?) async throws {
         guard let base = baseURL else { throw VercelNotConfiguredError() }
         let url = base.appendingPathComponent("api/contact")
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let body: [String: Any?] = [
+        var body: [String: Any?] = [
             "email": email,
             "message": message,
             "name": name,
             "subject": subject,
             "userId": userId,
         ]
+        if let oid = orderId, !oid.isEmpty { body["orderId"] = oid }
         req.httpBody = try JSONSerialization.data(withJSONObject: body.compactMapValues { $0 })
         let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
@@ -1154,5 +1155,35 @@ extension VercelService {
             if (error as? VercelAPIError)?.statusCode == 404 { return [] }
             throw error
         }
+    }
+
+    /// Fetch current user's review for an order (for "You rated this order" or to hide form). GET /api/reviews?orderId=xxx with auth.
+    func fetchReviewForOrder(orderId: String) async throws -> Review? {
+        guard let base = baseURL, let token = authToken else { return nil }
+        var comp = URLComponents(url: base.appendingPathComponent("api/reviews"), resolvingAgainstBaseURL: false)!
+        comp.queryItems = [URLQueryItem(name: "orderId", value: orderId)]
+        var req = URLRequest(url: comp.url!)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, res) = try await session.data(for: req)
+        guard let http = res as? HTTPURLResponse else { return nil }
+        guard (200...299).contains(http.statusCode) else { return nil }
+        let list = try decoder.decode([Review].self, from: data)
+        return list.first
+    }
+
+    /// Submit a review for a completed order (DoorDash-style). POST /api/reviews. Body: orderId, rating (1-5), text?.
+    func submitReview(orderId: String, rating: Int, text: String?) async throws {
+        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
+        let url = base.appendingPathComponent("api/reviews")
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        var body: [String: Any] = ["orderId": orderId, "rating": rating]
+        if let t = text, !t.isEmpty { body["text"] = t }
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, res) = try await session.data(for: req)
+        guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
+        try validateResponse(http, data: data)
     }
 }

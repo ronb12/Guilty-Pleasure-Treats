@@ -14,12 +14,15 @@ struct ContactMessage: Identifiable, Codable, Equatable {
     var subject: String?
     var message: String
     var userId: String?
+    /// When set, the message is about this order; admin can open it from the message.
+    var orderId: String?
     var readAt: Date?
     var createdAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id, name, email, subject, message
         case userId = "userId"
+        case orderId = "orderId"
         case readAt = "readAt"
         case createdAt = "createdAt"
     }

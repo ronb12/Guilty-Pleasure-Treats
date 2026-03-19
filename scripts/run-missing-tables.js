@@ -160,6 +160,7 @@ async function main() {
       )
     `;
     await sql`CREATE INDEX IF NOT EXISTS idx_contact_messages_created_at ON contact_messages(created_at DESC)`;
+    await sql`ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS order_id UUID`;
     console.log('contact_messages OK');
 
     // contact_message_replies (depends on contact_messages)
@@ -255,7 +256,7 @@ async function main() {
     await sql`CREATE INDEX IF NOT EXISTS idx_events_start_at ON events(start_at ASC) WHERE start_at IS NOT NULL`;
     console.log('events OK');
 
-    // reviews (customer reviews)
+    // reviews (customer reviews; order-based like DoorDash)
     await sql`
       CREATE TABLE IF NOT EXISTS reviews (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -263,11 +264,34 @@ async function main() {
         rating INT CHECK (rating >= 1 AND rating <= 5),
         text TEXT,
         product_id TEXT,
+        order_id UUID,
+        user_id TEXT,
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `;
     await sql`CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at DESC)`;
+    await sql`ALTER TABLE reviews ADD COLUMN IF NOT EXISTS order_id UUID`;
+    await sql`ALTER TABLE reviews ADD COLUMN IF NOT EXISTS user_id TEXT`;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_reviews_order_user ON reviews(order_id, user_id) WHERE order_id IS NOT NULL AND user_id IS NOT NULL`;
     console.log('reviews OK');
+
+    // promotions (discount codes, admin)
+    await sql`
+      CREATE TABLE IF NOT EXISTS promotions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        code TEXT NOT NULL UNIQUE,
+        discount_type TEXT NOT NULL DEFAULT 'Percent off',
+        value DECIMAL(10,2) NOT NULL DEFAULT 0,
+        valid_from TIMESTAMPTZ,
+        valid_to TIMESTAMPTZ,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_promotions_code ON promotions(code)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_promotions_created_at ON promotions(created_at DESC)`;
+    console.log('promotions OK');
 
     // business_settings (custom_cake_options, main config, etc.)
     await sql`

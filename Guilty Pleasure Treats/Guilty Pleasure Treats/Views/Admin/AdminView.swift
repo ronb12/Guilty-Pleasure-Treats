@@ -100,21 +100,33 @@ struct AdminView: View {
                         AdminAnalyticsView(viewModel: viewModel)
                             .tabItem { Label(adminTabTitle("Analytics", short: "Stats"), systemImage: "chart.bar") }
                             .tag(6)
+                        AdminReviewsView(viewModel: viewModel)
+                            .tabItem { Label(adminTabTitle("Reviews", short: "Reviews"), systemImage: "star.text.rectangle") }
+                            .tag(7)
+                        AdminEventsView(viewModel: viewModel)
+                            .tabItem { Label(adminTabTitle("Events", short: "Events"), systemImage: "calendar") }
+                            .tag(8)
                         AdminMarginsView(viewModel: viewModel)
                             .tabItem { Label(adminTabTitle("Margins", short: "Margin"), systemImage: "percent") }
-                            .tag(7)
-                        AdminContactMessagesView(viewModel: viewModel)
+                            .tag(9)
+                        AdminContactMessagesView(
+                            viewModel: viewModel,
+                            onViewOrderFromMessage: { orderId in
+                                viewModel.pendingOrderIdToOpen = orderId
+                                selectedTab = 2
+                            }
+                        )
                             .tabItem { Label(adminTabTitle("Messages", short: "Msgs"), systemImage: "envelope.badge") }
-                            .tag(8)
+                            .tag(10)
                         AdminSettingsView(viewModel: viewModel)
                             .tabItem { Label(adminTabTitle("Settings", short: "Settings"), systemImage: "gearshape") }
-                            .tag(9)
+                            .tag(11)
                         AdminCakeGalleryView(viewModel: viewModel)
                             .tabItem { Label(adminTabTitle("Gallery", short: "Gallery"), systemImage: "photo.on.rectangle.angled") }
-                            .tag(10)
+                            .tag(12)
                         AdminInventoryView(viewModel: viewModel)
                             .tabItem { Label(adminTabTitle("Inventory", short: "Stock"), systemImage: "shippingbox.fill") }
-                            .tag(11)
+                            .tag(13)
                     }
                 }
                 #if os(macOS)
@@ -136,6 +148,8 @@ struct AdminView: View {
                         await viewModel.loadSpecialOrders()
                         await viewModel.loadCustomCakeOptions()
                         await viewModel.loadContactMessages()
+                        await viewModel.loadReviews()
+                        await viewModel.loadEvents()
                         await viewModel.loadCakeGallery()
                         await NotificationService.shared.registerPushTokenWithBackend()
                     }
@@ -148,12 +162,12 @@ struct AdminView: View {
         guard let action = notificationService.pendingPushAction else { return }
         switch action {
         case .openAdminMessages(let mid):
-            selectedTab = 7
+            selectedTab = 10
             viewModel.scrollToMessageId = mid
         case .openAdminOrder:
             selectedTab = 2
         case .openAdminInventory:
-            selectedTab = 10
+            selectedTab = 13
         case .openOrder(_):
             break
         }
@@ -881,12 +895,21 @@ private struct AdminGalleryOrderRowCompactView: View {
 struct AdminOrdersView: View {
     @ObservedObject var viewModel: AdminViewModel
     @State private var showAddManualOrder = false
+    @State private var orderToOpenFromMessage: Order?
 
     private var paymentLinkSheetPresented: Binding<Bool> {
         Binding(
             get: { viewModel.paymentLinkURL != nil || viewModel.paymentLinkError != nil },
             set: { if !$0 { viewModel.clearPaymentLink() } }
         )
+    }
+
+    private func tryOpenOrderFromMessage() {
+        guard let id = viewModel.pendingOrderIdToOpen, !id.isEmpty else { return }
+        if let order = viewModel.orders.first(where: { $0.id == id }) {
+            orderToOpenFromMessage = order
+        }
+        viewModel.pendingOrderIdToOpen = nil
     }
 
     var body: some View {
@@ -941,6 +964,26 @@ struct AdminOrdersView: View {
                 }
             }
             .navigationTitle("Orders")
+            .onAppear { tryOpenOrderFromMessage() }
+            .onChange(of: viewModel.pendingOrderIdToOpen) { _, _ in tryOpenOrderFromMessage() }
+            .onChange(of: viewModel.orders) { _, _ in tryOpenOrderFromMessage() }
+            .sheet(item: $orderToOpenFromMessage) { order in
+                OrderDetailView(
+                    order: order,
+                    isAdmin: true,
+                    onUpdateStatus: { updatedOrder, newStatus in
+                        Task { await viewModel.updateOrderStatus(order: updatedOrder, status: newStatus) }
+                    },
+                    onMarkAsPaid: { orderId in
+                        Task { await viewModel.markOrderAsPaid(orderId: orderId) }
+                    },
+                    onSendPaymentLink: { orderId in
+                        Task { await viewModel.createPaymentLink(for: orderId) }
+                }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
             #if os(macOS)
             .inlineNavigationTitle()
             .toolbar {
@@ -2414,11 +2457,11 @@ struct AdminCustomCakeOptionsView: View {
     private var cakeOptionsList: some View {
         List {
             Section {
-                Text("Changes appear on the customer Custom Cake page. Tap Save to update.")
+                Text("These options appear in the Custom Cake builder in this order: Cake Size, Cake Flavor, Frosting, Toppings (optional). Tap Save to update.")
                     .font(.caption)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
             }
-            Section("Cake sizes (label + price)") {
+            Section("Cake Size (label + price)") {
                 ForEach(sizes) { size in
                     HStack {
                         Text(size.label)
@@ -2443,7 +2486,7 @@ struct AdminCustomCakeOptionsView: View {
                 }
                 .foregroundStyle(AppConstants.Colors.accent)
             }
-            Section("Cake flavors") {
+            Section("Cake Flavor") {
                 ForEach(flavors) { flavor in
                     HStack {
                         Text(flavor.label)
@@ -2466,7 +2509,7 @@ struct AdminCustomCakeOptionsView: View {
                 }
                 .foregroundStyle(AppConstants.Colors.accent)
             }
-            Section("Frosting types") {
+            Section("Frosting") {
                 ForEach(frostings) { frosting in
                     HStack {
                         Text(frosting.label)
@@ -2489,7 +2532,7 @@ struct AdminCustomCakeOptionsView: View {
                 }
                 .foregroundStyle(AppConstants.Colors.accent)
             }
-            Section("Toppings (label + price)") {
+            Section("Toppings (optional) (label + price)") {
                 ForEach(toppings) { topping in
                     HStack {
                         Text(topping.label)
@@ -3158,8 +3201,107 @@ private enum OrderExportHelper {
     }
 }
 
+struct AdminReviewsView: View {
+    @ObservedObject var viewModel: AdminViewModel
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if viewModel.reviews.isEmpty {
+                    ContentUnavailableView {
+                        Label("No reviews yet", systemImage: "star.text.rectangle")
+                    } description: {
+                        Text("Customer reviews will appear here.")
+                    }
+                } else {
+                    List {
+                        ForEach(viewModel.reviews) { review in
+                            VStack(alignment: .leading, spacing: 6) {
+                                if let rating = review.rating, rating > 0 {
+                                    HStack(spacing: 2) {
+                                        ForEach(0..<min(rating, 5), id: \.self) { _ in
+                                            Image(systemName: "star.fill")
+                                                .font(.subheadline)
+                                                .foregroundStyle(AppConstants.Colors.accent)
+                                        }
+                                    }
+                                }
+                                if let text = review.text, !text.isEmpty {
+                                    Text(text)
+                                        .font(.body)
+                                        .foregroundStyle(AppConstants.Colors.textPrimary)
+                                }
+                                if let name = review.authorName, !name.isEmpty {
+                                    Text("— \(name)")
+                                        .font(.caption)
+                                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                                }
+                                if let productId = review.productId, !productId.isEmpty {
+                                    Text("Product: \(productId)")
+                                        .font(.caption2)
+                                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                                }
+                            }
+                            .padding(.vertical, 8)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Reviews")
+            .refreshable { await viewModel.loadReviews() }
+        }
+    }
+}
+
+struct AdminEventsView: View {
+    @ObservedObject var viewModel: AdminViewModel
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if viewModel.events.isEmpty {
+                    ContentUnavailableView {
+                        Label("No events yet", systemImage: "calendar")
+                    } description: {
+                        Text("Events (tastings, pop-ups) will appear here.")
+                    }
+                } else {
+                    List {
+                        ForEach(viewModel.events) { event in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(event.title)
+                                    .font(.headline)
+                                    .foregroundStyle(AppConstants.Colors.textPrimary)
+                                if let desc = event.eventDescription, !desc.isEmpty {
+                                    Text(desc)
+                                        .font(.subheadline)
+                                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                                }
+                                if let start = event.startAt {
+                                    Label(start.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
+                                        .font(.caption)
+                                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                                }
+                                if let loc = event.location, !loc.isEmpty {
+                                    Label(loc, systemImage: "mappin.circle")
+                                        .font(.caption)
+                                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Events")
+            .refreshable { await viewModel.loadEvents() }
+        }
+    }
+}
+
 struct AdminContactMessagesView: View {
     @ObservedObject var viewModel: AdminViewModel
+    var onViewOrderFromMessage: (String) -> Void = { _ in }
     @State private var selectedMessage: ContactMessage?
 
     private func applyScrollToMessageId() {
@@ -3215,6 +3357,11 @@ struct AdminContactMessagesView: View {
                                                 .foregroundStyle(AppConstants.Colors.textSecondary)
                                                 .lineLimit(1)
                                         }
+                                        if msg.orderId != nil, !(msg.orderId ?? "").isEmpty {
+                                            Text("About an order")
+                                                .font(.caption2)
+                                                .foregroundStyle(AppConstants.Colors.accent)
+                                        }
                                         Text(msg.message)
                                             .font(.caption)
                                             .foregroundStyle(AppConstants.Colors.textSecondary)
@@ -3259,7 +3406,8 @@ struct AdminContactMessagesView: View {
                 ContactMessageDetailSheet(
                     viewModel: viewModel,
                     message: msg,
-                    onDismiss: { selectedMessage = nil }
+                    onDismiss: { selectedMessage = nil },
+                    onViewOrderFromMessage: onViewOrderFromMessage
                 )
                 .macOSAdminSheetSize()
             }
@@ -3283,6 +3431,7 @@ struct ContactMessageDetailSheet: View {
     @ObservedObject var viewModel: AdminViewModel
     let message: ContactMessage
     var onDismiss: () -> Void
+    var onViewOrderFromMessage: (String) -> Void = { _ in }
     @Environment(\.dismiss) private var dismiss
     @State private var replyText = ""
     @State private var isSendingReply = false
@@ -3315,6 +3464,20 @@ struct ContactMessageDetailSheet: View {
                     detailRow("Message", message.message)
                     if let created = message.createdAt {
                         detailRow("Received", created.shortDateString)
+                    }
+                    if let orderId = message.orderId, !orderId.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            detailRow("Regarding order", orderId)
+                            Button {
+                                onViewOrderFromMessage(orderId)
+                                onDismiss()
+                                dismiss()
+                            } label: {
+                                Label("View order", systemImage: "doc.text")
+                                    .font(.subheadline.weight(.medium))
+                            }
+                            .foregroundStyle(AppConstants.Colors.accent)
+                        }
                     }
 
                     Divider()

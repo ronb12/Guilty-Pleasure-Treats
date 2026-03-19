@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS contact_messages (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_contact_messages_created_at ON contact_messages(created_at DESC);
+ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS order_id UUID;
 
 -- contact_message_replies
 CREATE TABLE IF NOT EXISTS contact_message_replies (

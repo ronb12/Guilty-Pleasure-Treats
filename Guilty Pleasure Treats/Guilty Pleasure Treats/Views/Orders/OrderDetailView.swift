@@ -29,6 +29,13 @@ struct OrderDetailView: View {
 
     @State private var showStatusPicker = false
     @State private var showCancelRequestSheet = false
+    @State private var existingOrderReview: Review?
+    @State private var reviewRating: Int = 5
+    @State private var reviewText: String = ""
+    @State private var isSubmittingReview = false
+    @State private var reviewErrorMessage: String?
+
+    private let api = VercelService.shared
 
     private var isSampleOrder: Bool {
         order.id?.hasPrefix("sample-") ?? false
@@ -52,6 +59,9 @@ struct OrderDetailView: View {
                 fulfillmentCard
                 itemsCard
                 totalsCard
+                if !isAdmin, !isSampleOrder, order.statusEnum == .completed {
+                    orderReviewCard
+                }
                 if isAdmin, !isSampleOrder {
                     adminActionsCard
                 }
@@ -78,6 +88,126 @@ struct OrderDetailView: View {
                 initialSubject: order.id.map { "Cancel order #\($0.prefix(8))" },
                 initialMessage: "I would like to cancel this order. Please confirm."
             )
+        }
+        .task {
+            if !isAdmin, order.id != nil, order.statusEnum == .completed {
+                await loadOrderReview()
+            }
+        }
+    }
+
+    /// DoorDash-style: rate your order after it’s completed (one review per order).
+    private var orderReviewCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let review = existingOrderReview {
+                Text("You rated this order")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppConstants.Colors.textPrimary)
+                HStack(spacing: 2) {
+                    ForEach(1...5, id: \.self) { star in
+                        Image(systemName: (review.rating ?? 0) >= star ? "star.fill" : "star")
+                            .font(.subheadline)
+                            .foregroundStyle(AppConstants.Colors.accent)
+                    }
+                }
+                if let text = review.text, !text.isEmpty {
+                    Text(text)
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                }
+            } else {
+                Text("Rate your order")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(AppConstants.Colors.textPrimary)
+                Text("How was your experience?")
+                    .font(.caption)
+                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                HStack(spacing: 4) {
+                    ForEach(1...5, id: \.self) { star in
+                        Button {
+                            reviewRating = star
+                            reviewErrorMessage = nil
+                        } label: {
+                            Image(systemName: reviewRating >= star ? "star.fill" : "star")
+                                .font(.title2)
+                                .foregroundStyle(AppConstants.Colors.accent)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                TextEditor(text: $reviewText)
+                    .frame(minHeight: 60)
+                    .padding(8)
+                    .background(platformSystemGrayBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(Group {
+                        if reviewText.isEmpty {
+                            Text("Add a comment (optional)")
+                                .foregroundStyle(Color(.placeholderText))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                                .allowsHitTesting(false)
+                        }
+                    }, alignment: .topLeading)
+                if let msg = reviewErrorMessage {
+                    Text(msg)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+                Button {
+                    Task { await submitOrderReview() }
+                } label: {
+                    if isSubmittingReview {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Text("Submit review")
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(AppConstants.Colors.accent)
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.buttonCornerRadius))
+                .disabled(isSubmittingReview)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppConstants.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+    }
+
+    private func loadOrderReview() async {
+        guard let orderId = order.id else { return }
+        do {
+            existingOrderReview = try await api.fetchReviewForOrder(orderId: orderId)
+        } catch {
+            existingOrderReview = nil
+        }
+    }
+
+    private func submitOrderReview() async {
+        guard let orderId = order.id else { return }
+        reviewErrorMessage = nil
+        isSubmittingReview = true
+        defer { isSubmittingReview = false }
+        do {
+            try await api.submitReview(orderId: orderId, rating: reviewRating, text: reviewText.isEmpty ? nil : reviewText)
+            existingOrderReview = Review(
+                id: "",
+                authorName: nil,
+                rating: reviewRating,
+                text: reviewText.isEmpty ? nil : reviewText,
+                createdAt: Date(),
+                productId: nil,
+                orderId: orderId,
+                userId: nil
+            )
+            reviewText = ""
+        } catch {
+            reviewErrorMessage = FriendlyErrorMessage.message(for: error)
         }
     }
 
