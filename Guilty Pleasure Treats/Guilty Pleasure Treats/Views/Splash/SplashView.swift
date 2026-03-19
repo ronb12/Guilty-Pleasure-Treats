@@ -21,15 +21,8 @@ struct SplashView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    AppConstants.Colors.primary.opacity(0.9),
-                    AppConstants.Colors.secondary
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            AppConstants.Colors.secondary
+                .ignoresSafeArea()
 
             VStack(spacing: 24) {
                 Image("LandingLogo")
@@ -45,17 +38,26 @@ struct SplashView: View {
 
                 Text("Every bite's a little indulgence")
                     .font(.subheadline)
-                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                    .foregroundStyle(AppConstants.Colors.textPrimary)
                     .opacity(taglineOpacity)
 
                 if !AppConstants.splashOwnerName.isEmpty {
                     VStack(spacing: 2) {
-                        Text(AppConstants.splashOwnerName)
-                            .font(Font.custom("Snell Roundhand", size: 26))
-                            .foregroundStyle(AppConstants.Colors.textSecondary.opacity(0.95))
-                        Text("owner")
+                        HStack(spacing: 8) {
+                            Image(systemName: "diamond.fill")
+                                .font(.caption2)
+                                .foregroundStyle(AppConstants.Colors.accent)
+                            Text(AppConstants.splashOwnerName)
+                                .font(Font.custom("Snell Roundhand", size: 32))
+                                .italic()
+                                .foregroundStyle(AppConstants.Colors.accent)
+                            Image(systemName: "diamond.fill")
+                                .font(.caption2)
+                                .foregroundStyle(AppConstants.Colors.accent)
+                        }
+                        Text("Owner")
                             .font(.caption)
-                            .foregroundStyle(AppConstants.Colors.textSecondary.opacity(0.85))
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
                     }
                     .opacity(taglineOpacity)
                 }
@@ -82,7 +84,7 @@ struct SplashView: View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(AppConstants.Colors.accent.opacity(0.2))
+                    .fill(AppConstants.Colors.accent.opacity(0.35))
                     .frame(height: 3)
                 RoundedRectangle(cornerRadius: 2)
                     .fill(AppConstants.Colors.accent)

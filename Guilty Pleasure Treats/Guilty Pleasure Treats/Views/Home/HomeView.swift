@@ -39,8 +39,10 @@ struct HomeView: View {
                             
                             quickActionsSection
 
-                            eventsSection
+                            middleMenuPrompt
+
                             reviewsSection
+                            eventsSection
                             
                             if viewModel.isLoading {
                                 ProgressView()
@@ -54,9 +56,7 @@ struct HomeView: View {
                                     .opacity(sectionVisible ? 1 : 0)
                                     .offset(y: sectionVisible ? 0 : 12)
                             } else {
-                                featuredEmptyState
-                                    .opacity(sectionVisible ? 1 : 0)
-                                    .offset(y: sectionVisible ? 0 : 8)
+                                EmptyView()
                             }
                             
                             dividerAboveBrowse
@@ -121,6 +121,9 @@ struct HomeView: View {
                                 .foregroundStyle(AppConstants.Colors.accent)
                         }
                     }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(AppConstants.Colors.cardBackground))
                 }
             }
             .sheet(isPresented: $showNotificationCenter) {
@@ -165,18 +168,12 @@ struct HomeView: View {
                 .opacity(heroVisible ? 1 : 0)
                 .offset(y: heroVisible ? 0 : 6)
             
-            Text("Handcrafted cupcakes, cookies, cakes & more.")
+            Text("Handcrafted cupcakes, cookies, cakes & more. Pick up & delivery (w/ fee) — NYC & North NJ only; shipping available.")
                 .font(.subheadline)
                 .foregroundStyle(AppConstants.Colors.textSecondary)
                 .multilineTextAlignment(.center)
                 .opacity(heroVisible ? 1 : 0)
                 .offset(y: heroVisible ? 0 : 8)
-            Text("Pick up & delivery (NYC & North NJ)")
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundStyle(AppConstants.Colors.textSecondary)
-                .opacity(heroVisible ? 1 : 0)
-                .offset(y: heroVisible ? 0 : 6)
             
             Button {
                 showMenu = true
@@ -219,7 +216,7 @@ struct HomeView: View {
                 .buttonStyle(.plain)
             }
             .font(.subheadline.weight(.medium))
-            .foregroundStyle(AppConstants.Colors.accent)
+            .foregroundStyle(AppConstants.Colors.textSecondary)
             .padding(.horizontal, AppConstants.Layout.screenHorizontalPadding)
         }
         .frame(maxWidth: .infinity)
@@ -235,9 +232,9 @@ struct HomeView: View {
     private var quickActionsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Create something sweet")
-                .font(.subheadline)
+                .font(.headline)
                 .fontWeight(.semibold)
-                .foregroundStyle(AppConstants.Colors.textSecondary)
+                .foregroundStyle(AppConstants.Colors.textPrimary)
             
             customCakeCard
             cakeGalleryCard
@@ -280,19 +277,35 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
     
+    private var middleMenuPrompt: some View {
+        Text("Check out our full menu below for cupcakes, cookies, cakes, and more.")
+            .font(.subheadline)
+            .foregroundStyle(AppConstants.Colors.textSecondary)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .opacity(sectionVisible ? 1 : 0)
+    }
+
     private var eventsSection: some View {
         Group {
-            sectionHeader("Upcoming events")
+            sectionHeaderWithSeeAll(title: "Events", seeAllRoute: .events)
                 .opacity(sectionVisible ? 1 : 0)
                 .offset(y: sectionVisible ? 0 : 8)
             if viewModel.upcomingEvents.isEmpty {
                 NavigationLink(value: HomeNavRoute.events) {
-                    Text("See all events")
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(AppConstants.Colors.accent)
+                    Text("No upcoming events. Tap to see events.")
+                        .font(.subheadline)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(AppConstants.Layout.cardPadding)
+                        .background(AppConstants.Colors.cardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+                        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
                 }
+                .buttonStyle(.plain)
                 .opacity(sectionVisible ? 1 : 0)
-                .padding(.vertical, 8)
+                .offset(y: sectionVisible ? 0 : 8)
             } else {
                 eventsPreview
                     .opacity(sectionVisible ? 1 : 0)
@@ -343,16 +356,23 @@ struct HomeView: View {
 
     private var reviewsSection: some View {
         Group {
-            sectionHeader("What people say")
+            sectionHeaderWithSeeAll(title: "Reviews", seeAllRoute: .reviews)
                 .opacity(sectionVisible ? 1 : 0)
                 .offset(y: sectionVisible ? 0 : 8)
             if viewModel.reviews.isEmpty {
-                Text("No reviews yet. Order something sweet and leave a review!")
-                    .font(.subheadline)
-                    .foregroundStyle(AppConstants.Colors.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 12)
-                    .opacity(sectionVisible ? 1 : 0)
+                NavigationLink(value: HomeNavRoute.reviews) {
+                    Text("No reviews yet. Tap to see reviews.")
+                        .font(.subheadline)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(AppConstants.Layout.cardPadding)
+                        .background(AppConstants.Colors.cardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+                        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 2)
+                }
+                .buttonStyle(.plain)
+                .opacity(sectionVisible ? 1 : 0)
+                .offset(y: sectionVisible ? 0 : 8)
             } else {
                 reviewsPreview
                     .opacity(sectionVisible ? 1 : 0)
@@ -468,6 +488,21 @@ struct HomeView: View {
             .fontWeight(.semibold)
             .foregroundStyle(AppConstants.Colors.textPrimary)
     }
+
+    private func sectionHeaderWithSeeAll(title: String, seeAllRoute: HomeNavRoute) -> some View {
+        HStack {
+            Text(title)
+                .font(.title2)
+                .fontWeight(.semibold)
+                .foregroundStyle(AppConstants.Colors.textPrimary)
+            Spacer()
+            NavigationLink(value: seeAllRoute) {
+                Text("See all")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppConstants.Colors.accent)
+            }
+        }
+    }
     
     private var featuredScroll: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -485,15 +520,6 @@ struct HomeView: View {
         .padding(.horizontal, -AppConstants.Layout.screenHorizontalPadding)
     }
     
-    private var featuredEmptyState: some View {
-        Text("Check out our full menu below for cupcakes, cookies, cakes, and more.")
-            .font(.subheadline)
-            .foregroundStyle(AppConstants.Colors.textSecondary)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 24)
-    }
-    
     private var dividerAboveBrowse: some View {
         Rectangle()
             .fill(AppConstants.Colors.accent.opacity(0.12))
@@ -506,11 +532,11 @@ struct HomeView: View {
         Button {
             showMenu = true
         } label: {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Text("Browse full menu")
                     .fontWeight(.semibold)
-                Image(systemName: "arrow.right")
-                    .font(.subheadline.weight(.semibold))
+                Text("→")
+                    .font(.body.weight(.semibold))
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)
