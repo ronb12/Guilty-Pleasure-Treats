@@ -263,6 +263,7 @@ struct AdminCategoriesView: View {
     @ObservedObject var viewModel: AdminViewModel
     @State private var showAddCategory = false
     @State private var editingCategory: ProductCategoryItem?
+    @State private var showEditCategory = false
     @State private var categoryToDelete: ProductCategoryItem?
     
     var body: some View {
@@ -289,7 +290,10 @@ struct AdminCategoriesView: View {
                         Text("Order: \(item.displayOrder)")
                             .font(.caption)
                             .foregroundStyle(AppConstants.Colors.textSecondary)
-                        Button("Edit", action: { editingCategory = item })
+                        Button("Edit") {
+                            editingCategory = item
+                            showEditCategory = true
+                        }
                             .foregroundStyle(AppConstants.Colors.accent)
                         Button("Delete", role: .destructive, action: { categoryToDelete = item })
                     }
@@ -310,11 +314,16 @@ struct AdminCategoriesView: View {
                 }
                 .macOSAdminSheetSize()
             }
-            .sheet(item: $editingCategory) { item in
-                EditCategorySheet(viewModel: viewModel, item: item) {
-                    editingCategory = nil
+            .sheet(isPresented: $showEditCategory, onDismiss: {
+                editingCategory = nil
+            }) {
+                if let item = editingCategory {
+                    EditCategorySheet(viewModel: viewModel, item: item) {
+                        showEditCategory = false
+                        editingCategory = nil
+                    }
+                    .macOSAdminSheetSize()
                 }
-                .macOSAdminSheetSize()
             }
             .alert("Delete category?", isPresented: Binding(get: { categoryToDelete != nil }, set: { if !$0 { categoryToDelete = nil } })) {
                 Button("Cancel", role: .cancel) { categoryToDelete = nil }
