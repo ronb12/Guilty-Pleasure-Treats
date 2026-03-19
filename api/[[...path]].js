@@ -29,6 +29,7 @@ function modulePathFor(key) {
     'auth/delete-account': 'auth/delete-account.js',
     'users/me': 'users/me.js',
     'settings/business': 'settings/business.js',
+    'settings/business-hours': 'settings/business-hours.js',
     promotions: 'promotions/index.js',
     'promotions/code/code': 'promotions/code/code.js',
     'promotions/id': 'promotions/id.js',
@@ -42,6 +43,7 @@ function modulePathFor(key) {
     'contact/id': 'contact/id.js',
     'contact/id/reply': 'contact/reply.js',
     'contact/replies': 'contact/replies.js',
+    'admin-messages': 'admin-messages.js',
     'stripe/create-checkout-session': 'stripe/create-checkout-session.js',
     'stripe/create-payment-intent': 'stripe/create-payment-intent.js',
     'ai/generate-image': 'ai/generate-image.js',
@@ -55,6 +57,7 @@ function modulePathFor(key) {
     'analytics/summary': 'analytics/summary.js',
     reviews: 'reviews/index.js',
     events: 'events/index.js',
+    'events/id': 'events/id.js',
   };
   const file = fileMap[key];
   if (!file) return null;
@@ -149,6 +152,8 @@ function getPathKey(req) {
     key = 'users/me';
   } else if (segs[0] === 'settings' && segs[1] === 'business') {
     key = 'settings/business';
+  } else if (segs[0] === 'settings' && segs[1] === 'business-hours') {
+    key = 'settings/business-hours';
   } else if (segs[0] === 'promotions') {
     if (segs.length === 1) key = 'promotions';
     else if (segs[1] === 'code' && segs[2]) { key = 'promotions/code/code'; q.code = segs[2]; }
@@ -173,6 +178,8 @@ function getPathKey(req) {
       key = 'contact/id';
       q.id = segs[1];
     }
+  } else if (segs[0] === 'admin-messages') {
+    key = 'admin-messages';
   } else if (segs[0] === 'stripe' && segs[1] === 'create-checkout-session') {
     key = 'stripe/create-checkout-session';
   } else if (segs[0] === 'stripe' && segs[1] === 'create-payment-intent') {
@@ -195,7 +202,8 @@ function getPathKey(req) {
   } else if (segs[0] === 'reviews') {
     key = 'reviews';
   } else if (segs[0] === 'events') {
-    key = 'events';
+    if (segs.length === 1) key = 'events';
+    else { key = 'events/id'; q.id = segs[1]; }
   }
   return { key, q };
 }

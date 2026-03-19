@@ -19,6 +19,8 @@ enum PendingPushAction: Equatable {
     case openAdminInventory
     /// Customer: open Orders tab and show this order.
     case openOrder(orderId: String?)
+    /// Customer: open Home tab so events section is visible.
+    case openEvents
 }
 
 final class NotificationService: NSObject, ObservableObject {
@@ -72,10 +74,10 @@ final class NotificationService: NSObject, ObservableObject {
         }
     }
 
-    /// Add from push payload (title, body, type, orderId, messageId).
-    func addInAppNotificationFromPush(title: String, body: String, type: String?, orderId: String?, messageId: String?) {
+    /// Add from push payload (title, body, type, orderId, messageId, eventId).
+    func addInAppNotificationFromPush(title: String, body: String, type: String?, orderId: String?, messageId: String?, eventId: String? = nil) {
         let notifType: AppNotificationType
-        if type == "new_order" || (orderId != nil && type != "order_status" && type != "new_message") {
+        if type == "new_order" || (orderId != nil && type != "order_status" && type != "new_message" && type != "new_event") {
             notifType = .newOrder
         } else if type == "new_message" {
             notifType = .newMessage
@@ -83,6 +85,8 @@ final class NotificationService: NSObject, ObservableObject {
             notifType = .orderStatus
         } else if type == "low_inventory" {
             notifType = .lowInventory
+        } else if type == "new_event" {
+            notifType = .newEvent
         } else {
             notifType = .newOrder
         }
@@ -91,7 +95,8 @@ final class NotificationService: NSObject, ObservableObject {
             title: title,
             body: body,
             orderId: orderId,
-            messageId: messageId
+            messageId: messageId,
+            eventId: eventId
         )
         addInAppNotification(n)
     }
@@ -212,12 +217,14 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         let type = userInfo["type"] as? String
         let orderId = userInfo["orderId"] as? String
         let messageId = userInfo["messageId"] as? String
+        let eventId = userInfo["eventId"] as? String
         addInAppNotificationFromPush(
             title: content.title,
             body: content.body,
             type: type,
             orderId: orderId,
-            messageId: messageId
+            messageId: messageId,
+            eventId: eventId
         )
         completionHandler([.banner, .sound, .badge])
     }
@@ -232,13 +239,15 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         let type = (userInfo["type"] as? String) ?? (userInfo["aps"] as? [String: Any]).flatMap { $0["type"] as? String }
         let messageId = userInfo["messageId"] as? String
         let orderId = userInfo["orderId"] as? String
+        let eventId = userInfo["eventId"] as? String
 
         addInAppNotificationFromPush(
             title: content.title,
             body: content.body,
             type: type,
             orderId: orderId,
-            messageId: messageId
+            messageId: messageId,
+            eventId: eventId
         )
 
         if type == "new_message" {
@@ -258,6 +267,10 @@ extension NotificationService: UNUserNotificationCenterDelegate {
                 let oid = orderId?.isEmpty == true ? nil : orderId
                 self?.pendingPushAction = .openOrder(orderId: oid)
                 self?.pendingOrderIdToOpen = oid
+            }
+        } else if type == "new_event" {
+            DispatchQueue.main.async { [weak self] in
+                self?.pendingPushAction = .openEvents
             }
         }
         completionHandler()

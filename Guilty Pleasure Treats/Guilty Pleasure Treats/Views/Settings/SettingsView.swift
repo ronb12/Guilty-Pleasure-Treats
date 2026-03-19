@@ -30,12 +30,28 @@ struct SettingsView: View {
             aboutSection
             if auth.currentUser != nil {
                 signOutSection
+                deleteAccountSection
             }
         }
         .macOSConstrainedContent()
         .navigationTitle("Settings")
         .inlineNavigationTitle()
         .background(AppConstants.Colors.secondary)
+        .confirmationDialog("Delete account", isPresented: $showDeleteAccountConfirmation, titleVisibility: .visible) {
+            Button("Delete account", role: .destructive) {
+                Task { await deleteAccount() }
+            }
+            Button("Cancel", role: .cancel) {
+                showDeleteAccountConfirmation = false
+            }
+        } message: {
+            Text("This will permanently delete your account and data. This action cannot be undone.")
+        }
+        .alert("Error", isPresented: .constant(deleteAccountError != nil)) {
+            Button("OK") { deleteAccountError = nil }
+        } message: {
+            if let msg = deleteAccountError { Text(msg) }
+        }
     }
     
     private var appearanceSection: some View {

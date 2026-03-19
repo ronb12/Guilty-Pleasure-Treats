@@ -3,9 +3,9 @@
  * GET: returns settings for app (including deliveryFee, shippingFee). Public GET for checkout; PATCH requires admin.
  * PATCH body: same shape; updates business_settings key 'main'.
  */
-import { sql, hasDb } from '../../lib/db.js';
+import { sql, hasDb } from '../lib/db.js';
 import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
-import { setCors, handleOptions } from '../../lib/cors.js';
+import { setCors, handleOptions } from '../lib/cors.js';
 
 const DEFAULT_MAIN = {
   lead_time_hours: 24,

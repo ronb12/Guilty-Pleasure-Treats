@@ -101,7 +101,7 @@ struct AdminView: View {
                             .tabItem { Label(adminTabTitle("Analytics", short: "Stats"), systemImage: "chart.bar") }
                             .tag(6)
                         AdminReviewsView(viewModel: viewModel)
-                            .tabItem { Label(adminTabTitle("Reviews", short: "Reviews"), systemImage: "star.text.rectangle") }
+                            .tabItem { Label(adminTabTitle("Reviews", short: "Reviews"), systemImage: "star.fill") }
                             .tag(7)
                         AdminEventsView(viewModel: viewModel)
                             .tabItem { Label(adminTabTitle("Events", short: "Events"), systemImage: "calendar") }
@@ -164,11 +164,13 @@ struct AdminView: View {
         case .openAdminMessages(let mid):
             selectedTab = 10
             viewModel.scrollToMessageId = mid
-        case .openAdminOrder:
+        case .openAdminOrder(orderId: _):
             selectedTab = 2
         case .openAdminInventory:
             selectedTab = 13
-        case .openOrder(_):
+        case .openOrder(orderId: _):
+            break
+        case .openEvents:
             break
         }
         notificationService.clearPendingPushAction()
@@ -912,61 +914,65 @@ struct AdminOrdersView: View {
         viewModel.pendingOrderIdToOpen = nil
     }
 
-    var body: some View {
-        NavigationStack {
-            List {
-                #if os(macOS)
-                Section {
-                    Button {
-                        showAddManualOrder = true
-                    } label: {
-                        Label("Add order", systemImage: "plus.circle.fill")
-                            .font(.body)
-                            .foregroundStyle(AppConstants.Colors.accent)
-                    }
-                    .buttonStyle(.plain)
+    private var ordersListContent: some View {
+        List {
+            #if os(macOS)
+            Section {
+                Button {
+                    showAddManualOrder = true
+                } label: {
+                    Label("Add order", systemImage: "plus.circle.fill")
+                        .font(.body)
+                        .foregroundStyle(AppConstants.Colors.accent)
                 }
-                #endif
-                Section("Orders") {
-                    ForEach(viewModel.orders) { order in
-                        NavigationLink {
-                            OrderDetailView(
-                                order: order,
-                                isAdmin: true,
-                                onUpdateStatus: { updatedOrder, newStatus in
-                                    Task { await viewModel.updateOrderStatus(order: updatedOrder, status: newStatus) }
-                                },
-                                onMarkAsPaid: { orderId in
-                                    Task { await viewModel.markOrderAsPaid(orderId: orderId) }
-                                },
-                                onSendPaymentLink: { orderId in
-                                    Task { await viewModel.createPaymentLink(for: orderId) }
-                                }
-                            )
-                        } label: {
-                            #if os(macOS)
-                            AdminOrderRowCompactView(order: order)
-                            #else
-                            OrderRowView(order: order, isAdmin: true) { updatedOrder, newStatus in
+                .buttonStyle(.plain)
+            }
+            #endif
+            Section("Orders") {
+                ForEach(viewModel.orders) { order in
+                    NavigationLink {
+                        OrderDetailView(
+                            order: order,
+                            isAdmin: true,
+                            onUpdateStatus: { updatedOrder, newStatus in
                                 Task { await viewModel.updateOrderStatus(order: updatedOrder, status: newStatus) }
-                            } onMarkAsPaid: { orderId in
+                            },
+                            onMarkAsPaid: { orderId in
                                 Task { await viewModel.markOrderAsPaid(orderId: orderId) }
+                            },
+                            onSendPaymentLink: { orderId in
+                                Task { await viewModel.createPaymentLink(for: orderId) }
                             }
-                            #endif
+                        )
+                    } label: {
+                        #if os(macOS)
+                        AdminOrderRowCompactView(order: order)
+                        #else
+                        OrderRowView(order: order, isAdmin: true) { updatedOrder, newStatus in
+                            Task { await viewModel.updateOrderStatus(order: updatedOrder, status: newStatus) }
+                        } onMarkAsPaid: { orderId in
+                            Task { await viewModel.markOrderAsPaid(orderId: orderId) }
                         }
+                        #endif
                     }
-                }
-                Section("Special orders – Custom cakes") {
-                    customCakesSection
-                }
-                Section("Special orders – Gallery orders") {
-                    galleryOrdersSection
                 }
             }
+            Section("Special orders – Custom cakes") {
+                customCakesSection
+            }
+            Section("Special orders – Gallery orders") {
+                galleryOrdersSection
+            }
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ordersListContent
             .navigationTitle("Orders")
             .onAppear { tryOpenOrderFromMessage() }
             .onChange(of: viewModel.pendingOrderIdToOpen) { _, _ in tryOpenOrderFromMessage() }
-            .onChange(of: viewModel.orders) { _, _ in tryOpenOrderFromMessage() }
+            .onChange(of: viewModel.orders.count) { _, _ in tryOpenOrderFromMessage() }
             .sheet(item: $orderToOpenFromMessage) { order in
                 OrderDetailView(
                     order: order,
@@ -3209,7 +3215,7 @@ struct AdminReviewsView: View {
             Group {
                 if viewModel.reviews.isEmpty {
                     ContentUnavailableView {
-                        Label("No reviews yet", systemImage: "star.text.rectangle")
+                        Label("No reviews yet", systemImage: "star.fill")
                     } description: {
                         Text("Customer reviews will appear here.")
                     }
@@ -3255,6 +3261,8 @@ struct AdminReviewsView: View {
 
 struct AdminEventsView: View {
     @ObservedObject var viewModel: AdminViewModel
+    @State private var showAddEvent = false
+    @State private var eventToEdit: Event?
 
     var body: some View {
         NavigationStack {
@@ -3263,39 +3271,236 @@ struct AdminEventsView: View {
                     ContentUnavailableView {
                         Label("No events yet", systemImage: "calendar")
                     } description: {
-                        Text("Events (tastings, pop-ups) will appear here.")
+                        Text("Events (tastings, pop-ups) will appear here. Tap Add to create one; customers will be notified.")
                     }
                 } else {
                     List {
                         ForEach(viewModel.events) { event in
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(event.title)
-                                    .font(.headline)
-                                    .foregroundStyle(AppConstants.Colors.textPrimary)
-                                if let desc = event.eventDescription, !desc.isEmpty {
-                                    Text(desc)
-                                        .font(.subheadline)
-                                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                            Button {
+                                eventToEdit = event
+                            } label: {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(event.title)
+                                        .font(.headline)
+                                        .foregroundStyle(AppConstants.Colors.textPrimary)
+                                    if let desc = event.eventDescription, !desc.isEmpty {
+                                        Text(desc)
+                                            .font(.subheadline)
+                                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                                            .lineLimit(2)
+                                    }
+                                    if let start = event.startAt {
+                                        Label(start.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
+                                            .font(.caption)
+                                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                                    }
+                                    if let loc = event.location, !loc.isEmpty {
+                                        Label(loc, systemImage: "mappin.circle")
+                                            .font(.caption)
+                                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                                    }
                                 }
-                                if let start = event.startAt {
-                                    Label(start.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
-                                        .font(.caption)
-                                        .foregroundStyle(AppConstants.Colors.textSecondary)
-                                }
-                                if let loc = event.location, !loc.isEmpty {
-                                    Label(loc, systemImage: "mappin.circle")
-                                        .font(.caption)
-                                        .foregroundStyle(AppConstants.Colors.textSecondary)
-                                }
+                                .padding(.vertical, 4)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .padding(.vertical, 4)
+                            .buttonStyle(.plain)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    Task { await viewModel.deleteEvent(id: event.id) }
+                                } label: { Label("Delete", systemImage: "trash") }
+                            }
                         }
                     }
                 }
             }
             .navigationTitle("Events")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Add") {
+                        eventToEdit = nil
+                        showAddEvent = true
+                    }
+                    .foregroundStyle(AppConstants.Colors.accent)
+                }
+            }
             .refreshable { await viewModel.loadEvents() }
+            .sheet(isPresented: $showAddEvent) {
+                AdminEventFormSheet(
+                    event: nil,
+                    onSave: { title, desc, start, end, imageURL, location in
+                        Task {
+                            await viewModel.createEvent(title: title, eventDescription: desc, startAt: start, endAt: end, imageURL: imageURL, location: location)
+                            showAddEvent = false
+                        }
+                    },
+                    onCancel: { showAddEvent = false }
+                )
+                .macOSAdminSheetSize()
+            }
+            .sheet(item: $eventToEdit) { event in
+                AdminEventFormSheet(
+                    event: event,
+                    onSave: { title, desc, start, end, imageURL, location in
+                        Task {
+                            await viewModel.updateEvent(id: event.id, title: title, eventDescription: desc, startAt: start, endAt: end, imageURL: imageURL, location: location)
+                            eventToEdit = nil
+                        }
+                    },
+                    onCancel: { eventToEdit = nil }
+                )
+                .macOSAdminSheetSize()
+            }
         }
+    }
+}
+
+/// Create or edit event: title, description, start/end, photo or PDF attachment, location.
+private struct AdminEventFormSheet: View {
+    let event: Event?
+    let onSave: (String, String?, Date?, Date?, String?, String?) -> Void
+    let onCancel: () -> Void
+
+    @State private var title: String = ""
+    @State private var eventDescription: String = ""
+    @State private var startAt: Date = Date()
+    @State private var useStartDate: Bool = true
+    @State private var endAt: Date = Date()
+    @State private var useEndDate: Bool = false
+    @State private var imageURL: String = ""
+    @State private var location: String = ""
+    @State private var selectedAttachmentData: Data?
+    @State private var selectedAttachmentContentType: String?
+    @State private var showAttachmentPicker = false
+    @State private var isSaving = false
+    @State private var saveError: String?
+
+    private var attachmentLabel: String {
+        guard selectedAttachmentData != nil else { return "" }
+        return (selectedAttachmentContentType == "application/pdf") ? "PDF attached" : "Photo attached"
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Title", text: $title)
+                        .textContentType(.none)
+                }
+                Section("Description (optional)") {
+                    TextEditor(text: $eventDescription)
+                        .frame(minHeight: 60)
+                }
+                Section("Start date & time") {
+                    Toggle("Set start", isOn: $useStartDate)
+                    if useStartDate {
+                        DatePicker("Start", selection: $startAt, displayedComponents: [.date, .hourAndMinute])
+                    }
+                }
+                Section("End date & time (optional)") {
+                    Toggle("Set end", isOn: $useEndDate)
+                    if useEndDate {
+                        DatePicker("End", selection: $endAt, displayedComponents: [.date, .hourAndMinute])
+                    }
+                }
+                Section("Photo or PDF (optional)") {
+                    if let _ = selectedAttachmentData {
+                        HStack {
+                            Label(attachmentLabel, systemImage: selectedAttachmentContentType == "application/pdf" ? "doc.fill" : "photo.fill")
+                                .foregroundStyle(AppConstants.Colors.accent)
+                            Spacer()
+                            Button("Remove", role: .destructive) {
+                                selectedAttachmentData = nil
+                                selectedAttachmentContentType = nil
+                            }
+                        }
+                    } else {
+                        Button {
+                            showAttachmentPicker = true
+                        } label: {
+                            Label("Add photo or PDF", systemImage: "plus.circle.fill")
+                                .foregroundStyle(AppConstants.Colors.accent)
+                        }
+                    }
+                    TextField("Or paste image URL", text: $imageURL)
+                        .textContentType(.URL)
+                        #if os(iOS)
+                        .keyboardType(.URL)
+                        .autocapitalization(.none)
+                        #endif
+                }
+                Section("Location (optional)") {
+                    TextField("Address or venue", text: $location)
+                }
+                if let err = saveError {
+                    Section {
+                        Text(err)
+                            .foregroundStyle(.red)
+                            .font(.caption)
+                    }
+                }
+            }
+            .navigationTitle(event == nil ? "New event" : "Edit event")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                        .foregroundStyle(AppConstants.Colors.accent)
+                        .disabled(isSaving)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task { await saveEvent() }
+                    }
+                    .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
+                    .foregroundStyle(AppConstants.Colors.accent)
+                }
+            }
+            .sheet(isPresented: $showAttachmentPicker) {
+                EventDocumentPicker(pickedData: $selectedAttachmentData, pickedContentType: $selectedAttachmentContentType)
+            }
+            .onAppear {
+                saveError = nil
+                if let e = event {
+                    title = e.title
+                    eventDescription = e.eventDescription ?? ""
+                    if let s = e.startAt { startAt = s; useStartDate = true } else { useStartDate = false }
+                    if let s = e.endAt { endAt = s; useEndDate = true } else { useEndDate = false }
+                    imageURL = e.imageURL ?? ""
+                    location = e.location ?? ""
+                }
+            }
+        }
+    }
+
+    private func saveEvent() async {
+        let start = useStartDate ? startAt : nil
+        let end = useEndDate ? endAt : nil
+        let finalImageURL: String?
+        if let data = selectedAttachmentData, let contentType = selectedAttachmentContentType, !data.isEmpty {
+            isSaving = true
+            saveError = nil
+            defer { isSaving = false }
+            let ext: String
+            if contentType == "application/pdf" { ext = "pdf" }
+            else if contentType == "image/png" { ext = "png" }
+            else { ext = "jpg" }
+            let pathname = "events/\(UUID().uuidString).\(ext)"
+            do {
+                finalImageURL = try await VercelService.shared.uploadImageBase64(data: data, pathname: pathname, contentType: contentType)
+            } catch {
+                saveError = FriendlyErrorMessage.message(for: error)
+                return
+            }
+        } else {
+            finalImageURL = imageURL.trimmingCharacters(in: .whitespaces).isEmpty ? nil : imageURL.trimmingCharacters(in: .whitespaces)
+        }
+        onSave(
+            title.trimmingCharacters(in: .whitespaces),
+            eventDescription.isEmpty ? nil : eventDescription.trimmingCharacters(in: .whitespaces),
+            start,
+            end,
+            finalImageURL,
+            location.isEmpty ? nil : location.trimmingCharacters(in: .whitespaces)
+        )
     }
 }
 
@@ -3303,6 +3508,7 @@ struct AdminContactMessagesView: View {
     @ObservedObject var viewModel: AdminViewModel
     var onViewOrderFromMessage: (String) -> Void = { _ in }
     @State private var selectedMessage: ContactMessage?
+    @State private var showSendMessageSheet = false
 
     private func applyScrollToMessageId() {
         guard let messageId = viewModel.scrollToMessageId, !messageId.isEmpty else { return }
@@ -3385,19 +3591,26 @@ struct AdminContactMessagesView: View {
                 }
             }
             .navigationTitle("Messages")
-            #if os(macOS)
             .toolbar {
+                #if os(macOS)
                 ToolbarItem(placement: .principal) {
                     Text("Messages")
                         .font(.headline)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                #endif
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showSendMessageSheet = true
+                    } label: {
+                        Label("Send message", systemImage: "paperplane.fill")
+                    }
+                }
             }
-            #endif
             .refreshable { await viewModel.loadContactMessages() }
             .onAppear { applyScrollToMessageId() }
             .onChange(of: viewModel.scrollToMessageId) { _, _ in applyScrollToMessageId() }
-            .onChange(of: viewModel.contactMessages) { _, _ in applyScrollToMessageId() }
+            .onChange(of: viewModel.contactMessages.count) { _, _ in applyScrollToMessageId() }
             .macOSReduceSheetTitleGap()
             #if os(macOS)
             .padding(.top, -8)
@@ -3408,6 +3621,13 @@ struct AdminContactMessagesView: View {
                     message: msg,
                     onDismiss: { selectedMessage = nil },
                     onViewOrderFromMessage: onViewOrderFromMessage
+                )
+                .macOSAdminSheetSize()
+            }
+            .sheet(isPresented: $showSendMessageSheet) {
+                SendAdminMessageSheet(
+                    viewModel: viewModel,
+                    onDismiss: { showSendMessageSheet = false }
                 )
                 .macOSAdminSheetSize()
             }
@@ -3423,6 +3643,75 @@ struct AdminContactMessagesView: View {
                 .font(.body)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Sheet for admin to send a new message to a customer (by email or user ID) or to all customers.
+struct SendAdminMessageSheet: View {
+    @ObservedObject var viewModel: AdminViewModel
+    var onDismiss: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var recipient = ""
+    @State private var bodyText = ""
+    @State private var isSending = false
+    @FocusState private var bodyFocused: Bool
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Email or user ID (leave blank for all customers)", text: $recipient)
+                        .textContentType(.emailAddress)
+                        .autocapitalization(.none)
+                        .keyboardType(.emailAddress)
+                } header: {
+                    Text("Recipient")
+                } footer: {
+                    Text("Leave blank to send to all customers. Enter an email or user ID to send to one person.")
+                }
+                Section {
+                    TextField("Message", text: $bodyText, axis: .vertical)
+                        .lineLimit(4...12)
+                        .focused($bodyFocused)
+                } header: {
+                    Text("Message")
+                }
+            }
+            .navigationTitle("Send message")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        onDismiss()
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Send") {
+                        sendMessage()
+                    }
+                    .disabled(bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending)
+                }
+            }
+            .onAppear { bodyFocused = true }
+        }
+    }
+
+    private func sendMessage() {
+        let trimmed = bodyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        isSending = true
+        let rec = recipient.trimmingCharacters(in: .whitespacesAndNewlines)
+        let toUserId: String? = rec.isEmpty ? nil : (rec.contains("@") ? nil : rec)
+        let toUserEmail: String? = rec.isEmpty ? nil : (rec.contains("@") ? rec : nil)
+        Task {
+            let success = await viewModel.sendAdminMessage(toUserId: toUserId, toUserEmail: toUserEmail, body: trimmed)
+            isSending = false
+            if success {
+                onDismiss()
+                dismiss()
+            }
+        }
     }
 }
 
@@ -4829,6 +5118,87 @@ struct ImagePicker: View {
                     image = NSImage(data: data)
                 }
                 dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+            Button("Cancel") { dismiss() }
+        }
+        .padding()
+        .frame(minWidth: 280, minHeight: 120)
+    }
+}
+#endif
+
+#if os(iOS)
+/// Picks a photo or PDF for event attachment. Returns file data and content type.
+struct EventDocumentPicker: UIViewControllerRepresentable {
+    @Binding var pickedData: Data?
+    @Binding var pickedContentType: String?
+    @Environment(\.dismiss) private var dismiss
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let types: [UTType] = [.image, .pdf]
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+        picker.delegate = context.coordinator
+        picker.allowsMultipleSelection = false
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let parent: EventDocumentPicker
+        init(_ parent: EventDocumentPicker) { self.parent = parent }
+
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            guard let url = urls.first else { parent.dismiss(); return }
+            guard url.startAccessingSecurityScopedResource() else {
+                parent.dismiss()
+                return
+            }
+            defer { url.stopAccessingSecurityScopedResource() }
+            if let data = try? Data(contentsOf: url) {
+                let contentType: String
+                if url.pathExtension.lowercased() == "pdf" {
+                    contentType = "application/pdf"
+                } else if url.pathExtension.lowercased() == "png" {
+                    contentType = "image/png"
+                } else {
+                    contentType = "image/jpeg"
+                }
+                parent.pickedData = data
+                parent.pickedContentType = contentType
+            }
+            parent.dismiss()
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            parent.dismiss()
+        }
+    }
+}
+#else
+/// Mac: pick a photo or PDF file for event attachment.
+struct EventDocumentPicker: View {
+    @Binding var pickedData: Data?
+    @Binding var pickedContentType: String?
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Text("Choose photo or PDF")
+                .font(.headline)
+            Button("Select file...") {
+                let panel = NSOpenPanel()
+                panel.allowedContentTypes = [.png, .jpeg, .tiff, .heic, .pdf]
+                panel.canChooseDirectories = false
+                panel.allowsMultipleSelection = false
+                if panel.runModal() == .OK, let url = panel.url, let data = try? Data(contentsOf: url) {
+                    pickedData = data
+                    pickedContentType = url.pathExtension.lowercased() == "pdf" ? "application/pdf" : "image/jpeg"
+                    dismiss()
+                }
             }
             .buttonStyle(.borderedProminent)
             Button("Cancel") { dismiss() }

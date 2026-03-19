@@ -15,6 +15,7 @@ function rowToMessage(row) {
     subject: row.subject ?? null,
     message: row.message,
     userId: row.user_id ?? null,
+    orderId: row.order_id?.toString?.() ?? row.order_id ?? null,
     readAt: row.read_at ? new Date(row.read_at).toISOString() : null,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
   };
@@ -35,7 +36,7 @@ export default async function handler(req, res) {
     if (!hasDb() || !sql) return res.status(200).json([]);
     try {
       const rows = await sql`
-        SELECT id, name, email, subject, message, user_id, read_at, created_at
+        SELECT id, name, email, subject, message, user_id, order_id, read_at, created_at
         FROM contact_messages
         ORDER BY created_at DESC
         LIMIT 500
@@ -58,9 +59,10 @@ export default async function handler(req, res) {
       const name = body.name != null ? String(body.name).trim() : null;
       const subject = body.subject != null ? String(body.subject).trim() : null;
       const userId = body.userId != null ? String(body.userId) : null;
+      const orderId = body.orderId != null && String(body.orderId).trim() !== '' ? String(body.orderId).trim() : null;
       const [inserted] = await sql`
-        INSERT INTO contact_messages (name, email, subject, message, user_id)
-        VALUES (${name}, ${email}, ${subject}, ${message}, ${userId})
+        INSERT INTO contact_messages (name, email, subject, message, user_id, order_id)
+        VALUES (${name}, ${email}, ${subject}, ${message}, ${userId}, ${orderId})
         RETURNING id
       `;
       const messageId = inserted?.id?.toString?.() ?? null;

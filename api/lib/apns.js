@@ -118,3 +118,53 @@ export async function notifyNewMessage(deviceTokens, messageId, fromName, subjec
     console.error('APNs sendMany new message', err?.reason ?? err);
   }
 }
+
+/**
+ * Send "message from store" push to customer(s) when admin sends a message.
+ */
+export async function notifyAdminMessage(deviceTokens, adminMessageId, title, body) {
+  if (!Array.isArray(deviceTokens) || deviceTokens.length === 0) return;
+  const notifTitle = title || 'Message from store';
+  const notifBody = (body && body.length > 80) ? body.slice(0, 77) + '...' : (body || 'You have a new message.');
+  const data = { type: 'admin_message', messageId: adminMessageId || '' };
+  const client = cachedClient ?? getClient();
+  if (!client) return;
+  cachedClient = client;
+  const notifications = deviceTokens.map((token) =>
+    new Notification(token, {
+      alert: { title: notifTitle, body: notifBody },
+      sound: 'default',
+      data,
+    })
+  );
+  try {
+    await client.sendMany(notifications);
+  } catch (err) {
+    console.error('APNs sendMany admin message', err?.reason ?? err);
+  }
+}
+
+/**
+ * Send "new event" push to customers when admin creates an event.
+ */
+export async function notifyNewEvent(deviceTokens, eventId, title, subtitle) {
+  if (!Array.isArray(deviceTokens) || deviceTokens.length === 0) return;
+  const notifTitle = 'New event';
+  const body = title ? (subtitle ? `${title} – ${subtitle}` : title) : (subtitle || 'Check out our new event');
+  const data = { type: 'new_event', eventId: eventId || '' };
+  const client = cachedClient ?? getClient();
+  if (!client) return;
+  cachedClient = client;
+  const notifications = deviceTokens.map((token) =>
+    new Notification(token, {
+      alert: { title: notifTitle, body },
+      sound: 'default',
+      data,
+    })
+  );
+  try {
+    await client.sendMany(notifications);
+  } catch (err) {
+    console.error('APNs sendMany new event', err?.reason ?? err);
+  }
+}

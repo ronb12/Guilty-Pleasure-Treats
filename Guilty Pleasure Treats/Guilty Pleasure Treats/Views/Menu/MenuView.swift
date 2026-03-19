@@ -159,7 +159,6 @@ struct MenuView: View {
                 .padding(.horizontal, AppConstants.Layout.screenHorizontalPadding)
                 .padding(.top, 8)
                 .padding(.bottom, 24)
-            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppConstants.Colors.secondary)
@@ -227,6 +226,7 @@ struct MenuView: View {
                 }
                 .padding(.vertical, 2)
             }
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
         }
         .padding(.horizontal, AppConstants.Layout.screenHorizontalPadding)
         .padding(.top, 12)

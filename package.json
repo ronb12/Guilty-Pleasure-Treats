@@ -6,7 +6,13 @@
   "packageManager": "npm@10.9.0",
   "scripts": {
     "vercel:sync": "bash scripts/sync-api-for-vercel.sh",
-    "deploy": "npm run vercel:sync && vercel --prod"
+    "deploy": "npm run vercel:sync && vercel --prod",
+    "neon:context": "neonctl set-context",
+    "neon:connect": "bash scripts/neon-connect.sh",
+    "neon:run-schema": "node scripts/run-missing-tables.js"
+  },
+  "devDependencies": {
+    "neonctl": "^1.15.0"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.0",

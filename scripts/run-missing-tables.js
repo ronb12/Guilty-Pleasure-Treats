@@ -146,6 +146,18 @@ async function main() {
 
     // --- App / API tables ---
 
+    // admin_messages (Admin → Messages “Send new message” / Sent list)
+    await sql`
+      CREATE TABLE IF NOT EXISTS admin_messages (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        to_user_id TEXT NOT NULL,
+        body TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_admin_messages_created_at ON admin_messages(created_at DESC)`;
+    console.log('admin_messages OK');
+
     // contact_messages (contact form)
     await sql`
       CREATE TABLE IF NOT EXISTS contact_messages (
@@ -253,6 +265,11 @@ async function main() {
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )
     `;
+    await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS start_at TIMESTAMPTZ`;
+    await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS end_at TIMESTAMPTZ`;
+    await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS image_url TEXT`;
+    await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS location TEXT`;
+    await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS description TEXT`;
     await sql`CREATE INDEX IF NOT EXISTS idx_events_start_at ON events(start_at ASC) WHERE start_at IS NOT NULL`;
     console.log('events OK');
 
@@ -272,6 +289,7 @@ async function main() {
     await sql`CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at DESC)`;
     await sql`ALTER TABLE reviews ADD COLUMN IF NOT EXISTS order_id UUID`;
     await sql`ALTER TABLE reviews ADD COLUMN IF NOT EXISTS user_id TEXT`;
+    await sql`ALTER TABLE reviews ADD COLUMN IF NOT EXISTS author_name TEXT`;
     await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_reviews_order_user ON reviews(order_id, user_id) WHERE order_id IS NOT NULL AND user_id IS NOT NULL`;
     console.log('reviews OK');
 
@@ -302,7 +320,17 @@ async function main() {
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )
     `;
-    await sql`INSERT INTO business_settings (key, value_json) VALUES ('main', '{"lead_time_hours": 24, "business_hours": {"mon":"9-17","tue":"9-17","wed":"9-17","thu":"9-17","fri":"9-17","sat":"9-15","sun":null}, "min_order_cents": 0, "tax_rate_percent": 0}'::jsonb) ON CONFLICT (key) DO NOTHING`;
+    await sql`ALTER TABLE business_settings ADD COLUMN IF NOT EXISTS key TEXT`;
+    await sql`ALTER TABLE business_settings ADD COLUMN IF NOT EXISTS value_json JSONB DEFAULT '{}'`;
+    await sql`ALTER TABLE business_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
+    try {
+      const mainRow = await sql`SELECT 1 FROM business_settings WHERE key = 'main' LIMIT 1`;
+      if (mainRow.length === 0) {
+        await sql`INSERT INTO business_settings (key, value_json) VALUES ('main', '{"lead_time_hours": 24, "business_hours": {"mon":"9-17","tue":"9-17","wed":"9-17","thu":"9-17","fri":"9-17","sat":"9-15","sun":null}, "min_order_cents": 0, "tax_rate_percent": 0}'::jsonb)`;
+      }
+    } catch (e) {
+      if (!/duplicate key|unique constraint/i.test(e?.message || '')) throw e;
+    }
     console.log('business_settings OK');
 
     console.log('\nAll missing tables are ready.');

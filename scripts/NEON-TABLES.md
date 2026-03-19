@@ -20,6 +20,7 @@ Ensure `POSTGRES_URL` (or `DATABASE_URL`) is set, e.g. via `vercel env pull .env
 | **products** | Menu products, admin inventory |
 | **custom_cake_orders** | Custom cake builder items, linked to orders via `order_id` |
 | **ai_cake_designs** | AI cake gallery designs/orders, linked to orders via `order_id` |
+| **admin_messages** | Admin → Messages “Send new message” / Sent list |
 | **contact_messages** | Contact form submissions, admin messages |
 | **contact_message_replies** | Admin in-app replies to contact messages |
 | **cake_gallery** | Gallery images (admin-managed) |
@@ -35,7 +36,7 @@ Ensure `POSTGRES_URL` (or `DATABASE_URL`) is set, e.g. via `vercel env pull .env
 ## Optional / other schemas
 
 - **neon_auth** (Better Auth): `neon_auth.user`, `neon_auth.account` – usually created by Neon Auth setup, not by this repo.
-- **admin_messages**: Used by some flows; defined in `scripts/run-all-schema-in-neon.sql` if you run that file manually.
+- **admin_messages**: Created by `run-missing-tables.js` (see table list above).
 - **cake_toppings** / **frosting_types**: Optional; see `scripts/run-add-cake-toppings.js` and `scripts/add-frosting-types.js` if you use separate topping tables instead of `business_settings.custom_cake_options`.
 
 ---

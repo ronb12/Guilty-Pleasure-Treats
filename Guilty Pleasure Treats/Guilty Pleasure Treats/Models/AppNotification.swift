@@ -7,12 +7,13 @@
 
 import Foundation
 
-/// Type of notification for routing (new order, message, order status, low stock).
+/// Type of notification for routing (new order, message, order status, low stock, new event).
 enum AppNotificationType: String, Codable {
     case newOrder = "new_order"
     case newMessage = "new_message"
     case orderStatus = "order_status"
     case lowInventory = "low_inventory"
+    case newEvent = "new_event"
 }
 
 struct AppNotification: Identifiable, Codable, Equatable {
@@ -22,6 +23,7 @@ struct AppNotification: Identifiable, Codable, Equatable {
     var body: String
     var orderId: String?
     var messageId: String?
+    var eventId: String?
     var createdAt: Date
     var read: Bool
 
@@ -32,6 +34,7 @@ struct AppNotification: Identifiable, Codable, Equatable {
         body: String,
         orderId: String? = nil,
         messageId: String? = nil,
+        eventId: String? = nil,
         createdAt: Date = Date(),
         read: Bool = false
     ) {
@@ -41,6 +44,7 @@ struct AppNotification: Identifiable, Codable, Equatable {
         self.body = body
         self.orderId = orderId
         self.messageId = messageId
+        self.eventId = eventId
         self.createdAt = createdAt
         self.read = read
     }
@@ -51,6 +55,7 @@ struct AppNotification: Identifiable, Codable, Equatable {
         case .newMessage: return "envelope.badge"
         case .orderStatus: return "doc.text"
         case .lowInventory: return "exclamationmark.triangle"
+        case .newEvent: return "calendar.badge.plus"
         }
     }
 }

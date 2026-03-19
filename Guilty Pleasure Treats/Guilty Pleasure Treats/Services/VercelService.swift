@@ -345,7 +345,7 @@ final class VercelService {
 
     func addPoints(uid: String, points: Int) async throws {
         guard let _ = authToken, points > 0 else { return }
-        try await patchUserMe(["addPoints": points])
+        try await patchUserMe(["addPoints": points, "targetUserId": uid])
     }
 
     func redeemPoints(uid: String, points: Int) async throws -> Bool {
@@ -492,6 +492,24 @@ final class VercelService {
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONEncoder().encode(["body": body])
+        let (data, res) = try await session.data(for: req)
+        guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
+        try validateResponse(http, data: data)
+    }
+
+    /// Send a new message from admin to a customer or all customers (admin only).
+    /// Pass toUserId or toUserEmail to target one user; pass both nil to send to all customers.
+    func sendAdminMessage(toUserId: String?, toUserEmail: String?, body: String) async throws {
+        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
+        let url = base.appendingPathComponent("api/admin-messages")
+        var payload: [String: String] = ["body": body]
+        if let id = toUserId, !id.isEmpty { payload["toUserId"] = id }
+        if let email = toUserEmail, !email.isEmpty { payload["toUserEmail"] = email }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(payload)
         let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
         try validateResponse(http, data: data)
@@ -1145,6 +1163,59 @@ extension VercelService {
             if (error as? VercelAPIError)?.statusCode == 404 { return [] }
             throw error
         }
+    }
+
+    /// Create event (admin). POST /api/events. Customers receive push notification.
+    func createEvent(_ event: Event) async throws -> Event {
+        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
+        let url = base.appendingPathComponent("api/events")
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        var body: [String: Any] = ["title": event.title]
+        if let d = event.eventDescription { body["description"] = d }
+        if let d = event.startAt { body["start_at"] = ISO8601DateFormatter().string(from: d) }
+        if let d = event.endAt { body["end_at"] = ISO8601DateFormatter().string(from: d) }
+        if let u = event.imageURL { body["image_url"] = u }
+        if let loc = event.location { body["location"] = loc }
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, res) = try await session.data(for: req)
+        guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
+        try validateResponse(http, data: data)
+        return try decoder.decode(Event.self, from: data)
+    }
+
+    /// Update event (admin). PATCH /api/events/:id.
+    func updateEvent(id: String, title: String?, eventDescription: String?, startAt: Date?, endAt: Date?, imageURL: String?, location: String?) async throws {
+        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
+        let url = base.appendingPathComponent("api/events/\(id)")
+        var req = URLRequest(url: url)
+        req.httpMethod = "PATCH"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        var body: [String: Any] = [:]
+        if let t = title { body["title"] = t }
+        if eventDescription != nil { body["description"] = eventDescription as Any }
+        if startAt != nil { body["start_at"] = startAt.map { ISO8601DateFormatter().string(from: $0) } as Any }
+        if endAt != nil { body["end_at"] = endAt.map { ISO8601DateFormatter().string(from: $0) } as Any }
+        if imageURL != nil { body["image_url"] = imageURL as Any }
+        if location != nil { body["location"] = location as Any }
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (_, res) = try await session.data(for: req)
+        guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
+        try validateResponse(http, data: Data())
+    }
+
+    /// Delete event (admin). DELETE /api/events/:id.
+    func deleteEvent(id: String) async throws {
+        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
+        var req = URLRequest(url: base.appendingPathComponent("api/events/\(id)"))
+        req.httpMethod = "DELETE"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (_, res) = try await session.data(for: req)
+        guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
+        try validateResponse(http, data: Data())
     }
 
     /// Fetch reviews. GET /api/reviews. Returns empty array if endpoint missing.

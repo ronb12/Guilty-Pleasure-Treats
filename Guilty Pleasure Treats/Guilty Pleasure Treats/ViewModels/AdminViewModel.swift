@@ -766,6 +766,46 @@ final class AdminViewModel: ObservableObject {
         }
     }
 
+    func createEvent(title: String, eventDescription: String?, startAt: Date?, endAt: Date?, imageURL: String?, location: String?) async {
+        let event = Event(
+            id: "",
+            title: title,
+            eventDescription: eventDescription,
+            startAt: startAt,
+            endAt: endAt,
+            imageURL: imageURL,
+            location: location,
+            createdAt: nil
+        )
+        do {
+            _ = try await api.createEvent(event)
+            successMessage = "Event created. Customers will be notified."
+            await loadEvents()
+        } catch {
+            errorMessage = FriendlyErrorMessage.message(for: error)
+        }
+    }
+
+    func updateEvent(id: String, title: String?, eventDescription: String?, startAt: Date?, endAt: Date?, imageURL: String?, location: String?) async {
+        do {
+            try await api.updateEvent(id: id, title: title, eventDescription: eventDescription, startAt: startAt, endAt: endAt, imageURL: imageURL, location: location)
+            successMessage = "Event updated."
+            await loadEvents()
+        } catch {
+            errorMessage = FriendlyErrorMessage.message(for: error)
+        }
+    }
+
+    func deleteEvent(id: String) async {
+        do {
+            try await api.deleteEvent(id: id)
+            successMessage = "Event removed."
+            await loadEvents()
+        } catch {
+            errorMessage = FriendlyErrorMessage.message(for: error)
+        }
+    }
+
     func markContactMessageRead(_ message: ContactMessage) async {
         do {
             try await api.markContactMessageRead(id: message.id)
@@ -782,6 +822,19 @@ final class AdminViewModel: ObservableObject {
             successMessage = "Reply sent. Customer will see it in the app."
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)
+        }
+    }
+
+    /// Send a new message from admin to a customer (by id or email) or to all customers. Returns true if sent successfully.
+    @discardableResult
+    func sendAdminMessage(toUserId: String?, toUserEmail: String?, body: String) async -> Bool {
+        do {
+            try await api.sendAdminMessage(toUserId: toUserId, toUserEmail: toUserEmail, body: body)
+            successMessage = "Message sent. Customers will see it in the app."
+            return true
+        } catch {
+            errorMessage = FriendlyErrorMessage.message(for: error)
+            return false
         }
     }
 

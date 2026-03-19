@@ -23,7 +23,7 @@ enum FulfillmentType: String, Codable, CaseIterable {
 }
 
 /// Order item snapshot (product info at time of order).
-struct OrderItem: Codable, Identifiable {
+struct OrderItem: Codable, Identifiable, Equatable {
     var id: String
     var productId: String
     var name: String
@@ -34,7 +34,7 @@ struct OrderItem: Codable, Identifiable {
     var subtotal: Double { price * Double(quantity) }
 }
 
-struct Order: Identifiable, Codable {
+struct Order: Identifiable, Codable, Equatable {
     var id: String?
     var userId: String?
     var customerName: String

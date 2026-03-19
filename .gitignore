@@ -3,3 +3,6 @@ xcuserdata/
 *.xcuserstate
 .vercel
 .git.bak
+.env
+.env.*
+.env.neon

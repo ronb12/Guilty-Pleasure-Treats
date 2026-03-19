@@ -36,18 +36,20 @@ export default async function handler(req, res) {
     try {
       if (orderId && auth?.userId) {
         const rows = await sql`
-          SELECT id, author_name, rating, text, product_id, order_id, user_id, created_at
-          FROM reviews
-          WHERE order_id = ${orderId} AND user_id = ${auth.userId}
-          ORDER BY created_at DESC
+          SELECT r.id, COALESCE(u.display_name, r.author_name) AS author_name, r.rating, r.text, r.product_id, r.order_id, r.user_id, r.created_at
+          FROM reviews r
+          LEFT JOIN users u ON u.id = r.user_id
+          WHERE r.order_id = ${orderId} AND r.user_id = ${auth.userId}
+          ORDER BY r.created_at DESC
           LIMIT 1
         `;
         return res.status(200).json(rows.length ? [rowToReview(rows[0])] : []);
       }
       const rows = await sql`
-        SELECT id, author_name, rating, text, product_id, order_id, user_id, created_at
-        FROM reviews
-        ORDER BY created_at DESC
+        SELECT r.id, COALESCE(u.display_name, r.author_name) AS author_name, r.rating, r.text, r.product_id, r.order_id, r.user_id, r.created_at
+        FROM reviews r
+        LEFT JOIN users u ON u.id = r.user_id
+        ORDER BY r.created_at DESC
         LIMIT 100
       `;
       return res.status(200).json(rows.map(rowToReview));
@@ -89,9 +91,9 @@ export default async function handler(req, res) {
       if (existing) return res.status(409).json({ error: 'You already reviewed this order' });
 
       const [row] = await sql`
-        INSERT INTO reviews (author_name, rating, text, order_id, user_id)
-        VALUES (${null}, ${rating}, ${text || null}, ${orderId}, ${auth.userId})
-        RETURNING id, author_name, rating, text, product_id, order_id, user_id, created_at
+        INSERT INTO reviews (rating, text, order_id, user_id)
+        VALUES (${rating}, ${text || null}, ${orderId}, ${auth.userId})
+        RETURNING id, rating, text, product_id, order_id, user_id, created_at
       `;
       return res.status(201).json(rowToReview(row));
     } catch (err) {

@@ -41,6 +41,9 @@ struct RootView: View {
             case .openOrder:
                 tabRouter.selectedTab = 4
                 notificationService.clearPendingPushAction()
+            case .openEvents:
+                tabRouter.selectedTab = 0
+                notificationService.clearPendingPushAction()
             default:
                 showAdmin = true
             }

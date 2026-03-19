@@ -69,6 +69,9 @@ struct NotificationCenterView: View {
         switch notification.type {
         case .newOrder, .newMessage, .lowInventory:
             notificationService.setPendingPushAction(notificationTypeToAction(notification))
+        case .newEvent:
+            notificationService.setPendingPushAction(.openEvents)
+            tabRouter.selectedTab = 0
         case .orderStatus:
             if let orderId = notification.orderId {
                 notificationService.setPendingPushAction(.openOrder(orderId: orderId))
@@ -88,6 +91,8 @@ struct NotificationCenterView: View {
             return .openAdminInventory
         case .orderStatus:
             return .openOrder(orderId: n.orderId)
+        case .newEvent:
+            return .openEvents
         }
     }
 }
