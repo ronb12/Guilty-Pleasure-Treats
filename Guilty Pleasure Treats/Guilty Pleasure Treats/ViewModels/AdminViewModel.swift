@@ -470,13 +470,26 @@ final class AdminViewModel: ObservableObject {
             return false
         }
         categoryErrorMessage = nil
+        #if DEBUG
+        print("[AdminViewModel] updateCategory start id=\(item.id) old=\(item.name) new=\(n)")
+        #endif
         do {
             try await api.updateProductCategory(id: item.id, name: n, displayOrder: displayOrder ?? item.displayOrder)
             successMessage = "Category updated."
             await loadProductCategories()
+            #if DEBUG
+            print("[AdminViewModel] updateCategory success id=\(item.id)")
+            #endif
             return true
         } catch {
-            categoryErrorMessage = FriendlyErrorMessage.message(for: error)
+            if let apiErr = error as? VercelAPIError {
+                categoryErrorMessage = apiErr.supportDebugText
+            } else {
+                categoryErrorMessage = FriendlyErrorMessage.message(for: error)
+            }
+            #if DEBUG
+            print("[AdminViewModel] updateCategory failed id=\(item.id) error=\(error)")
+            #endif
             return false
         }
     }

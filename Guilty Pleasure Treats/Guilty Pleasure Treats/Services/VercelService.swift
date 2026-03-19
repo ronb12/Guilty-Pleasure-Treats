@@ -843,9 +843,18 @@ final class VercelService {
         if let n = name { body["name"] = n }
         if let o = displayOrder { body["displayOrder"] = o }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (_, res) = try await session.data(for: req)
+        #if DEBUG
+        print("[VercelService] updateProductCategory request id=\(id) body=\(body)")
+        #endif
+        let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
-        try validateResponse(http, data: Data())
+        #if DEBUG
+        if !(200...299).contains(http.statusCode) {
+            let raw = String(data: data, encoding: .utf8) ?? "<non-utf8>"
+            print("[VercelService] updateProductCategory failed status=\(http.statusCode) body=\(raw)")
+        }
+        #endif
+        try validateResponse(http, data: data)
     }
 
     func deleteProductCategory(id: String) async throws {
