@@ -366,12 +366,20 @@ struct AddCategorySheet: View {
                         #endif
                 } header: {
                     Text("Category name")
+                } footer: {
+                    if let msg = viewModel.categoryErrorMessage, !msg.isEmpty {
+                        Text(msg)
+                            .foregroundStyle(.red)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .macOSCompactFormContent()
             .navigationTitle("New Category")
             .inlineNavigationTitle()
+            .onAppear {
+                viewModel.dismissCategoryBanner()
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onDismiss)
@@ -380,9 +388,11 @@ struct AddCategorySheet: View {
                     Button("Save") {
                         Task {
                             isSaving = true
-                            await viewModel.addCategory(name: name)
+                            let didSave = await viewModel.addCategory(name: name)
                             isSaving = false
-                            onDismiss()
+                            if didSave {
+                                onDismiss()
+                            }
                         }
                     }
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
@@ -411,13 +421,21 @@ struct EditCategorySheet: View {
                         #endif
                 } header: {
                     Text("Category name")
+                } footer: {
+                    if let msg = viewModel.categoryErrorMessage, !msg.isEmpty {
+                        Text(msg)
+                            .foregroundStyle(.red)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .macOSCompactFormContent()
             .navigationTitle("Edit Category")
             .inlineNavigationTitle()
-            .onAppear { name = item.name }
+            .onAppear {
+                name = item.name
+                viewModel.dismissCategoryBanner()
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onDismiss)
@@ -592,7 +610,7 @@ struct AddProductView: View {
                             let costOpt = (cost != nil && cost! > 0) ? cost : nil
                             let stock = Int(stockText.trimmingCharacters(in: .whitespaces))
                             let low = Int(lowStockText.trimmingCharacters(in: .whitespaces))
-                            await viewModel.addProduct(
+                            let didSave = await viewModel.addProduct(
                                 name: name,
                                 description: description,
                                 price: price,
@@ -604,7 +622,9 @@ struct AddProductView: View {
                                 stockQuantity: stock,
                                 lowStockThreshold: low
                             )
-                            dismiss()
+                            if didSave {
+                                dismiss()
+                            }
                         }
                     }
                     .disabled(name.isEmpty || priceText.isEmpty)
@@ -762,8 +782,10 @@ struct EditProductView: View {
                             updated.isVegetarian = isVegetarian
                             updated.stockQuantity = Int(stockText.trimmingCharacters(in: .whitespaces))
                             updated.lowStockThreshold = Int(lowStockText.trimmingCharacters(in: .whitespaces))
-                            await viewModel.updateProduct(updated, newImage: selectedImage)
-                            dismiss()
+                            let didSave = await viewModel.updateProduct(updated, newImage: selectedImage)
+                            if didSave {
+                                dismiss()
+                            }
                         }
                     }
                 }

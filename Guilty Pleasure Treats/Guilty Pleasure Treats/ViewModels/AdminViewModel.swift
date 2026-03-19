@@ -443,9 +443,9 @@ final class AdminViewModel: ObservableObject {
         }
     }
 
-    func addCategory(name: String, displayOrder: Int = 0) async {
+    func addCategory(name: String, displayOrder: Int = 0) async -> Bool {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty else { return false }
         categoryErrorMessage = nil
         do {
             let item = try await api.addProductCategory(name: trimmed, displayOrder: displayOrder)
@@ -453,8 +453,10 @@ final class AdminViewModel: ObservableObject {
             productCategories.sort { $0.displayOrder < $1.displayOrder }
             successMessage = "Category added."
             await loadProductCategories()
+            return true
         } catch {
             categoryErrorMessage = FriendlyErrorMessage.message(for: error)
+            return false
         }
     }
 
@@ -582,7 +584,7 @@ final class AdminViewModel: ObservableObject {
         }
     }
     
-    func addProduct(name: String, description: String, price: Double, cost: Double? = nil, category: String, isFeatured: Bool, isVegetarian: Bool = false, image: PlatformImage?, stockQuantity: Int? = nil, lowStockThreshold: Int? = nil) async {
+    func addProduct(name: String, description: String, price: Double, cost: Double? = nil, category: String, isFeatured: Bool, isVegetarian: Bool = false, image: PlatformImage?, stockQuantity: Int? = nil, lowStockThreshold: Int? = nil) async -> Bool {
         let product = Product(
             name: name,
             productDescription: description,
@@ -607,12 +609,14 @@ final class AdminViewModel: ObservableObject {
             }
             successMessage = "Product added."
             await loadProducts()
+            return true
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)
+            return false
         }
     }
     
-    func updateProduct(_ product: Product, newImage: PlatformImage?) async {
+    func updateProduct(_ product: Product, newImage: PlatformImage?) async -> Bool {
         if product.id?.hasPrefix("sample-") == true {
             if let idx = products.firstIndex(where: { $0.id == product.id }) {
                 var updated = product
@@ -621,7 +625,7 @@ final class AdminViewModel: ObservableObject {
                 successMessage = "Inventory updated (demo)."
             }
             editingProduct = nil
-            return
+            return true
         }
         do {
             if let img = newImage, let id = product.id, let jpeg = img.jpegData(compressionQuality: 0.7) {
@@ -636,8 +640,10 @@ final class AdminViewModel: ObservableObject {
             successMessage = "Product updated."
             await loadProducts()
             editingProduct = nil
+            return true
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)
+            return false
         }
     }
 
