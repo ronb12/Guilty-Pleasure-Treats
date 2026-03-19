@@ -4583,8 +4583,10 @@ struct EditInventorySheet: View {
             updated.stockQuantity = nil
             updated.lowStockThreshold = nil
         }
-        await viewModel.updateProduct(updated, newImage: nil)
-        onDismiss()
+        let didSave = await viewModel.updateProduct(updated, newImage: nil)
+        if didSave {
+            onDismiss()
+        }
     }
 }
 

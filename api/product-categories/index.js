@@ -17,6 +17,15 @@ function rowToCategory(row) {
   };
 }
 
+const DEFAULT_CATEGORIES = [
+  { name: 'Cupcakes', displayOrder: 10 },
+  { name: 'Cookies', displayOrder: 20 },
+  { name: 'Cakes', displayOrder: 30 },
+  { name: 'Brownies', displayOrder: 40 },
+  { name: 'Seasonal Treats', displayOrder: 50 },
+  { name: 'Treat 4 Paws', displayOrder: 60 },
+];
+
 export default async function handler(req, res) {
   setCors(res);
   if ((req.method || '').toUpperCase() === 'OPTIONS') {
@@ -30,11 +39,25 @@ export default async function handler(req, res) {
       return res.status(200).json([]);
     }
     try {
-      const rows = await sql`
+      let rows = await sql`
         SELECT id, name, display_order, created_at, updated_at
         FROM product_categories
         ORDER BY display_order ASC, name ASC
       `;
+      if (!rows.length) {
+        for (const c of DEFAULT_CATEGORIES) {
+          await sql`
+            INSERT INTO product_categories (name, display_order)
+            VALUES (${c.name}, ${c.displayOrder})
+            ON CONFLICT DO NOTHING
+          `;
+        }
+        rows = await sql`
+          SELECT id, name, display_order, created_at, updated_at
+          FROM product_categories
+          ORDER BY display_order ASC, name ASC
+        `;
+      }
       return res.status(200).json(rows.map(rowToCategory));
     } catch (err) {
       console.error('[product-categories] GET', err);
@@ -66,6 +89,9 @@ export default async function handler(req, res) {
       const row = rows[0];
       return res.status(201).json(rowToCategory(row));
     } catch (err) {
+      if (err?.code === '23505') {
+        return res.status(409).json({ error: 'A category with this name already exists' });
+      }
       console.error('[product-categories] POST', err);
       return res.status(500).json({ error: 'Failed to add category' });
     }

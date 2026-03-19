@@ -438,8 +438,11 @@ final class AdminViewModel: ObservableObject {
     func loadProductCategories() async {
         do {
             productCategories = try await api.fetchProductCategories()
+            categoryErrorMessage = nil
         } catch {
+            // Fallback categories are local-only placeholders and cannot be edited/deleted server-side.
             productCategories = ProductCategory.allCases.map { ProductCategoryItem(id: "default-\($0.rawValue)", name: $0.rawValue, displayOrder: 0) }
+            categoryErrorMessage = "Couldn't load categories from server. Please check your connection and refresh before editing."
         }
     }
 
@@ -462,6 +465,10 @@ final class AdminViewModel: ObservableObject {
 
     func updateCategory(_ item: ProductCategoryItem, name: String? = nil, displayOrder: Int? = nil) async -> Bool {
         guard let n = name?.trimmingCharacters(in: .whitespaces), !n.isEmpty else { return false }
+        if item.id.hasPrefix("default-") {
+            categoryErrorMessage = "Categories are in offline fallback mode and cannot be edited. Refresh after reconnecting."
+            return false
+        }
         categoryErrorMessage = nil
         do {
             try await api.updateProductCategory(id: item.id, name: n, displayOrder: displayOrder ?? item.displayOrder)

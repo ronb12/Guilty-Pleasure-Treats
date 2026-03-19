@@ -218,7 +218,19 @@ async function main() {
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )
     `;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_product_categories_name_lower_unique ON product_categories (LOWER(TRIM(name)))`;
     await sql`CREATE INDEX IF NOT EXISTS idx_product_categories_display_order ON product_categories(display_order ASC, name ASC)`;
+    await sql`
+      INSERT INTO product_categories (name, display_order)
+      VALUES
+        ('Cupcakes', 10),
+        ('Cookies', 20),
+        ('Cakes', 30),
+        ('Brownies', 40),
+        ('Seasonal Treats', 50),
+        ('Treat 4 Paws', 60)
+      ON CONFLICT (LOWER(TRIM(name))) DO NOTHING
+    `;
     console.log('product_categories OK');
 
     // customers (saved customers / address book)
