@@ -401,7 +401,9 @@ final class VercelService {
             contactPhone: j["contactPhone"] as? String,
             storeName: j["storeName"] as? String,
             cashAppTag: j["cashAppTag"] as? String,
-            venmoUsername: j["venmoUsername"] as? String
+            venmoUsername: j["venmoUsername"] as? String,
+            deliveryFee: j["deliveryFee"] as? Double,
+            shippingFee: j["shippingFee"] as? Double
         )
     }
 
@@ -421,6 +423,8 @@ final class VercelService {
             "storeName": settings.storeName,
             "cashAppTag": settings.cashAppTag,
             "venmoUsername": settings.venmoUsername,
+            "deliveryFee": settings.deliveryFee,
+            "shippingFee": settings.shippingFee,
         ]
         req.httpBody = try JSONSerialization.data(withJSONObject: body.compactMapValues { $0 })
         let (_, res) = try await session.data(for: req)

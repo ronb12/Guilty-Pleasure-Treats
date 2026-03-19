@@ -63,13 +63,16 @@ struct CheckoutView: View {
                 viewModel.customerEmail = email
             }
             Task {
-                if let settings = try? await VercelService.shared.fetchBusinessSettings(),
-                   let hours = settings.minimumOrderLeadTimeHours, hours > 0 {
+                if let settings = try? await VercelService.shared.fetchBusinessSettings() {
                     await MainActor.run {
-                        viewModel.minimumOrderLeadTimeHours = hours
-                        if viewModel.scheduledDate < viewModel.minScheduledDate {
-                            viewModel.scheduledDate = viewModel.minScheduledDate
+                        if let hours = settings.minimumOrderLeadTimeHours, hours > 0 {
+                            viewModel.minimumOrderLeadTimeHours = hours
+                            if viewModel.scheduledDate < viewModel.minScheduledDate {
+                                viewModel.scheduledDate = viewModel.minScheduledDate
+                            }
                         }
+                        viewModel.deliveryFee = max(0, settings.deliveryFee ?? 0)
+                        viewModel.shippingFee = max(0, settings.shippingFee ?? 0)
                     }
                 }
             }
@@ -182,6 +185,24 @@ struct CheckoutView: View {
                         .foregroundStyle(.green)
                 }
                 .font(.subheadline)
+            }
+            if viewModel.orderSummaryDeliveryFee > 0 {
+                HStack {
+                    Text("Delivery fee")
+                    Spacer()
+                    Text(viewModel.orderSummaryDeliveryFee.currencyFormatted)
+                }
+                .font(.subheadline)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
+            }
+            if viewModel.orderSummaryShippingFee > 0 {
+                HStack {
+                    Text("Shipping fee")
+                    Spacer()
+                    Text(viewModel.orderSummaryShippingFee.currencyFormatted)
+                }
+                .font(.subheadline)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
             }
             HStack {
                 Text("Tax")

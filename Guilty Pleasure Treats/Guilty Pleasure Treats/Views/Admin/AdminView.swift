@@ -4339,6 +4339,8 @@ struct AdminSettingsView: View {
     @State private var deliveryRadiusText = ""
     @State private var taxRateText = ""
     @State private var minimumOrderLeadTimeText = ""
+    @State private var deliveryFeeText = ""
+    @State private var shippingFeeText = ""
     @State private var contactEmail = ""
     @State private var contactPhone = ""
     @State private var storeName = ""
@@ -4365,6 +4367,8 @@ struct AdminSettingsView: View {
                     deliveryRadiusText = s.deliveryRadiusMiles.map { String($0) } ?? ""
                     taxRateText = String(format: "%.2f", s.taxRate)
                     minimumOrderLeadTimeText = s.minimumOrderLeadTimeHours.map { String($0) } ?? ""
+                    deliveryFeeText = s.deliveryFee.map { String(format: "%.2f", $0) } ?? ""
+                    shippingFeeText = s.shippingFee.map { String(format: "%.2f", $0) } ?? ""
                     contactEmail = s.contactEmail ?? ""
                     contactPhone = s.contactPhone ?? ""
                     storeName = s.storeName ?? ""
@@ -4398,6 +4402,8 @@ struct AdminSettingsView: View {
         let tax = Double(taxRateText.replacingOccurrences(of: ",", with: "")) ?? 0.08
         let radius = Double(deliveryRadiusText.replacingOccurrences(of: ",", with: ""))
         let leadTime = Int(minimumOrderLeadTimeText.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces))
+        let deliveryFee = Double(deliveryFeeText.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces))
+        let shippingFee = Double(shippingFeeText.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces))
         let settings = BusinessSettings(
             storeHours: storeHours.isEmpty ? nil : storeHours,
             deliveryRadiusMiles: radius,
@@ -4407,7 +4413,9 @@ struct AdminSettingsView: View {
             contactPhone: contactPhone.isEmpty ? nil : contactPhone,
             storeName: storeName.isEmpty ? nil : storeName,
             cashAppTag: viewModel.businessSettings?.cashAppTag,
-            venmoUsername: viewModel.businessSettings?.venmoUsername
+            venmoUsername: viewModel.businessSettings?.venmoUsername,
+            deliveryFee: (deliveryFee != nil && deliveryFee! >= 0) ? deliveryFee : 0,
+            shippingFee: (shippingFee != nil && shippingFee! >= 0) ? shippingFee : 0
         )
         Task {
             await viewModel.saveBusinessSettings(settings)
@@ -4455,8 +4463,13 @@ struct AdminSettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             settingsSectionLabel("Delivery & tax")
             settingsLabeledField("Delivery radius (mi)", placeholder: "0", text: $deliveryRadiusText)
+            settingsLabeledField("Delivery fee ($)", placeholder: "0", text: $deliveryFeeText)
+            settingsLabeledField("Shipping fee ($)", placeholder: "0", text: $shippingFeeText)
             settingsLabeledField("Tax rate", placeholder: "0.08", text: $taxRateText)
             settingsLabeledField("Minimum order notice (hours)", placeholder: "24", text: $minimumOrderLeadTimeText)
+            Text("Delivery/shipping fees in dollars. Applied at checkout when customer chooses Delivery or Shipping.")
+                .font(.caption)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
             Text("Tax rate as decimal (e.g. 0.08 for 8%). Applied at checkout.")
                 .font(.caption)
                 .foregroundStyle(AppConstants.Colors.textSecondary)
@@ -4543,6 +4556,20 @@ struct AdminSettingsView: View {
                         .multilineTextAlignment(.trailing)
                         #endif
                 }
+                LabeledContent("Delivery fee ($)") {
+                    TextField("0", text: $deliveryFeeText)
+                        #if os(iOS)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        #endif
+                }
+                LabeledContent("Shipping fee ($)") {
+                    TextField("0", text: $shippingFeeText)
+                        #if os(iOS)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        #endif
+                }
                 LabeledContent("Tax rate") {
                     TextField("0.08", text: $taxRateText)
                         #if os(iOS)
@@ -4560,7 +4587,7 @@ struct AdminSettingsView: View {
             } header: {
                 Text("Delivery & tax")
             } footer: {
-                Text("Tax rate as decimal (e.g. 0.08 for 8%). Applied at checkout. Check your state sales tax rate to use the correct percentage. Minimum order notice: customers cannot select a pickup/delivery time sooner than this many hours from now.")
+                Text("Delivery and shipping fees in dollars; applied at checkout when customer chooses Delivery or Shipping. Tax rate as decimal (e.g. 0.08 for 8%). Minimum order notice: customers cannot select a pickup/delivery time sooner than this many hours from now.")
             }
 
             Section {

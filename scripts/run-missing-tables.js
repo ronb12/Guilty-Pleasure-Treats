@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Create all tables that APIs expect but may be missing in Neon (contact, gallery, categories, customers, push).
- * Run once after schema.sql or when you see "relation does not exist" errors.
+ * Create all tables that the app and APIs expect in Neon.
+ * Run once when setting up a new DB or when you see "relation does not exist" errors.
  * Usage: node --env-file=.env.neon scripts/run-missing-tables.js
  */
 import { neon } from '@neondatabase/serverless';
@@ -16,6 +16,136 @@ const sql = neon(connectionString);
 
 async function main() {
   try {
+    // --- Base tables (must exist before push_tokens, etc.) ---
+
+    // users (auth, admin, push_tokens FK)
+    await sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        email TEXT,
+        display_name TEXT,
+        is_admin BOOLEAN NOT NULL DEFAULT false,
+        points INT NOT NULL DEFAULT 0,
+        neon_auth_id TEXT,
+        password_hash TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_users_email ON users(LOWER(email))`;
+    console.log('users OK');
+
+    // sessions (local auth after login)
+    await sql`
+      CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)`;
+    console.log('sessions OK');
+
+    // orders (checkout, admin orders list, analytics)
+    await sql`
+      CREATE TABLE IF NOT EXISTS orders (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID,
+        customer_name TEXT NOT NULL,
+        customer_phone TEXT NOT NULL,
+        customer_email TEXT,
+        delivery_address TEXT,
+        items JSONB NOT NULL DEFAULT '[]',
+        subtotal DECIMAL(12,2) NOT NULL DEFAULT 0,
+        tax DECIMAL(12,2) NOT NULL DEFAULT 0,
+        total DECIMAL(12,2) NOT NULL DEFAULT 0,
+        fulfillment_type TEXT NOT NULL DEFAULT 'Pickup',
+        scheduled_pickup_date TIMESTAMPTZ,
+        status TEXT NOT NULL DEFAULT 'Pending',
+        stripe_payment_intent_id TEXT,
+        manual_paid_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        estimated_ready_time TIMESTAMPTZ,
+        pickup_time TIMESTAMPTZ,
+        ready_by TIMESTAMPTZ,
+        tip_cents INT NOT NULL DEFAULT 0,
+        tax_cents INT NOT NULL DEFAULT 0,
+        custom_cake_order_ids TEXT[],
+        ai_cake_design_ids TEXT[]
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`;
+    console.log('orders OK');
+
+    // products (menu, admin products)
+    await sql`
+      CREATE TABLE IF NOT EXISTS products (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        description TEXT,
+        price DECIMAL(10,2) NOT NULL DEFAULT 0,
+        cost DECIMAL(10,2),
+        image_url TEXT,
+        category TEXT NOT NULL DEFAULT '',
+        is_featured BOOLEAN NOT NULL DEFAULT false,
+        is_sold_out BOOLEAN NOT NULL DEFAULT false,
+        is_vegetarian BOOLEAN NOT NULL DEFAULT false,
+        stock_quantity INT,
+        low_stock_threshold INT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        is_available BOOLEAN NOT NULL DEFAULT true,
+        available_from DATE
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at DESC)`;
+    console.log('products OK');
+
+    // custom_cake_orders (custom cake builder → cart)
+    await sql`
+      CREATE TABLE IF NOT EXISTS custom_cake_orders (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID,
+        order_id UUID,
+        size TEXT NOT NULL,
+        flavor TEXT NOT NULL,
+        frosting TEXT NOT NULL,
+        toppings JSONB DEFAULT '[]',
+        message TEXT NOT NULL DEFAULT '',
+        design_image_url TEXT,
+        price DECIMAL(10,2) NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_custom_cake_orders_user_id ON custom_cake_orders(user_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_custom_cake_orders_order_id ON custom_cake_orders(order_id)`;
+    console.log('custom_cake_orders OK');
+
+    // ai_cake_designs (AI cake gallery orders)
+    await sql`
+      CREATE TABLE IF NOT EXISTS ai_cake_designs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID,
+        order_id UUID,
+        size TEXT NOT NULL DEFAULT '',
+        flavor TEXT NOT NULL DEFAULT '',
+        frosting TEXT NOT NULL DEFAULT '',
+        design_prompt TEXT NOT NULL DEFAULT '',
+        generated_image_url TEXT,
+        price DECIMAL(10,2) NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_ai_cake_designs_user_id ON ai_cake_designs(user_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_ai_cake_designs_order_id ON ai_cake_designs(order_id)`;
+    console.log('ai_cake_designs OK');
+
+    // --- App / API tables ---
+
     // contact_messages (contact form)
     await sql`
       CREATE TABLE IF NOT EXISTS contact_messages (

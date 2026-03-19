@@ -20,7 +20,11 @@ struct BusinessSettings: Codable {
     var cashAppTag: String?
     /// Venmo username for optional QR / link payment.
     var venmoUsername: String?
-    
+    /// Delivery fee in dollars (e.g. 5.00). Applied at checkout when fulfillment is Delivery.
+    var deliveryFee: Double?
+    /// Shipping fee in dollars (e.g. 8.00). Applied at checkout when fulfillment is Shipping.
+    var shippingFee: Double?
+
     init(
         storeHours: String? = nil,
         deliveryRadiusMiles: Double? = nil,
@@ -30,7 +34,9 @@ struct BusinessSettings: Codable {
         contactPhone: String? = nil,
         storeName: String? = nil,
         cashAppTag: String? = nil,
-        venmoUsername: String? = nil
+        venmoUsername: String? = nil,
+        deliveryFee: Double? = nil,
+        shippingFee: Double? = nil
     ) {
         self.storeHours = storeHours
         self.deliveryRadiusMiles = deliveryRadiusMiles
@@ -41,5 +47,7 @@ struct BusinessSettings: Codable {
         self.storeName = storeName
         self.cashAppTag = cashAppTag
         self.venmoUsername = venmoUsername
+        self.deliveryFee = deliveryFee
+        self.shippingFee = shippingFee
     }
 }

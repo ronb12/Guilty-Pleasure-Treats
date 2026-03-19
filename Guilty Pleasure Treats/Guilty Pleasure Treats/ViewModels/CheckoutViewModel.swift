@@ -20,6 +20,10 @@ final class CheckoutViewModel: ObservableObject {
     }()
     /// From business settings (admin). Defaults to AppConstants until settings are loaded.
     @Published var minimumOrderLeadTimeHours: Int = AppConstants.minimumOrderLeadTimeHours
+    /// Delivery fee in dollars (from business settings). Applied when fulfillment is Delivery.
+    @Published var deliveryFee: Double = 0
+    /// Shipping fee in dollars (from business settings). Applied when fulfillment is Shipping.
+    @Published var shippingFee: Double = 0
     @Published var street = ""
     @Published var addressLine2 = ""
     @Published var city = ""
@@ -74,7 +78,14 @@ final class CheckoutViewModel: ObservableObject {
     var orderSummarySubtotalAfterDiscount: Double { max(0, orderSummarySubtotal - orderSummaryDiscount) }
     var orderSummaryTax: Double { orderSummarySubtotalAfterDiscount * AppConstants.taxRate }
     var orderSummaryTip: Double { cart.tipAmount }
-    var orderSummaryTotal: Double { orderSummarySubtotalAfterDiscount + orderSummaryTax + orderSummaryTip }
+    /// Delivery fee when fulfillment is Delivery.
+    var orderSummaryDeliveryFee: Double { fulfillmentType == .delivery ? deliveryFee : 0 }
+    /// Shipping fee when fulfillment is Shipping.
+    var orderSummaryShippingFee: Double { fulfillmentType == .shipping ? shippingFee : 0 }
+    var orderSummaryTotal: Double {
+        orderSummarySubtotalAfterDiscount + orderSummaryTax + orderSummaryTip
+            + orderSummaryDeliveryFee + orderSummaryShippingFee
+    }
     
     var discountAmount: Double {
         guard let promo = appliedPromotion else { return 0 }
@@ -137,7 +148,9 @@ final class CheckoutViewModel: ObservableObject {
         let taxRate = AppConstants.taxRate
         let tax = subtotalAfterDiscount * taxRate
         let tip = cart.tipAmount
-        let total = subtotalAfterDiscount + tax + tip
+        let deliveryFeeAmount = fulfillmentType == .delivery ? deliveryFee : 0
+        let shippingFeeAmount = fulfillmentType == .shipping ? shippingFee : 0
+        let total = subtotalAfterDiscount + tax + tip + deliveryFeeAmount + shippingFeeAmount
         
         let customCakeOrderIds = cart.items.compactMap { item -> String? in
             guard let id = item.product.id, id.hasPrefix("custom-") else { return nil }

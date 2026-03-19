@@ -37,6 +37,20 @@ async function handler(req, res) {
     if (status) await sql`UPDATE orders SET status = ${status} WHERE id = ${orderId}`;
     if (pickup_time !== undefined) await sql`UPDATE orders SET pickup_time = ${pickup_time ? new Date(pickup_time) : null} WHERE id = ${orderId}`;
     if (ready_by !== undefined) await sql`UPDATE orders SET ready_by = ${ready_by ? new Date(ready_by) : null} WHERE id = ${orderId}`;
+
+    if (status && order.user_id) {
+      try {
+        const tokenRows = await sql`SELECT device_token FROM push_tokens WHERE user_id = ${order.user_id} LIMIT 1`;
+        const deviceToken = tokenRows?.[0]?.device_token;
+        if (deviceToken) {
+          const { notifyOrderStatusUpdate } = await import('../../api/lib/apns.js');
+          await notifyOrderStatusUpdate(deviceToken, orderId, status);
+        }
+      } catch (e) {
+        console.warn('[orders/update-status] push', e?.message ?? e);
+      }
+    }
+
     const [updated] = await sql`SELECT * FROM orders WHERE id = ${orderId}`;
     return res.status(200).json(updated);
   } catch (e) {

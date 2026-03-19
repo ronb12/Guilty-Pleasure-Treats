@@ -58,10 +58,22 @@ export default async function handler(req, res) {
       const name = body.name != null ? String(body.name).trim() : null;
       const subject = body.subject != null ? String(body.subject).trim() : null;
       const userId = body.userId != null ? String(body.userId) : null;
-      await sql`
+      const [inserted] = await sql`
         INSERT INTO contact_messages (name, email, subject, message, user_id)
         VALUES (${name}, ${email}, ${subject}, ${message}, ${userId})
+        RETURNING id
       `;
+      const messageId = inserted?.id?.toString?.() ?? null;
+      if (messageId) {
+        try {
+          const { notifyNewMessage } = await import('../../api/lib/apns.js');
+          const adminRows = await sql`SELECT device_token FROM push_tokens WHERE is_admin = true`;
+          const tokens = (adminRows || []).map((r) => r.device_token).filter(Boolean);
+          if (tokens.length) notifyNewMessage(tokens, messageId, name ?? email, subject ?? message.slice(0, 60));
+        } catch (e) {
+          console.warn('[contact] push notify', e?.message ?? e);
+        }
+      }
       return res.status(201).json({ ok: true });
     } catch (err) {
       if (err?.code === '42P01') return res.status(503).json({ error: 'Service unavailable' });
