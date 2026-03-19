@@ -814,7 +814,10 @@ final class VercelService {
     }
 
     func addProductCategory(name: String, displayOrder: Int = 0) async throws -> ProductCategoryItem {
-        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
+        guard let base = baseURL else { throw VercelNotConfiguredError() }
+        guard let token = authToken, !token.isEmpty else {
+            throw VercelAPIError(message: "Please sign in again.", statusCode: 401)
+        }
         var req = URLRequest(url: base.appendingPathComponent("api/product-categories"))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -828,7 +831,10 @@ final class VercelService {
     }
 
     func updateProductCategory(id: String, name: String? = nil, displayOrder: Int? = nil) async throws {
-        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
+        guard let base = baseURL else { throw VercelNotConfiguredError() }
+        guard let token = authToken, !token.isEmpty else {
+            throw VercelAPIError(message: "Please sign in again.", statusCode: 401)
+        }
         var req = URLRequest(url: base.appendingPathComponent("api/product-categories/\(id)"))
         req.httpMethod = "PATCH"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
