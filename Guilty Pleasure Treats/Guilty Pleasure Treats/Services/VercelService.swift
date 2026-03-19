@@ -211,9 +211,9 @@ final class VercelService {
         var req = URLRequest(url: base.appendingPathComponent("api/products/\(id)"))
         req.httpMethod = "DELETE"
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        let (_, res) = try await session.data(for: req)
+        let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
-        try validateResponse(http, data: Data())
+        try validateResponse(http, data: data)
     }
 
     func uploadProductImage(data: Data, productId: String) async throws -> String {
