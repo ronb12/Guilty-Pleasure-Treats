@@ -67,7 +67,13 @@ export default async function handler(req, res) {
 
   if ((req.method || '').toUpperCase() === 'POST') {
     const token = getTokenFromRequest(req);
-    const session = token ? await getSession(token) : null;
+    let session = null;
+    try {
+      session = token ? await getSession(token) : null;
+    } catch (authErr) {
+      console.error('[product-categories] POST auth', authErr);
+      return res.status(401).json({ error: 'Please sign in again.' });
+    }
     if (!session?.isAdmin) {
       return res.status(403).json({ error: 'Admin required' });
     }

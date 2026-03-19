@@ -48,7 +48,13 @@ export default async function handler(req, res) {
 
   if ((req.method || '').toUpperCase() === 'PATCH') {
     const token = getTokenFromRequest(req);
-    const session = token ? await getSession(token) : null;
+    let session = null;
+    try {
+      session = token ? await getSession(token) : null;
+    } catch (authErr) {
+      console.error('[product-categories/id] PATCH auth', authErr);
+      return res.status(401).json({ error: 'Please sign in again.' });
+    }
     if (!session?.isAdmin) return res.status(403).json({ error: 'Admin required' });
     const body = req.body || {};
     const name = body.name != null ? String(body.name).trim() : null;
@@ -87,7 +93,13 @@ export default async function handler(req, res) {
 
   if ((req.method || '').toUpperCase() === 'DELETE') {
     const token = getTokenFromRequest(req);
-    const session = token ? await getSession(token) : null;
+    let session = null;
+    try {
+      session = token ? await getSession(token) : null;
+    } catch (authErr) {
+      console.error('[product-categories/id] DELETE auth', authErr);
+      return res.status(401).json({ error: 'Please sign in again.' });
+    }
     if (!session?.isAdmin) return res.status(403).json({ error: 'Admin required' });
     try {
       await sql`DELETE FROM product_categories WHERE (id)::text = ${String(id)}`;
