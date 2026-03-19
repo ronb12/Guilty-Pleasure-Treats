@@ -1,29 +1,28 @@
-// Add this extension to your Order model. Add to Order: status, pickupTime, readyBy, tipCents, taxCents (all optional).
+// Extension for Order: status display and formatted tax. Order.status is String; Order.tax is Double (dollars).
 import Foundation
 
 extension Order {
     /// Display label for order status.
     var statusDisplay: String {
-        switch status?.lowercased() {
+        switch status.lowercased() {
         case "pending": return "Pending"
         case "confirmed": return "Confirmed"
-        case "in_progress": return "In progress"
+        case "in_progress", "preparing": return "In progress"
         case "ready": return "Ready for pickup"
         case "completed": return "Completed"
         case "cancelled": return "Cancelled"
-        default: return status ?? "Pending"
+        default: return status.isEmpty ? "Pending" : status
         }
     }
 
-    /// Format tip for display (requires Order.tipCents).
+    /// Format tip for display. Order has no tip field; override or add tipCents to Order if needed.
     var tipFormatted: String? {
-        guard let c = tipCents, c > 0 else { return nil }
-        return String(format: "$%.2f", Double(c) / 100.0)
+        nil
     }
 
-    /// Format tax for display (requires Order.taxCents).
+    /// Format tax for display (uses Order.tax in dollars).
     var taxFormatted: String? {
-        guard let c = taxCents, c > 0 else { return nil }
-        return String(format: "$%.2f", Double(c) / 100.0)
+        guard tax > 0 else { return nil }
+        return String(format: "$%.2f", tax)
     }
 }

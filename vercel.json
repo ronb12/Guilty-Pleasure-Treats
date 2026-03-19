@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "bash scripts/sync-api-for-vercel.sh",
+  "buildCommand": "npm run vercel:sync",
   "builds": [
     { "src": "api/**/*.js", "use": "@vercel/node" },
     { "src": "website/**", "use": "@vercel/static" }

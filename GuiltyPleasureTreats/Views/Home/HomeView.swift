@@ -15,8 +15,17 @@ struct HomeView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    homeLogoSection
+                    if let message = viewModel.errorMessage {
+                        Text(message)
+                            .font(.subheadline)
+                            .foregroundStyle(.white)
+                            .padding()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.red.opacity(0.9))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                    }
                     promotionsBanner
-                    
                     customCakeCard
                     aiCakeDesignerCard
                     if viewModel.isLoading {
@@ -62,7 +71,7 @@ struct HomeView: View {
                     Text("Build Your Custom Cake")
                         .font(.headline)
                         .foregroundStyle(AppConstants.Colors.textPrimary)
-                    Text("Choose size, flavor, frosting & add a message")
+                    Text("Choose size, flavor, frosting & more")
                         .font(.caption)
                         .foregroundStyle(AppConstants.Colors.textSecondary)
                 }
@@ -89,7 +98,7 @@ struct HomeView: View {
                     Text("AI Cake Designer")
                         .font(.headline)
                         .foregroundStyle(AppConstants.Colors.textPrimary)
-                    Text("Describe your dream cake and we'll generate a preview")
+                    Text("Describe your dream cake, we'll create it")
                         .font(.caption)
                         .foregroundStyle(AppConstants.Colors.textSecondary)
                 }
@@ -106,6 +115,21 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
     
+    private var homeLogoSection: some View {
+        VStack(spacing: 12) {
+            Image("HomeLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 160, maxHeight: 160)
+            Text("Guilty Pleasure Treats")
+                .font(.title2)
+                .fontWeight(.semibold)
+                .foregroundStyle(AppConstants.Colors.textPrimary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+
     private var promotionsBanner: some View {
         HStack {
             Image(systemName: "tag.fill")
@@ -149,7 +173,7 @@ struct HomeView: View {
     }
     
     private var browseMenuButton: some View {
-        PrimaryButton(title: "Browse Menu") {
+        PrimaryButton(title: "Browse full menu") {
             showMenu = true
         }
     }

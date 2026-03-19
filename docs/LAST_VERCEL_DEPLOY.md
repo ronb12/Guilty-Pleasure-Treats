@@ -43,3 +43,15 @@ Vercel will build and run **buildCommand** (`bash scripts/sync-api-for-vercel.sh
 ---
 
 **Summary:** Sync then `vercel --prod` (or push to main for Git deploy). Use Terminal; Cursor’s environment often hits `ETIMEDOUT` on the deploy step.
+
+---
+
+## If you see "A server error has occurred" / FUNCTION_INVOCATION_FAILED in the app
+
+1. **Set Vercel env vars** (Dashboard → Project → Settings → Environment Variables):
+   - **DATABASE_URL** or **POSTGRES_URL** — Neon Postgres connection string (required for products, orders, etc.).
+   - **JWT_SECRET** or **AUTH_SECRET** — secret for auth (required for protected routes).
+
+2. **Redeploy** after adding env vars so the new values are used.
+
+3. **Health check:** Open `https://your-project.vercel.app/api/health` in a browser; it should return `{"ok":true,"status":"healthy"}`. If that works but the app still errors, ensure the `products` table exists in Neon (run your schema migrations).

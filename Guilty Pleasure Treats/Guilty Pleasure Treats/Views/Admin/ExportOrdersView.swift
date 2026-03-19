@@ -18,7 +18,8 @@ struct ExportOrdersView: View {
     @State private var showShareSheet = false
 
     var body: some View {
-        Form {
+        let vm = viewModel
+        return Form {
             Section {
                 DatePicker("From", selection: $fromDate, displayedComponents: .date)
                 DatePicker("To", selection: $toDate, displayedComponents: .date)
@@ -37,29 +38,30 @@ struct ExportOrdersView: View {
                 .disabled(isExporting)
             }
 
-            if viewModel.ordersExportData != nil {
+            if vm.ordersExportData != nil {
                 Section {
                     Button("Share / Save CSV") { showShareSheet = true }
-                    Button("Clear", role: .destructive) { viewModel.clearOrdersExport() }
+                    Button("Clear", role: .destructive) { vm.clearOrdersExport() }
                 }
             }
         }
         .navigationTitle("Export orders")
         #if os(iOS)
         .sheet(isPresented: $showShareSheet) {
-            if let data = viewModel.ordersExportData {
+            if let data = vm.ordersExportData {
                 ShareSheet(items: [data])
             }
         }
-#endif
+        #endif
     }
 
     private func export() {
+        let vm = viewModel
         isExporting = true
         Task {
-            await viewModel.exportOrdersCSV(from: fromDate, to: toDate)
+            await vm.exportOrdersCSV(from: fromDate, to: toDate)
             isExporting = false
-            if viewModel.ordersExportData != nil { showShareSheet = true }
+            if vm.ordersExportData != nil { showShareSheet = true }
         }
     }
 }

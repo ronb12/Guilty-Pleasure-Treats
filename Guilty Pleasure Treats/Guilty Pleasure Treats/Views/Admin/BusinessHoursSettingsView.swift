@@ -16,9 +16,10 @@ struct BusinessHoursSettingsView: View {
     @State private var isLoading = true
 
     var body: some View {
-        Form {
+        let vm = viewModel
+        return Form {
             Section {
-                if viewModel.businessHoursSettings == nil && !isLoading {
+                if vm.businessHoursSettings == nil && !isLoading {
                     Text("Could not load settings. Pull to retry.")
                 } else {
                     HStack {
@@ -60,33 +61,37 @@ struct BusinessHoursSettingsView: View {
                         if isSaving { ProgressView().scaleEffect(0.8) }
                     }
                 }
-                .disabled(isSaving || viewModel.businessHoursSettings == nil)
+                .disabled(isSaving || vm.businessHoursSettings == nil)
             }
         }
         .navigationTitle("Business hours")
-        .refreshable { await viewModel.loadBusinessHours(); bindFromSettings() }
+        .refreshable {
+            await vm.loadBusinessHours()
+            bindFromSettings(vm: vm)
+        }
         .task {
-            await viewModel.loadBusinessHours()
-            bindFromSettings()
+            await vm.loadBusinessHours()
+            bindFromSettings(vm: vm)
             isLoading = false
         }
-        .onChange(of: viewModel.businessHoursSettings) { _ in bindFromSettings() }
+        .onChange(of: vm.businessHoursSettings != nil) { _, _ in bindFromSettings(vm: vm) }
     }
 
-    private func bindFromSettings() {
-        guard let s = viewModel.businessHoursSettings else { return }
+    private func bindFromSettings(vm: AdminViewModel) {
+        guard let s = vm.businessHoursSettings else { return }
         leadTimeHoursStr = s.leadTimeHours.map { String($0) } ?? ""
         minOrderCentsStr = s.minOrderCents.map { String($0) } ?? ""
         taxRatePercentStr = s.taxRatePercent.map { String($0) } ?? ""
     }
 
     private func save() {
+        let vm = viewModel
         let leadTime = Int(leadTimeHoursStr)
         let minOrder = Int(minOrderCentsStr)
         let taxRate = Double(taxRatePercentStr)
         isSaving = true
         Task {
-            await viewModel.updateBusinessHours(leadTimeHours: leadTime, businessHours: nil, minOrderCents: minOrder, taxRatePercent: taxRate)
+            await vm.updateBusinessHours(leadTimeHours: leadTime, businessHours: nil, minOrderCents: minOrder, taxRatePercent: taxRate)
             isSaving = false
         }
     }
