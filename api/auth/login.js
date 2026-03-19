@@ -3,7 +3,7 @@
  * Body: { email, password }
  * Returns: 200 { token, user: { uid, email, displayName, isAdmin, points } } or 401/500 { error }
  */
-import { neonAuthSignIn, isNeonAuthConfigured } from '../../api/lib/neonAuth.js';
+import { neonAuthSignIn, isNeonAuthConfigured } from '../lib/neonAuth.js';
 
 function json(res, status, data) {
   res.setHeader('Content-Type', 'application/json');
