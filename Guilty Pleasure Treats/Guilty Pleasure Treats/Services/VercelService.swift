@@ -12,6 +12,8 @@ struct VercelUser {
     let uid: String
     let email: String?
     let displayName: String?
+    /// Saved at sign-up; used to prefill checkout.
+    let phone: String?
 }
 
 final class VercelService {
@@ -325,6 +327,7 @@ final class VercelService {
             uid: uid,
             email: json?["email"] as? String,
             displayName: json?["displayName"] as? String,
+            phone: json?["phone"] as? String,
             isAdmin: (json?["isAdmin"] as? Bool) ?? false,
             points: (json?["points"] as? Int) ?? 0,
             createdAt: (json?["createdAt"] as? String).flatMap { ISO8601DateFormatter().date(from: $0) }
@@ -337,7 +340,9 @@ final class VercelService {
         req.httpMethod = "PATCH"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        req.httpBody = try JSONSerialization.data(withJSONObject: ["displayName": profile.displayName as Any])
+        var patch: [String: Any] = ["displayName": profile.displayName as Any]
+        if let p = profile.phone { patch["phone"] = p }
+        req.httpBody = try JSONSerialization.data(withJSONObject: patch)
         let (_, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
         try validateResponse(http, data: Data())

@@ -91,7 +91,7 @@ final class AuthService: ObservableObject {
             if let profile = try await VercelService.shared.fetchUserProfileWithToken(token) {
                 debugLog("[Auth] restoreSession: success uid=\(profile.uid)")
                 userProfile = profile
-                authState = .signedIn(VercelUser(uid: profile.uid, email: profile.email, displayName: profile.displayName))
+                authState = .signedIn(VercelUser(uid: profile.uid, email: profile.email, displayName: profile.displayName, phone: profile.phone))
             } else {
                 debugLog("[Auth] restoreSession: fetchUserProfileWithToken returned nil (401 or invalid response)")
                 UserDefaults.standard.removeObject(forKey: tokenKey)
@@ -162,16 +162,17 @@ final class AuthService: ObservableObject {
             uid: uid,
             email: user["email"] as? String,
             displayName: user["displayName"] as? String,
+            phone: user["phone"] as? String,
             isAdmin: (user["isAdmin"] as? Bool) ?? false,
             points: (user["points"] as? Int) ?? 0,
             createdAt: Date()
         )
-        authState = .signedIn(VercelUser(uid: uid, email: user["email"] as? String, displayName: user["displayName"] as? String))
+        authState = .signedIn(VercelUser(uid: uid, email: user["email"] as? String, displayName: user["displayName"] as? String, phone: user["phone"] as? String))
         Task { @MainActor in await NotificationService.shared.registerPushTokenWithBackend() }
     }
 
     /// Create account with email and password. Same pattern as Firebase: one async call, throws on failure with Firebase-style error messages.
-    func signUp(email: String, password: String, displayName: String?) async throws {
+    func signUp(email: String, password: String, displayName: String?, phone: String) async throws {
         guard let url = apiURL(pathComponents: "api", "auth", "signup") else {
             debugLog("[Auth] signUp: vercelBaseURL nil")
             throw VercelNotConfiguredError()
@@ -214,11 +215,12 @@ final class AuthService: ObservableObject {
             uid: uid,
             email: user["email"] as? String,
             displayName: user["displayName"] as? String,
+            phone: user["phone"] as? String,
             isAdmin: false,
             points: 0,
             createdAt: Date()
         )
-        authState = .signedIn(VercelUser(uid: uid, email: user["email"] as? String, displayName: user["displayName"] as? String))
+        authState = .signedIn(VercelUser(uid: uid, email: user["email"] as? String, displayName: user["displayName"] as? String, phone: user["phone"] as? String))
         Task { @MainActor in await NotificationService.shared.registerPushTokenWithBackend() }
     }
 
@@ -305,19 +307,25 @@ final class AuthService: ObservableObject {
             uid: uid,
             email: user["email"] as? String,
             displayName: user["displayName"] as? String,
+            phone: user["phone"] as? String,
             isAdmin: (user["isAdmin"] as? Bool) ?? false,
             points: (user["points"] as? Int) ?? 0,
             createdAt: Date()
         )
-        authState = .signedIn(VercelUser(uid: uid, email: user["email"] as? String, displayName: user["displayName"] as? String))
+        authState = .signedIn(VercelUser(uid: uid, email: user["email"] as? String, displayName: user["displayName"] as? String, phone: user["phone"] as? String))
         Task { @MainActor in await NotificationService.shared.registerPushTokenWithBackend() }
     }
 
     /// Refresh user profile from API (e.g. after points change).
     func refreshProfile() async {
-        guard case .signedIn = authState else { return }
+        guard case .signedIn(let user) = authState else { return }
         do {
-            userProfile = try await VercelService.shared.fetchUserProfile(uid: currentUser?.uid ?? "")
+            if let profile = try await VercelService.shared.fetchUserProfile(uid: user.uid) {
+                userProfile = profile
+                authState = .signedIn(VercelUser(uid: profile.uid, email: profile.email, displayName: profile.displayName, phone: profile.phone))
+            } else {
+                userProfile = nil
+            }
         } catch {
             userProfile = nil
         }

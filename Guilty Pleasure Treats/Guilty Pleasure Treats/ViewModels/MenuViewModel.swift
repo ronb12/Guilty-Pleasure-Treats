@@ -13,6 +13,8 @@ final class MenuViewModel: ObservableObject {
     @Published var productsByCategory: [String: [Product]] = [:]
     /// Category order from API (owner-managed); used for menu section order.
     @Published var categoryOrder: [String] = []
+    /// Cached ordered category names for menu sections and chips. Only updated in loadMenu/useSampleMenu so chip order stays fixed.
+    @Published var orderedCategoryNames: [String] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
     
@@ -41,6 +43,7 @@ final class MenuViewModel: ObservableObject {
                 grouped[cat] = all.filter { $0.category == cat && !$0.isSoldOut }
             }
             productsByCategory = grouped
+            orderedCategoryNames = Self.computeOrderedCategoryNames(categoryOrder: categoryOrder, productsByCategory: grouped)
             if all.isEmpty {
                 useSampleMenu()
             }
@@ -69,10 +72,11 @@ final class MenuViewModel: ObservableObject {
             grouped[cat] = samples.filter { $0.category == cat && !$0.isSoldOut }
         }
         productsByCategory = grouped
+        orderedCategoryNames = Self.computeOrderedCategoryNames(categoryOrder: categoryOrder, productsByCategory: grouped)
     }
 
-    /// Ordered category names for the menu (owner order first, then any others that have products).
-    var orderedCategoryNames: [String] {
+    /// One-time computation so chip/section order is stable and only changes when menu is loaded.
+    private static func computeOrderedCategoryNames(categoryOrder: [String], productsByCategory: [String: [Product]]) -> [String] {
         let withProducts = categoryOrder.filter { (productsByCategory[$0] ?? []).isEmpty == false }
         let others = productsByCategory.keys.filter { !categoryOrder.contains($0) }.sorted()
         return withProducts + others

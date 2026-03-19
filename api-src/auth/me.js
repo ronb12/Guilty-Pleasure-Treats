@@ -25,6 +25,7 @@ export default async function handler(req, res) {
     uid: String(session.userId),
     email: session.email ?? null,
     displayName: session.displayName ?? null,
+    phone: session.phone ?? null,
     isAdmin: Boolean(session.isAdmin),
     points: Number(session.points ?? 0),
   });

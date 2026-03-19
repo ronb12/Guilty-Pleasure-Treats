@@ -55,9 +55,16 @@ struct MenuView: View {
         }
     }
 
-    /// Category names for filter chips: All + each category that has products.
-    private var categoryChipNames: [String?] {
-        [nil] + viewModel.orderedCategoryNames
+    /// Stable identity for chips (avoid `id: \.offset` reordering when categories load).
+    private struct MenuCategoryChip: Identifiable, Equatable {
+        var id: String { filter ?? "__all__" }
+        let filter: String?
+        let label: String
+    }
+
+    private var categoryChips: [MenuCategoryChip] {
+        [MenuCategoryChip(filter: nil, label: "All")]
+            + viewModel.orderedCategoryNames.map { MenuCategoryChip(filter: $0, label: $0) }
     }
 
     /// When a category chip is selected, show only that category; otherwise show all in normal order.
@@ -77,95 +84,21 @@ struct MenuView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                Toggle(isOn: $showOnlyVegetarian) {
-                        Label("Show only vegetarian", systemImage: "leaf.fill")
-                            .font(.subheadline)
-                            .foregroundStyle(AppConstants.Colors.textPrimary)
-                    }
-                    .tint(AppConstants.Colors.accent)
-                    .padding()
-                    .background(AppConstants.Colors.cardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
-
-                    NavigationLink(value: MenuNavRoute.customCake) {
-                        HStack {
-                            Image(systemName: "birthday.cake.fill")
-                                .foregroundStyle(AppConstants.Colors.accent)
-                            Text("Build a Custom Cake")
-                                .font(.headline)
-                                .foregroundStyle(AppConstants.Colors.textPrimary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(AppConstants.Colors.textSecondary)
-                        }
-                        .padding()
-                        .background(AppConstants.Colors.cardBackground)
-                        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
-                        .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 1)
-                    }
-                    .buttonStyle(.plain)
-                    NavigationLink(value: MenuNavRoute.gallery) {
-                        HStack {
-                            Image(systemName: "photo.on.rectangle.angled")
-                                .foregroundStyle(AppConstants.Colors.accent)
-                            Text("Gallery")
-                                .font(.headline)
-                                .foregroundStyle(AppConstants.Colors.textPrimary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
-                                .foregroundStyle(AppConstants.Colors.textSecondary)
-                        }
-                        .padding()
-                        .background(AppConstants.Colors.cardBackground)
-                        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
-                        .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 1)
-                    }
-                    .buttonStyle(.plain)
-
-                    if viewModel.isLoading {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                    } else if !searchResults.isEmpty {
-                        categorySection(title: "Search results", products: searchResults, showFavoriteButton: true, onTapProduct: { selectedProduct = $0 })
-                    } else if !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
-                        Text("No items match \"\(searchText)\"")
-                            .font(.subheadline)
-                            .foregroundStyle(AppConstants.Colors.textSecondary)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 24)
-                    } else {
-                        let baseForFavorites = categoryFilteredProducts(showOnlyVegetarian ? vegetarianProducts : allProducts)
-                        let favoriteProducts = favorites.favoriteProducts(from: baseForFavorites)
-                        if !favoriteProducts.isEmpty {
-                            categorySection(title: "Favorites", products: favoriteProducts, showFavoriteButton: true, onTapProduct: { selectedProduct = $0 })
-                        }
-                        if !showOnlyVegetarian, !vegetarianProducts.isEmpty, selectedCategoryFilter == nil {
-                            categorySection(title: "Vegetarian", products: vegetarianProducts, showFavoriteButton: true, onTapProduct: { selectedProduct = $0 })
-                        }
-                        ForEach(displayCategoryNames, id: \.self) { categoryName in
-                            if let products = viewModel.productsByCategory[categoryName] {
-                                let filtered = showOnlyVegetarian ? products.filter(\.isVegetarian) : products
-                                if !filtered.isEmpty {
-                                    categorySection(title: categoryName, products: filtered, showFavoriteButton: true, onTapProduct: { selectedProduct = $0 })
-                                }
-                            }
-                        }
-                    }
+            LazyVStack(alignment: .leading, spacing: 24, pinnedViews: [.sectionHeaders]) {
+                Section {
+                    menuScrollableBody
+                        .padding(.horizontal, AppConstants.Layout.screenHorizontalPadding)
+                        .padding(.top, 8)
+                        .padding(.bottom, 24)
+                } header: {
+                    menuStickyHeader
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(AppConstants.Colors.secondary)
                 }
-                .padding(.horizontal, AppConstants.Layout.screenHorizontalPadding)
-                .padding(.top, 8)
-                .padding(.bottom, 24)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(AppConstants.Colors.secondary)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            menuStickyHeader
-                .background(AppConstants.Colors.secondary)
-        }
         .macOSConstrainedContent()
         .navigationTitle("Menu")
         .inlineNavigationTitle()
@@ -182,7 +115,91 @@ struct MenuView: View {
         .refreshable { await viewModel.loadMenu() }
     }
 
-    /// Search bar + category chips; pinned at top, chips scroll horizontally only.
+    /// Menu content below the pinned header (search + category chips).
+    @ViewBuilder
+    private var menuScrollableBody: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Toggle(isOn: $showOnlyVegetarian) {
+                Label("Show only vegetarian", systemImage: "leaf.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(AppConstants.Colors.textPrimary)
+            }
+            .tint(AppConstants.Colors.accent)
+            .padding()
+            .background(AppConstants.Colors.cardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+
+            NavigationLink(value: MenuNavRoute.customCake) {
+                HStack {
+                    Image(systemName: "birthday.cake.fill")
+                        .foregroundStyle(AppConstants.Colors.accent)
+                    Text("Build a Custom Cake")
+                        .font(.headline)
+                        .foregroundStyle(AppConstants.Colors.textPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                }
+                .padding()
+                .background(AppConstants.Colors.cardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+                .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 1)
+            }
+            .buttonStyle(.plain)
+            NavigationLink(value: MenuNavRoute.gallery) {
+                HStack {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .foregroundStyle(AppConstants.Colors.accent)
+                    Text("Gallery")
+                        .font(.headline)
+                        .foregroundStyle(AppConstants.Colors.textPrimary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                }
+                .padding()
+                .background(AppConstants.Colors.cardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+                .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 1)
+            }
+            .buttonStyle(.plain)
+
+            if viewModel.isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding()
+            } else if !searchResults.isEmpty {
+                categorySection(title: "Search results", products: searchResults, showFavoriteButton: true, onTapProduct: { selectedProduct = $0 })
+            } else if !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+                Text("No items match \"\(searchText)\"")
+                    .font(.subheadline)
+                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+            } else {
+                let baseForFavorites = categoryFilteredProducts(showOnlyVegetarian ? vegetarianProducts : allProducts)
+                let favoriteProducts = favorites.favoriteProducts(from: baseForFavorites)
+                if !favoriteProducts.isEmpty {
+                    categorySection(title: "Favorites", products: favoriteProducts, showFavoriteButton: true, onTapProduct: { selectedProduct = $0 })
+                }
+                if !showOnlyVegetarian, !vegetarianProducts.isEmpty, selectedCategoryFilter == nil {
+                    categorySection(title: "Vegetarian", products: vegetarianProducts, showFavoriteButton: true, onTapProduct: { selectedProduct = $0 })
+                }
+                ForEach(displayCategoryNames, id: \.self) { categoryName in
+                    if let products = viewModel.productsByCategory[categoryName] {
+                        let filtered = showOnlyVegetarian ? products.filter(\.isVegetarian) : products
+                        if !filtered.isEmpty {
+                            categorySection(title: categoryName, products: filtered, showFavoriteButton: true, onTapProduct: { selectedProduct = $0 })
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Search bar + category chips; pinned under nav bar while menu scrolls (LazyVStack section header).
     private var menuStickyHeader: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let msg = viewModel.errorMessage {
@@ -207,13 +224,12 @@ struct MenuView: View {
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(Array(categoryChipNames.enumerated()), id: \.offset) { _, cat in
-                        let label = cat ?? "All"
-                        let isSelected = selectedCategoryFilter == cat
+                    ForEach(categoryChips) { chip in
+                        let isSelected = selectedCategoryFilter == chip.filter
                         Button {
-                            selectedCategoryFilter = cat
+                            selectedCategoryFilter = chip.filter
                         } label: {
-                            Text(label)
+                            Text(chip.label)
                                 .font(.subheadline.weight(isSelected ? .semibold : .regular))
                                 .foregroundStyle(isSelected ? .white : AppConstants.Colors.textPrimary)
                                 .padding(.horizontal, 14)
@@ -222,15 +238,25 @@ struct MenuView: View {
                                 .clipShape(Capsule())
                         }
                         .buttonStyle(.plain)
+                        .id(chip.id)
                     }
                 }
                 .padding(.vertical, 2)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: 44)
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            .animation(nil, value: categoryChips.map(\.id))
         }
         .padding(.horizontal, AppConstants.Layout.screenHorizontalPadding)
         .padding(.top, 12)
         .padding(.bottom, 8)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(AppConstants.Colors.textSecondary.opacity(0.12))
+                .frame(height: 1)
+                .frame(maxWidth: .infinity)
+        }
     }
     
     private func categorySection(title: String, products: [Product], showFavoriteButton: Bool = false, onTapProduct: ((Product) -> Void)? = nil) -> some View {
@@ -240,7 +266,7 @@ struct MenuView: View {
                 .fontWeight(.semibold)
                 .foregroundStyle(AppConstants.Colors.textPrimary)
 
-            LazyVStack(spacing: 12) {
+            VStack(spacing: 12) {
                 ForEach(products) { product in
                     ProductCard(
                         product: product,

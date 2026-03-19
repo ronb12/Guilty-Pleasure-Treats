@@ -38,8 +38,8 @@ export default async function handler(req, res) {
         const rows = await sql`
           SELECT r.id, COALESCE(u.display_name, r.author_name) AS author_name, r.rating, r.text, r.product_id, r.order_id, r.user_id, r.created_at
           FROM reviews r
-          LEFT JOIN users u ON u.id = r.user_id
-          WHERE r.order_id = ${orderId} AND r.user_id = ${auth.userId}
+          LEFT JOIN users u ON (u.id)::text = r.user_id
+          WHERE (r.order_id)::text = ${orderId} AND r.user_id = ${auth.userId}
           ORDER BY r.created_at DESC
           LIMIT 1
         `;
@@ -48,7 +48,7 @@ export default async function handler(req, res) {
       const rows = await sql`
         SELECT r.id, COALESCE(u.display_name, r.author_name) AS author_name, r.rating, r.text, r.product_id, r.order_id, r.user_id, r.created_at
         FROM reviews r
-        LEFT JOIN users u ON u.id = r.user_id
+        LEFT JOIN users u ON (u.id)::text = r.user_id
         ORDER BY r.created_at DESC
         LIMIT 100
       `;
@@ -74,7 +74,7 @@ export default async function handler(req, res) {
     if (rating == null || rating < 1 || rating > 5) return res.status(400).json({ error: 'rating must be 1–5' });
 
     try {
-      const [order] = await sql`SELECT id, user_id, status FROM orders WHERE id = ${orderId}`;
+      const [order] = await sql`SELECT id, user_id, status FROM orders WHERE (id)::text = ${orderId}`;
       if (!order) return res.status(404).json({ error: 'Order not found' });
       const orderUserId = order.user_id?.toString?.() ?? String(order.user_id);
       if (orderUserId !== auth.userId) {
@@ -86,7 +86,7 @@ export default async function handler(req, res) {
       }
 
       const [existing] = await sql`
-        SELECT id FROM reviews WHERE order_id = ${orderId} AND user_id = ${auth.userId} LIMIT 1
+        SELECT id FROM reviews WHERE (order_id)::text = ${orderId} AND user_id = ${auth.userId} LIMIT 1
       `;
       if (existing) return res.status(409).json({ error: 'You already reviewed this order' });
 

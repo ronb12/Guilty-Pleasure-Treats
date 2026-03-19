@@ -3563,10 +3563,21 @@ struct AdminContactMessagesView: View {
                                                 .foregroundStyle(AppConstants.Colors.textSecondary)
                                                 .lineLimit(1)
                                         }
-                                        if msg.orderId != nil, !(msg.orderId ?? "").isEmpty {
-                                            Text("About an order")
-                                                .font(.caption2)
-                                                .foregroundStyle(AppConstants.Colors.accent)
+                                        if let short = msg.orderReferenceShort, let full = msg.linkedOrderId {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Label("Order #\(short)", systemImage: "number.square.fill")
+                                                    .font(.caption.weight(.semibold))
+                                                    .foregroundStyle(AppConstants.Colors.accent)
+                                                Text(full)
+                                                    .font(.caption2)
+                                                    .monospaced()
+                                                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                                                    .lineLimit(2)
+                                                    .minimumScaleFactor(0.85)
+                                                    .textSelection(.enabled)
+                                            }
+                                            .accessibilityElement(children: .combine)
+                                            .accessibilityLabel("Linked order, reference \(short), full identifier \(full)")
                                         }
                                         Text(msg.message)
                                             .font(.caption)
@@ -3724,6 +3735,7 @@ struct ContactMessageDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var replyText = ""
     @State private var isSendingReply = false
+    @State private var didCopyOrderId = false
 
     /// Steps: Received → Read → Replied. Read from readAt. Replied not derived from model (optional future).
     private var contactMessageTrackingSteps: [TrackingStepConfig] {
@@ -3754,18 +3766,48 @@ struct ContactMessageDetailSheet: View {
                     if let created = message.createdAt {
                         detailRow("Received", created.shortDateString)
                     }
-                    if let orderId = message.orderId, !orderId.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            detailRow("Regarding order", orderId)
-                            Button {
-                                onViewOrderFromMessage(orderId)
-                                onDismiss()
-                                dismiss()
-                            } label: {
-                                Label("View order", systemImage: "doc.text")
-                                    .font(.subheadline.weight(.medium))
+                    if let orderId = message.linkedOrderId {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Linked order")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppConstants.Colors.textPrimary)
+                            if let short = message.orderReferenceShort {
+                                Text("Reference #\(short) — use this to match the customer’s picker or a short mention in email.")
+                                    .font(.caption)
+                                    .foregroundStyle(AppConstants.Colors.textSecondary)
                             }
-                            .foregroundStyle(AppConstants.Colors.accent)
+                            Text(orderId)
+                                .font(.body)
+                                .monospaced()
+                                .foregroundStyle(AppConstants.Colors.textPrimary)
+                                .textSelection(.enabled)
+                                .padding(10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(AppConstants.Colors.cardBackground)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                            HStack(spacing: 12) {
+                                Button {
+                                    copyOrderIdToPasteboard(orderId)
+                                    didCopyOrderId = true
+                                    Task {
+                                        try? await Task.sleep(nanoseconds: 2_000_000_000)
+                                        didCopyOrderId = false
+                                    }
+                                } label: {
+                                    Label(didCopyOrderId ? "Copied" : "Copy order ID", systemImage: didCopyOrderId ? "checkmark.circle.fill" : "doc.on.doc")
+                                        .font(.subheadline.weight(.medium))
+                                }
+                                .foregroundStyle(AppConstants.Colors.accent)
+                                Button {
+                                    onViewOrderFromMessage(orderId)
+                                    onDismiss()
+                                    dismiss()
+                                } label: {
+                                    Label("View order in Orders", systemImage: "shippingbox")
+                                        .font(.subheadline.weight(.medium))
+                                }
+                                .foregroundStyle(AppConstants.Colors.accent)
+                            }
                         }
                     }
 
@@ -3825,6 +3867,15 @@ struct ContactMessageDetailSheet: View {
         replyText = ""
     }
 
+    private func copyOrderIdToPasteboard(_ id: String) {
+        #if os(iOS)
+        UIPasteboard.general.string = id
+        #else
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(id, forType: .string)
+        #endif
+    }
+
     private func detailRow(_ label: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
@@ -3839,7 +3890,19 @@ struct ContactMessageDetailSheet: View {
 
     private func openReplyEmail() {
         let rawSubject = "Re: \(message.subject ?? "Your message")"
-        let rawBody = "Reply to: \(message.email)\n\n---\n\(message.message)"
+        var bodyParts: [String] = ["Reply to: \(message.email)"]
+        if let oid = message.linkedOrderId {
+            bodyParts.append("")
+            bodyParts.append("ORDER REFERENCE (use in Admin → Orders search / filter):")
+            bodyParts.append(oid)
+            if let short = message.orderReferenceShort {
+                bodyParts.append("Short ref: #\(short)")
+            }
+        }
+        bodyParts.append("")
+        bodyParts.append("---")
+        bodyParts.append(message.message)
+        let rawBody = bodyParts.joined(separator: "\n")
         var components = URLComponents()
         components.scheme = "mailto"
         components.path = message.email

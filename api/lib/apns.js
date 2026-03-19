@@ -95,13 +95,16 @@ export async function notifyOrderStatusUpdate(deviceToken, orderId, status) {
 /**
  * Send "new message" push to owner(s) when a customer submits the contact form.
  */
-export async function notifyNewMessage(deviceTokens, messageId, fromName, subjectOrPreview) {
+export async function notifyNewMessage(deviceTokens, messageId, fromName, subjectOrPreview, orderId) {
   if (!Array.isArray(deviceTokens) || deviceTokens.length === 0) return;
   const title = 'New message';
-  const body = fromName
+  let body = fromName
     ? (subjectOrPreview ? `${fromName}: ${subjectOrPreview}` : fromName)
     : (subjectOrPreview || 'Customer sent you a message');
-  const data = { type: 'new_message', messageId: messageId || '' };
+  const oid = orderId && String(orderId).trim() ? String(orderId).trim() : '';
+  const orderShort = oid ? String(oid.replace(/-/g, '')).slice(0, 8).toUpperCase() : '';
+  if (orderShort) body = `${body} · Order #${orderShort}`;
+  const data = { type: 'new_message', messageId: messageId || '', orderId: oid };
   const client = cachedClient ?? getClient();
   if (!client) return;
   cachedClient = client;

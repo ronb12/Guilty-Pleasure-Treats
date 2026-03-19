@@ -48,13 +48,14 @@ export async function getSession(sessionId) {
       expiresAt: null,
       email: user.email,
       displayName: user.display_name,
+      phone: user.phone ?? null,
       isAdmin: user.is_admin,
       points: user.points ?? 0,
     };
   }
   if (!hasDb() || !sql) return null;
   const rows = await sql`
-    SELECT s.id, s.user_id, s.expires_at, u.email, u.display_name, u.is_admin, u.points
+    SELECT s.id, s.user_id, s.expires_at, u.email, u.display_name, u.phone, u.is_admin, u.points
     FROM sessions s
     JOIN users u ON u.id = s.user_id
     WHERE s.id = ${sessionId} AND s.expires_at > NOW()
@@ -68,6 +69,7 @@ export async function getSession(sessionId) {
     expiresAt: row.expires_at,
     email: row.email,
     displayName: row.display_name,
+    phone: row.phone ?? null,
     isAdmin: row.is_admin,
     points: row.points ?? 0,
   };

@@ -30,4 +30,20 @@ struct ContactMessage: Identifiable, Codable, Equatable {
     static func == (lhs: ContactMessage, rhs: ContactMessage) -> Bool {
         lhs.id == rhs.id
     }
+
+    // MARK: - Order reference (admin UI, notifications)
+
+    /// Non-empty trimmed `orderId` from API, if any.
+    var linkedOrderId: String? {
+        guard let oid = orderId?.trimmingCharacters(in: .whitespacesAndNewlines), !oid.isEmpty else { return nil }
+        return oid
+    }
+
+    /// Short reference for list rows and badges (first 8 hex chars of UUID, uppercase).
+    var orderReferenceShort: String? {
+        guard let oid = linkedOrderId else { return nil }
+        let compact = oid.replacingOccurrences(of: "-", with: "")
+        guard compact.count >= 8 else { return oid }
+        return String(compact.prefix(8)).uppercased()
+    }
 }

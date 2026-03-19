@@ -14,6 +14,7 @@ struct LoginView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var displayName = ""
+    @State private var phone = ""
     @State private var isSignUp = false
     @State private var isLoading = false
     @State private var errorMessage: String?
@@ -149,13 +150,31 @@ struct LoginView: View {
         }
     }
 
-    private var displayNameField: some View {
+    private var nameField: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Display name (optional)")
+            Text("Your name")
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(AppConstants.Colors.textPrimary)
-            TextField("How we'll greet you", text: $displayName)
+            TextField("e.g. Jordan Smith", text: $displayName)
                 .textFieldStyle(LoginTextFieldStyle())
+                #if os(iOS)
+                .textContentType(.name)
+                .textInputAutocapitalization(.words)
+                #endif
+        }
+    }
+
+    private var phoneField: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Phone number")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(AppConstants.Colors.textPrimary)
+            TextField("(555) 123-4567", text: $phone)
+                .textFieldStyle(LoginTextFieldStyle())
+                #if os(iOS)
+                .keyboardType(.phonePad)
+                .textContentType(.telephoneNumber)
+                #endif
         }
     }
 
@@ -194,6 +213,7 @@ struct LoginView: View {
         Button {
             isSignUp.toggle()
             errorMessage = nil
+            if !isSignUp { phone = "" }
         } label: {
             (Text(isSignUp ? "Already have an account? " : "Need an account? ")
                 .foregroundStyle(AppConstants.Colors.textSecondary)
@@ -242,12 +262,25 @@ struct LoginView: View {
             errorMessage = "Enter email and password."
             return
         }
+        if isSignUp {
+            let nameOk = !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let phoneOk = !phone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            guard nameOk, phoneOk else {
+                errorMessage = "Enter your name and phone number."
+                return
+            }
+        }
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
         do {
             if isSignUp {
-                try await auth.signUp(email: email, password: password, displayName: displayName.isEmpty ? nil : displayName)
+                try await auth.signUp(
+                    email: email,
+                    password: password,
+                    displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
+                    phone: phone.trimmingCharacters(in: .whitespacesAndNewlines)
+                )
             } else {
                 try await auth.signIn(email: email, password: password)
             }

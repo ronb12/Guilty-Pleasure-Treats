@@ -165,6 +165,14 @@ struct ProfileView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(AppConstants.Colors.textSecondary)
                         }
+                        if let rawPhone = auth.userProfile?.phone ?? user.phone {
+                            let phoneShown = rawPhone.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !phoneShown.isEmpty {
+                                Text(phoneShown)
+                                    .font(.subheadline)
+                                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                            }
+                        }
                     }
                     if auth.isAdmin {
                         Button {

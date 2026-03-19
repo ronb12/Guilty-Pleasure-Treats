@@ -49,7 +49,7 @@ export async function verifyNeonJWT(token) {
 
 /**
  * Get or create our users table row for a Neon Auth user (from JWT payload).
- * Returns { id, email, display_name, is_admin, points } or null.
+ * Returns { id, email, display_name, phone, is_admin, points } or null.
  */
 export async function getOrCreateUserFromNeonPayload(payload) {
   if (!hasDb() || !sql || !payload?.sub) return null;
@@ -59,14 +59,14 @@ export async function getOrCreateUserFromNeonPayload(payload) {
 
   try {
     const byNeonId = await sql`
-      SELECT id, email, display_name, is_admin, points
+      SELECT id, email, display_name, phone, is_admin, points
       FROM users
       WHERE neon_auth_id = ${neonId}
       LIMIT 1
     `;
     if (byNeonId.length > 0) {
       const u = byNeonId[0];
-      return { id: u.id, email: u.email, display_name: u.display_name, is_admin: u.is_admin, points: Number(u.points ?? 0) };
+      return { id: u.id, email: u.email, display_name: u.display_name, phone: u.phone ?? null, is_admin: u.is_admin, points: Number(u.points ?? 0) };
     }
   } catch (e) {
     if (e?.code !== '42703') throw e;
@@ -74,7 +74,7 @@ export async function getOrCreateUserFromNeonPayload(payload) {
 
   if (email) {
     const byEmail = await sql`
-      SELECT id, email, display_name, is_admin, points
+      SELECT id, email, display_name, phone, is_admin, points
       FROM users
       WHERE email = ${email}
       LIMIT 1
@@ -84,7 +84,7 @@ export async function getOrCreateUserFromNeonPayload(payload) {
       try {
         await sql`UPDATE users SET neon_auth_id = ${neonId}, updated_at = NOW() WHERE id = ${u.id}`;
       } catch (_) { /* column may not exist */ }
-      return { id: u.id, email: u.email, display_name: u.display_name, is_admin: u.is_admin, points: Number(u.points ?? 0) };
+      return { id: u.id, email: u.email, display_name: u.display_name, phone: u.phone ?? null, is_admin: u.is_admin, points: Number(u.points ?? 0) };
     }
   }
 
@@ -92,19 +92,19 @@ export async function getOrCreateUserFromNeonPayload(payload) {
     const insertResult = await sql`
       INSERT INTO users (email, display_name, neon_auth_id, is_admin, points)
       VALUES (${email || null}, ${name || null}, ${neonId}, false, 0)
-      RETURNING id, email, display_name, is_admin, points
+      RETURNING id, email, display_name, phone, is_admin, points
     `;
     const u = insertResult[0];
-    return u ? { id: u.id, email: u.email, display_name: u.display_name, is_admin: u.is_admin, points: Number(u.points ?? 0) } : null;
+    return u ? { id: u.id, email: u.email, display_name: u.display_name, phone: u.phone ?? null, is_admin: u.is_admin, points: Number(u.points ?? 0) } : null;
   } catch (e) {
     if (e?.code === '42703') {
       const insertResult = await sql`
         INSERT INTO users (email, display_name, is_admin, points)
         VALUES (${email || null}, ${name || null}, false, 0)
-        RETURNING id, email, display_name, is_admin, points
+        RETURNING id, email, display_name, phone, is_admin, points
       `;
       const u = insertResult[0];
-      return u ? { id: u.id, email: u.email, display_name: u.display_name, is_admin: u.is_admin, points: Number(u.points ?? 0) } : null;
+      return u ? { id: u.id, email: u.email, display_name: u.display_name, phone: u.phone ?? null, is_admin: u.is_admin, points: Number(u.points ?? 0) } : null;
     }
     throw e;
   }

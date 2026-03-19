@@ -12,6 +12,7 @@ function userResponse(row) {
     uid: row.id?.toString?.() ?? String(row.id),
     email: row.email ?? null,
     displayName: row.display_name ?? null,
+    phone: row.phone ?? null,
     isAdmin: Boolean(row.is_admin),
     points: Number(row.points ?? 0),
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
@@ -36,7 +37,7 @@ export default async function handler(req, res) {
   if ((req.method || '').toUpperCase() === 'GET') {
     try {
       const [row] = await sql`
-        SELECT id, email, display_name, is_admin, points, created_at
+        SELECT id, email, display_name, phone, is_admin, points, created_at
         FROM users WHERE id::text = ${sessionUserId} LIMIT 1
       `;
       if (!row) return res.status(404).json({ error: 'User not found' });
@@ -60,7 +61,7 @@ export default async function handler(req, res) {
       }
 
       const [current] = await sql`
-        SELECT id, email, display_name, is_admin, points, created_at FROM users WHERE id::text = ${targetId} LIMIT 1
+        SELECT id, email, display_name, phone, is_admin, points, created_at FROM users WHERE id::text = ${targetId} LIMIT 1
       `;
       if (!current) return res.status(404).json({ error: 'User not found' });
 
@@ -86,9 +87,9 @@ export default async function handler(req, res) {
 
       const [row] = await sql`
         UPDATE users
-        SET display_name = ${nextDisplay}, points = ${nextPoints}, updated_at = NOW()
+        SET display_name = ${nextDisplay}, phone = ${nextPhone}, points = ${nextPoints}, updated_at = NOW()
         WHERE id::text = ${targetId}
-        RETURNING id, email, display_name, is_admin, points, created_at
+        RETURNING id, email, display_name, phone, is_admin, points, created_at
       `;
       return res.status(200).json(userResponse(row));
     } catch (err) {

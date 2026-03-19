@@ -62,6 +62,17 @@ struct CheckoutView: View {
             if viewModel.customerEmail.isEmpty, let email = auth.currentUser?.email {
                 viewModel.customerEmail = email
             }
+            let profile = auth.userProfile
+            if viewModel.customerName.isEmpty {
+                let name = profile?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    ?? auth.currentUser?.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let name, !name.isEmpty { viewModel.customerName = name }
+            }
+            if viewModel.customerPhone.isEmpty {
+                let p = profile?.phone?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    ?? auth.currentUser?.phone?.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let p, !p.isEmpty { viewModel.customerPhone = p }
+            }
             Task {
                 if let settings = try? await VercelService.shared.fetchBusinessSettings() {
                     await MainActor.run {

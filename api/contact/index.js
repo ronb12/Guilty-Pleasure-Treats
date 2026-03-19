@@ -71,7 +71,7 @@ export default async function handler(req, res) {
           const { notifyNewMessage } = await import('../../api/lib/apns.js');
           const adminRows = await sql`SELECT device_token FROM push_tokens WHERE is_admin = true`;
           const tokens = (adminRows || []).map((r) => r.device_token).filter(Boolean);
-          if (tokens.length) notifyNewMessage(tokens, messageId, name ?? email, subject ?? message.slice(0, 60));
+          if (tokens.length) notifyNewMessage(tokens, messageId, name ?? email, subject ?? message.slice(0, 60), orderId);
         } catch (e) {
           console.warn('[contact] push notify', e?.message ?? e);
         }

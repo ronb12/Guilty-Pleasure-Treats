@@ -33,6 +33,7 @@ async function main() {
       )
     `;
     await sql`CREATE INDEX IF NOT EXISTS idx_users_email ON users(LOWER(email))`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT`;
     console.log('users OK');
 
     // sessions (local auth after login)
