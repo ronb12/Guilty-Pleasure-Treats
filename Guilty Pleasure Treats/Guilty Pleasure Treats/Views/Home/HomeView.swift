@@ -201,7 +201,7 @@ struct HomeView: View {
     
     private var trustStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 20) {
+            HStack(spacing: 16) {
                 Button { showMenu = true } label: {
                     Label("Fresh daily", systemImage: "leaf.fill")
                 }
@@ -215,7 +215,7 @@ struct HomeView: View {
                 }
                 .buttonStyle(.plain)
             }
-            .font(.subheadline.weight(.medium))
+            .font(.caption.weight(.medium))
             .foregroundStyle(AppConstants.Colors.textSecondary)
             .padding(.horizontal, AppConstants.Layout.screenHorizontalPadding)
         }

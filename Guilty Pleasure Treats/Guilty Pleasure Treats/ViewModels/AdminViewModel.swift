@@ -848,10 +848,10 @@ final class AdminViewModel: ObservableObject {
         }
     }
 
-    func saveCustomCakeOptions(sizes: [CakeSizeOption], flavors: [CakeFlavorOption], frostings: [FrostingOption]) async {
+    func saveCustomCakeOptions(sizes: [CakeSizeOption], flavors: [CakeFlavorOption], frostings: [FrostingOption], toppings: [ToppingOption]) async {
         do {
-            try await api.saveCustomCakeOptions(sizes: sizes, flavors: flavors, frostings: frostings)
-            customCakeOptions = CustomCakeOptionsResponse(sizes: sizes, flavors: flavors, frostings: frostings)
+            try await api.saveCustomCakeOptions(sizes: sizes, flavors: flavors, frostings: frostings, toppings: toppings)
+            customCakeOptions = CustomCakeOptionsResponse(sizes: sizes, flavors: flavors, frostings: frostings, toppings: toppings)
             successMessage = "Custom cake options saved."
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)

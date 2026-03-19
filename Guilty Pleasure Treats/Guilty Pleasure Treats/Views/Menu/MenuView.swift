@@ -75,60 +75,17 @@ struct MenuView: View {
         return products.filter { $0.category == cat }
     }
 
-    var body: some View {
-        VStack(spacing: 0) {
-            // Fixed header: search + horizontal scrolling category chips (stays at top)
-            VStack(alignment: .leading, spacing: 12) {
-                if let msg = viewModel.errorMessage {
-                    ErrorMessageBanner(message: msg) {
-                        viewModel.errorMessage = nil
-                    }
-                }
-                HStack(spacing: 8) {
-                    TextField("Search menu", text: $searchText)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
-                    if !searchText.isEmpty {
-                        Button {
-                            searchText = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.title3)
-                                .foregroundStyle(AppConstants.Colors.textSecondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(Array(categoryChipNames.enumerated()), id: \.offset) { _, cat in
-                            let label = cat ?? "All"
-                            let isSelected = selectedCategoryFilter == cat
-                            Button {
-                                selectedCategoryFilter = cat
-                            } label: {
-                                Text(label)
-                                    .font(.subheadline.weight(isSelected ? .semibold : .regular))
-                                    .foregroundStyle(isSelected ? .white : AppConstants.Colors.textPrimary)
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 8)
-                                    .background(isSelected ? AppConstants.Colors.accent : AppConstants.Colors.cardBackground)
-                                    .clipShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-            .padding(.horizontal, AppConstants.Layout.screenHorizontalPadding)
-            .padding(.top, 12)
-            .padding(.bottom, 12)
-            .background(AppConstants.Colors.secondary)
+    /// Height of the sticky header (search + chips); scroll content pads by this so it doesn’t sit under the bar.
+    private static let stickyHeaderHeight: CGFloat = 170
 
-            // Scrollable content: toggle, links, then menu sections
+    var body: some View {
+        ZStack(alignment: .top) {
+            // Scrollable content only — fills space; top padding so content scrolls under the sticky header
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    Color.clear
+                        .frame(height: Self.stickyHeaderHeight)
+                    // Content starts here (spacer above is under sticky header)
                     Toggle(isOn: $showOnlyVegetarian) {
                         Label("Show only vegetarian", systemImage: "leaf.fill")
                             .font(.subheadline)
@@ -211,6 +168,17 @@ struct MenuView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 24)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(AppConstants.Colors.secondary)
+
+            // Sticky header: fixed at top; only the chip row scrolls horizontally
+            VStack(spacing: 0) {
+                menuStickyHeader
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .frame(height: Self.stickyHeaderHeight)
             .background(AppConstants.Colors.secondary)
         }
         .macOSConstrainedContent()
@@ -227,6 +195,56 @@ struct MenuView: View {
         }
         .task { await viewModel.loadMenu() }
         .refreshable { await viewModel.loadMenu() }
+    }
+
+    /// Search bar + category chips; pinned at top, chips scroll horizontally only.
+    private var menuStickyHeader: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let msg = viewModel.errorMessage {
+                ErrorMessageBanner(message: msg) {
+                    viewModel.errorMessage = nil
+                }
+            }
+            HStack(spacing: 8) {
+                TextField("Search menu", text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .autocorrectionDisabled()
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Array(categoryChipNames.enumerated()), id: \.offset) { _, cat in
+                        let label = cat ?? "All"
+                        let isSelected = selectedCategoryFilter == cat
+                        Button {
+                            selectedCategoryFilter = cat
+                        } label: {
+                            Text(label)
+                                .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                                .foregroundStyle(isSelected ? .white : AppConstants.Colors.textPrimary)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(isSelected ? AppConstants.Colors.accent : AppConstants.Colors.cardBackground)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .padding(.horizontal, AppConstants.Layout.screenHorizontalPadding)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
     }
     
     private func categorySection(title: String, products: [Product], showFavoriteButton: Bool = false, onTapProduct: ((Product) -> Void)? = nil) -> some View {

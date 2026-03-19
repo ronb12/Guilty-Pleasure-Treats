@@ -139,6 +139,18 @@ async function main() {
     await sql`CREATE INDEX IF NOT EXISTS idx_reviews_created_at ON reviews(created_at DESC)`;
     console.log('reviews OK');
 
+    // business_settings (custom_cake_options, main config, etc.)
+    await sql`
+      CREATE TABLE IF NOT EXISTS business_settings (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        key TEXT NOT NULL UNIQUE,
+        value_json JSONB NOT NULL DEFAULT '{}',
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await sql`INSERT INTO business_settings (key, value_json) VALUES ('main', '{"lead_time_hours": 24, "business_hours": {"mon":"9-17","tue":"9-17","wed":"9-17","thu":"9-17","fri":"9-17","sat":"9-15","sun":null}, "min_order_cents": 0, "tax_rate_percent": 0}'::jsonb) ON CONFLICT (key) DO NOTHING`;
+    console.log('business_settings OK');
+
     console.log('\nAll missing tables are ready.');
   } catch (err) {
     console.error('Error:', err.message);

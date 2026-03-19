@@ -655,8 +655,8 @@ final class VercelService {
         return try decoder.decode(CustomCakeOptionsResponse.self, from: data)
     }
 
-    /// Admin: replace all sizes, flavors, frostings. Requires auth.
-    func saveCustomCakeOptions(sizes: [CakeSizeOption], flavors: [CakeFlavorOption], frostings: [FrostingOption]) async throws {
+    /// Admin: replace all sizes, flavors, frostings, toppings. Requires auth.
+    func saveCustomCakeOptions(sizes: [CakeSizeOption], flavors: [CakeFlavorOption], frostings: [FrostingOption], toppings: [ToppingOption]) async throws {
         guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
         let url = base.appendingPathComponent("api/settings/custom-cake-options")
         var req = URLRequest(url: url)
@@ -664,9 +664,10 @@ final class VercelService {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         let body: [String: Any] = [
-            "sizes": sizes.map { ["label": $0.label, "price": $0.price] },
-            "flavors": flavors.map { ["label": $0.label] },
-            "frostings": frostings.map { ["label": $0.label] },
+            "sizes": sizes.map { ["label": $0.label, "price": $0.price, "sortOrder": $0.sortOrder as Any] },
+            "flavors": flavors.map { ["label": $0.label, "sortOrder": $0.sortOrder as Any] },
+            "frostings": frostings.map { ["label": $0.label, "sortOrder": $0.sortOrder as Any] },
+            "toppings": toppings.map { ["label": $0.label, "price": $0.price, "sortOrder": $0.sortOrder as Any] },
         ]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (_, res) = try await session.data(for: req)

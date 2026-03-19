@@ -2362,12 +2362,15 @@ struct AdminCustomCakeOptionsView: View {
     @State private var sizes: [CakeSizeOption] = []
     @State private var flavors: [CakeFlavorOption] = []
     @State private var frostings: [FrostingOption] = []
+    @State private var toppings: [ToppingOption] = []
     @State private var showSizeSheet = false
     @State private var showFlavorSheet = false
     @State private var showFrostingSheet = false
+    @State private var showToppingSheet = false
     @State private var editingSize: CakeSizeOption?
     @State private var editingFlavor: CakeFlavorOption?
     @State private var editingFrosting: FrostingOption?
+    @State private var editingTopping: ToppingOption?
 
     var body: some View {
         NavigationStack {
@@ -2377,7 +2380,7 @@ struct AdminCustomCakeOptionsView: View {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") {
                             Task {
-                                await viewModel.saveCustomCakeOptions(sizes: sizes, flavors: flavors, frostings: frostings)
+                                await viewModel.saveCustomCakeOptions(sizes: sizes, flavors: flavors, frostings: frostings, toppings: toppings)
                             }
                         }
                         .disabled(sizes.isEmpty || flavors.isEmpty || frostings.isEmpty)
@@ -2389,6 +2392,7 @@ struct AdminCustomCakeOptionsView: View {
                         sizes = o.sizes
                         flavors = o.flavors
                         frostings = o.frostings
+                        toppings = o.toppings ?? []
                     }
                 }
                 .onChange(of: viewModel.customCakeOptions) { _, newValue in
@@ -2396,11 +2400,13 @@ struct AdminCustomCakeOptionsView: View {
                         sizes = o.sizes
                         flavors = o.flavors
                         frostings = o.frostings
+                        toppings = o.toppings ?? []
                     }
                 }
                 .sheet(isPresented: $showSizeSheet) { sizeSheet }
                 .sheet(isPresented: $showFlavorSheet) { flavorSheet }
                 .sheet(isPresented: $showFrostingSheet) { frostingSheet }
+                .sheet(isPresented: $showToppingSheet) { toppingSheet }
                 .overlay(alignment: .top) { messageOverlay }
         }
     }
@@ -2483,6 +2489,31 @@ struct AdminCustomCakeOptionsView: View {
                 }
                 .foregroundStyle(AppConstants.Colors.accent)
             }
+            Section("Toppings (label + price)") {
+                ForEach(toppings) { topping in
+                    HStack {
+                        Text(topping.label)
+                        Spacer()
+                        Text(topping.price.currencyFormatted)
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                        Button("Edit") {
+                            editingTopping = topping
+                            showToppingSheet = true
+                        }
+                        .foregroundStyle(AppConstants.Colors.accent)
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            toppings.removeAll { $0.id == topping.id }
+                        } label: { Label("Delete", systemImage: "trash") }
+                    }
+                }
+                Button("Add topping") {
+                    editingTopping = nil
+                    showToppingSheet = true
+                }
+                .foregroundStyle(AppConstants.Colors.accent)
+            }
         }
     }
 
@@ -2539,6 +2570,23 @@ struct AdminCustomCakeOptionsView: View {
         .macOSAdminSheetSize()
     }
 
+    private var toppingSheet: some View {
+        AdminCakeToppingEditSheet(
+            topping: editingTopping,
+            onSave: { label, price in
+                if let existing = editingTopping, let idx = toppings.firstIndex(where: { $0.id == existing.id }) {
+                    toppings[idx] = ToppingOption(optionId: existing.optionId, label: label, price: price, sortOrder: existing.sortOrder)
+                } else {
+                    toppings.append(ToppingOption(optionId: nil, label: label, price: price, sortOrder: toppings.count))
+                }
+                showToppingSheet = false
+                editingTopping = nil
+            },
+            onCancel: { showToppingSheet = false; editingTopping = nil }
+        )
+        .macOSAdminSheetSize()
+    }
+
     @ViewBuilder private var messageOverlay: some View {
         Group {
             if let msg = viewModel.errorMessage {
@@ -2579,6 +2627,43 @@ struct AdminCakeSizeEditSheet: View {
             .onAppear {
                 label = size?.label ?? ""
                 priceText = size.map { String(format: "%.2f", $0.price) } ?? ""
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: onCancel) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        let price = Double(priceText.replacingOccurrences(of: ",", with: "")) ?? 0
+                        onSave(label.trimmingCharacters(in: .whitespaces), price)
+                    }
+                    .disabled(label.trimmingCharacters(in: .whitespaces).isEmpty || priceText.isEmpty)
+                }
+            }
+            .macOSReduceSheetTitleGap()
+        }
+    }
+}
+
+struct AdminCakeToppingEditSheet: View {
+    let topping: ToppingOption?
+    let onSave: (String, Double) -> Void
+    let onCancel: () -> Void
+    @State private var label: String = ""
+    @State private var priceText: String = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Label (e.g. Fresh berries)", text: $label)
+                TextField("Price", text: $priceText)
+                    #if os(iOS)
+                    .keyboardType(.decimalPad)
+                    #endif
+            }
+            .navigationTitle(topping == nil ? "Add topping" : "Edit topping")
+            .inlineNavigationTitle()
+            .onAppear {
+                label = topping?.label ?? ""
+                priceText = topping.map { String(format: "%.2f", $0.price) } ?? ""
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: onCancel) }
@@ -3202,10 +3287,24 @@ struct ContactMessageDetailSheet: View {
     @State private var replyText = ""
     @State private var isSendingReply = false
 
+    /// Steps: Received → Read → Replied. Read from readAt. Replied not derived from model (optional future).
+    private var contactMessageTrackingSteps: [TrackingStepConfig] {
+        let isRead = message.readAt != nil
+        return [
+            TrackingStepConfig(id: 0, label: "Received", isReached: true, isCurrent: !isRead),
+            TrackingStepConfig(id: 1, label: "Read", isReached: isRead, isCurrent: isRead),
+        ]
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    TrackingStatusBarView(
+                        title: "Message status",
+                        subtitle: nil,
+                        steps: contactMessageTrackingSteps
+                    )
                     if let name = message.name, !name.isEmpty {
                         detailRow("Name", name)
                     }

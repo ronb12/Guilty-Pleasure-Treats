@@ -10,10 +10,25 @@ import SwiftUI
 struct CustomCakeOrderDetailView: View {
     let order: CustomCakeOrder
 
+    /// Steps: Ordered → In order → Done. "In order" and "Done" when linked to main order (orderId set).
+    private var customCakeTrackingSteps: [TrackingStepConfig] {
+        let hasOrder = (order.orderId ?? "").isEmpty == false
+        return [
+            TrackingStepConfig(id: 0, label: "Ordered", isReached: true, isCurrent: !hasOrder),
+            TrackingStepConfig(id: 1, label: "In order", isReached: hasOrder, isCurrent: false),
+            TrackingStepConfig(id: 2, label: "Done", isReached: hasOrder, isCurrent: hasOrder),
+        ]
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 headerCard
+                TrackingStatusBarView(
+                    title: "Status",
+                    subtitle: "Custom cake progress",
+                    steps: customCakeTrackingSteps
+                )
                 detailsCard
                 if !order.message.isEmpty {
                     messageCard
