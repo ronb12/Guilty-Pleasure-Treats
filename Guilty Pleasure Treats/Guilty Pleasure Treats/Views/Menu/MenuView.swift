@@ -62,9 +62,15 @@ struct MenuView: View {
         let label: String
     }
 
+    /// Chips should reflect admin category configuration, even if a category currently has no in-stock products.
+    private var chipCategoryNames: [String] {
+        if !viewModel.categoryOrder.isEmpty { return viewModel.categoryOrder }
+        return viewModel.orderedCategoryNames
+    }
+
     private var categoryChips: [MenuCategoryChip] {
         [MenuCategoryChip(filter: nil, label: "All")]
-            + viewModel.orderedCategoryNames.map { MenuCategoryChip(filter: $0, label: $0) }
+            + chipCategoryNames.map { MenuCategoryChip(filter: $0, label: $0) }
     }
 
     /// When a category chip is selected, show only that category; otherwise show all in normal order.

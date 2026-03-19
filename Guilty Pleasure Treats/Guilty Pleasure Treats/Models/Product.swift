@@ -14,7 +14,7 @@ enum ProductCategory: String, Codable, CaseIterable, Identifiable {
     case cakes = "Cakes"
     case brownies = "Brownies"
     case seasonalTreats = "Seasonal Treats"
-    case treat4Paws = "Treat 4 paws"
+    case treat4Paws = "Treat 4 Paws"
     
     var id: String { rawValue }
 }

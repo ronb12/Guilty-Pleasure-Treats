@@ -161,18 +161,18 @@ struct SettingsView: View {
                         .foregroundStyle(AppConstants.Colors.textSecondary)
                 }
             }
-            if let url = URL(string: AppConstants.supportURLString) {
-                Link(destination: url) {
-                    HStack {
-                        Text("Support")
-                        Spacer()
-                        Image(systemName: "arrow.up.right.square")
-                            .font(.caption)
-                            .foregroundStyle(AppConstants.Colors.textSecondary)
-                    }
+            Button {
+                showContactForm = true
+            } label: {
+                HStack {
+                    Text("Support")
+                    Spacer()
+                    Image(systemName: "bubble.left.and.bubble.right")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
                 }
-                .foregroundStyle(AppConstants.Colors.textPrimary)
             }
+            .foregroundStyle(AppConstants.Colors.textPrimary)
             if let url = URL(string: AppConstants.instagramURLString) {
                 Link(destination: url) {
                     HStack {

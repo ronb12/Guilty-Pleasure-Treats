@@ -36,7 +36,7 @@ export default async function handler(req, res) {
     try {
       const rows = await sql`
         SELECT id, name, display_order, created_at, updated_at
-        FROM product_categories WHERE id = ${id} LIMIT 1
+        FROM product_categories WHERE (id)::text = ${String(id)} LIMIT 1
       `;
       if (!rows.length) return res.status(404).json({ error: 'Not found' });
       return res.status(200).json(rowToCategory(rows[0]));
@@ -53,17 +53,27 @@ export default async function handler(req, res) {
     const body = req.body || {};
     const name = body.name != null ? String(body.name).trim() : null;
     const displayOrder = body.displayOrder != null ? Number(body.displayOrder) : null;
+    if (name == null && displayOrder == null) {
+      return res.status(400).json({ error: 'No updates provided' });
+    }
     try {
       if (name != null && displayOrder != null) {
         await sql`
-          UPDATE product_categories SET name = ${name}, display_order = ${displayOrder}, updated_at = NOW() WHERE id = ${id}
+          UPDATE product_categories
+          SET name = ${name}, display_order = ${displayOrder}, updated_at = NOW()
+          WHERE (id)::text = ${String(id)}
         `;
       } else if (name != null) {
-        await sql`UPDATE product_categories SET name = ${name}, updated_at = NOW() WHERE id = ${id}`;
+        await sql`UPDATE product_categories SET name = ${name}, updated_at = NOW() WHERE (id)::text = ${String(id)}`;
       } else if (displayOrder != null) {
-        await sql`UPDATE product_categories SET display_order = ${displayOrder}, updated_at = NOW() WHERE id = ${id}`;
+        await sql`UPDATE product_categories SET display_order = ${displayOrder}, updated_at = NOW() WHERE (id)::text = ${String(id)}`;
       }
-      const rows = await sql`SELECT id, name, display_order, created_at, updated_at FROM product_categories WHERE id = ${id} LIMIT 1`;
+      const rows = await sql`
+        SELECT id, name, display_order, created_at, updated_at
+        FROM product_categories
+        WHERE (id)::text = ${String(id)}
+        LIMIT 1
+      `;
       if (!rows.length) return res.status(404).json({ error: 'Not found' });
       return res.status(200).json(rowToCategory(rows[0]));
     } catch (err) {
@@ -77,7 +87,7 @@ export default async function handler(req, res) {
     const session = token ? await getSession(token) : null;
     if (!session?.isAdmin) return res.status(403).json({ error: 'Admin required' });
     try {
-      const result = await sql`DELETE FROM product_categories WHERE id = ${id}`;
+      await sql`DELETE FROM product_categories WHERE (id)::text = ${String(id)}`;
       return res.status(204).end();
     } catch (err) {
       console.error('[product-categories/id] DELETE', err);

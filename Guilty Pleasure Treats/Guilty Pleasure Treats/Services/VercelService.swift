@@ -201,9 +201,9 @@ final class VercelService {
         ]
         if let c = product.cost { body["cost"] = c }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (_, res) = try await session.data(for: req)
+        let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
-        try validateResponse(http, data: Data())
+        try validateResponse(http, data: data)
     }
 
     func deleteProduct(id: String) async throws {
