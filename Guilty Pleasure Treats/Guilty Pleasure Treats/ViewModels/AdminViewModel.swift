@@ -458,15 +458,17 @@ final class AdminViewModel: ObservableObject {
         }
     }
 
-    func updateCategory(_ item: ProductCategoryItem, name: String? = nil, displayOrder: Int? = nil) async {
-        guard let n = name?.trimmingCharacters(in: .whitespaces), !n.isEmpty else { return }
+    func updateCategory(_ item: ProductCategoryItem, name: String? = nil, displayOrder: Int? = nil) async -> Bool {
+        guard let n = name?.trimmingCharacters(in: .whitespaces), !n.isEmpty else { return false }
         categoryErrorMessage = nil
         do {
             try await api.updateProductCategory(id: item.id, name: n, displayOrder: displayOrder ?? item.displayOrder)
             successMessage = "Category updated."
             await loadProductCategories()
+            return true
         } catch {
             categoryErrorMessage = FriendlyErrorMessage.message(for: error)
+            return false
         }
     }
 

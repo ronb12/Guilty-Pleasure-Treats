@@ -426,9 +426,11 @@ struct EditCategorySheet: View {
                     Button("Save") {
                         Task {
                             isSaving = true
-                            await viewModel.updateCategory(item, name: name.trimmingCharacters(in: .whitespaces))
+                            let didSave = await viewModel.updateCategory(item, name: name.trimmingCharacters(in: .whitespaces))
                             isSaving = false
-                            onDismiss()
+                            if didSave {
+                                onDismiss()
+                            }
                         }
                     }
                     .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
