@@ -36,6 +36,18 @@ final class VercelService {
         return pathComponents.reduce(base) { $0.appendingPathComponent($1) }
     }
 
+    /// Build explicit id-route URLs (e.g. /api/products/id?id=...).
+    private func apiIDURL(resource: String, id: String, tailPathComponents: [String] = []) -> URL? {
+        guard let base = baseURL else { return nil }
+        var url = base.appendingPathComponent("api").appendingPathComponent(resource).appendingPathComponent("id")
+        for seg in tailPathComponents {
+            url = url.appendingPathComponent(seg)
+        }
+        var comp = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        comp?.queryItems = [URLQueryItem(name: "id", value: id)]
+        return comp?.url
+    }
+
     static var isConfigured: Bool { shared.baseURL != nil }
 
     private init() {
@@ -182,8 +194,9 @@ final class VercelService {
     }
 
     func updateProduct(_ product: Product) async throws {
-        guard let id = product.id, let base = baseURL, let token = authToken else { return }
-        var req = URLRequest(url: base.appendingPathComponent("api/products/\(id)"))
+        guard let id = product.id, let token = authToken else { return }
+        guard let url = apiIDURL(resource: "products", id: id) else { throw VercelNotConfiguredError() }
+        var req = URLRequest(url: url)
         req.httpMethod = "PATCH"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -207,8 +220,9 @@ final class VercelService {
     }
 
     func deleteProduct(id: String) async throws {
-        guard let base = baseURL, let token = authToken else { return }
-        var req = URLRequest(url: base.appendingPathComponent("api/products/\(id)"))
+        guard let token = authToken else { return }
+        guard let url = apiIDURL(resource: "products", id: id) else { throw VercelNotConfiguredError() }
+        var req = URLRequest(url: url)
         req.httpMethod = "DELETE"
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         let (data, res) = try await session.data(for: req)
@@ -522,8 +536,8 @@ final class VercelService {
 
     /// Mark a contact message as read (admin only).
     func markContactMessageRead(id: String) async throws {
-        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
-        let url = base.appendingPathComponent("api/contact/\(id)")
+        guard let token = authToken else { throw VercelNotConfiguredError() }
+        guard let url = apiIDURL(resource: "contact", id: id) else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
         req.httpMethod = "PATCH"
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -534,8 +548,8 @@ final class VercelService {
 
     /// Send an in-app reply to a contact message (admin only).
     func replyToContactMessage(messageId: String, body: String) async throws {
-        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
-        let url = base.appendingPathComponent("api/contact/\(messageId)/reply")
+        guard let token = authToken else { throw VercelNotConfiguredError() }
+        guard let url = apiIDURL(resource: "contact", id: messageId, tailPathComponents: ["reply"]) else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -625,8 +639,8 @@ final class VercelService {
     }
 
     func updatePromotion(_ promotion: Promotion) async throws {
-        guard let id = promotion.id, let base = baseURL, let token = authToken else { return }
-        let url = base.appendingPathComponent("api/promotions/\(id)")
+        guard let id = promotion.id, let token = authToken else { return }
+        guard let url = apiIDURL(resource: "promotions", id: id) else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
         req.httpMethod = "PATCH"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -641,8 +655,9 @@ final class VercelService {
     }
 
     func deletePromotion(id: String) async throws {
-        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
-        var req = URLRequest(url: base.appendingPathComponent("api/promotions/\(id)"))
+        guard let token = authToken else { throw VercelNotConfiguredError() }
+        guard let url = apiIDURL(resource: "promotions", id: id) else { throw VercelNotConfiguredError() }
+        var req = URLRequest(url: url)
         req.httpMethod = "DELETE"
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         let (_, res) = try await session.data(for: req)
@@ -678,8 +693,8 @@ final class VercelService {
     }
 
     func updateCustomCakeOrder(_ order: CustomCakeOrder) async throws {
-        guard let id = order.id, let base = baseURL else { return }
-        let url = base.appendingPathComponent("api/custom-cake-orders/\(id)")
+        guard let id = order.id else { return }
+        guard let url = apiIDURL(resource: "custom-cake-orders", id: id) else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
         req.httpMethod = "PATCH"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -774,8 +789,8 @@ final class VercelService {
     }
 
     func updateAICakeDesignOrder(_ order: AICakeDesignOrder) async throws {
-        guard let id = order.id, let base = baseURL else { return }
-        let url = base.appendingPathComponent("api/ai-cake-designs/\(id)")
+        guard let id = order.id else { return }
+        guard let url = apiIDURL(resource: "ai-cake-designs", id: id) else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
         req.httpMethod = "PATCH"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -831,13 +846,11 @@ final class VercelService {
     }
 
     func updateProductCategory(id: String, name: String? = nil, displayOrder: Int? = nil) async throws {
-        guard let base = baseURL else { throw VercelNotConfiguredError() }
+        guard baseURL != nil else { throw VercelNotConfiguredError() }
         guard let token = authToken, !token.isEmpty else {
             throw VercelAPIError(message: "Please sign in again.", statusCode: 401)
         }
-        var comp = URLComponents(url: base.appendingPathComponent("api/product-categories/id"), resolvingAgainstBaseURL: false)!
-        comp.queryItems = [URLQueryItem(name: "id", value: id)]
-        guard let url = comp.url else {
+        guard let url = apiIDURL(resource: "product-categories", id: id) else {
             throw VercelAPIError(message: "Invalid category URL", statusCode: 0)
         }
         var req = URLRequest(url: url)
@@ -863,10 +876,8 @@ final class VercelService {
     }
 
     func deleteProductCategory(id: String) async throws {
-        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
-        var comp = URLComponents(url: base.appendingPathComponent("api/product-categories/id"), resolvingAgainstBaseURL: false)!
-        comp.queryItems = [URLQueryItem(name: "id", value: id)]
-        guard let url = comp.url else {
+        guard let token = authToken else { throw VercelNotConfiguredError() }
+        guard let url = apiIDURL(resource: "product-categories", id: id) else {
             throw VercelAPIError(message: "Invalid category URL", statusCode: 0)
         }
         var req = URLRequest(url: url)
@@ -915,8 +926,9 @@ final class VercelService {
     }
 
     func updateSavedCustomer(id: String, name: String?, phone: String?, email: String?, street: String?, addressLine2: String?, city: String?, state: String?, postalCode: String?, notes: String?) async throws {
-        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
-        var req = URLRequest(url: base.appendingPathComponent("api/customers/\(id)"))
+        guard let token = authToken else { throw VercelNotConfiguredError() }
+        guard let url = apiIDURL(resource: "customers", id: id) else { throw VercelNotConfiguredError() }
+        var req = URLRequest(url: url)
         req.httpMethod = "PATCH"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -937,8 +949,9 @@ final class VercelService {
     }
 
     func deleteSavedCustomer(id: String) async throws {
-        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
-        var req = URLRequest(url: base.appendingPathComponent("api/customers/\(id)"))
+        guard let token = authToken else { throw VercelNotConfiguredError() }
+        guard let url = apiIDURL(resource: "customers", id: id) else { throw VercelNotConfiguredError() }
+        var req = URLRequest(url: url)
         req.httpMethod = "DELETE"
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         let (_, res) = try await session.data(for: req)
@@ -974,7 +987,8 @@ final class VercelService {
     }
 
     func updateGalleryCake(id: String, imageUrl: String? = nil, title: String? = nil, description: String? = nil, category: String? = nil, price: Double? = nil, displayOrder: Int? = nil) async throws {
-        guard let url = apiURL(pathComponents: "api", "cake-gallery", id), authToken != nil else { throw VercelNotConfiguredError() }
+        guard authToken != nil else { throw VercelNotConfiguredError() }
+        guard let url = apiIDURL(resource: "cake-gallery", id: id) else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
         req.httpMethod = "PATCH"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -993,7 +1007,8 @@ final class VercelService {
     }
 
     func deleteGalleryCake(id: String) async throws {
-        guard let url = apiURL(pathComponents: "api", "cake-gallery", id), authToken != nil else { throw VercelNotConfiguredError() }
+        guard authToken != nil else { throw VercelNotConfiguredError() }
+        guard let url = apiIDURL(resource: "cake-gallery", id: id) else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
         req.httpMethod = "DELETE"
         req.setValue("Bearer \(authToken!)", forHTTPHeaderField: "Authorization")
@@ -1295,8 +1310,8 @@ extension VercelService {
 
     /// Update event (admin). PATCH /api/events/:id.
     func updateEvent(id: String, title: String?, eventDescription: String?, startAt: Date?, endAt: Date?, imageURL: String?, location: String?) async throws {
-        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
-        let url = base.appendingPathComponent("api/events/\(id)")
+        guard let token = authToken else { throw VercelNotConfiguredError() }
+        guard let url = apiIDURL(resource: "events", id: id) else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
         req.httpMethod = "PATCH"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -1316,8 +1331,9 @@ extension VercelService {
 
     /// Delete event (admin). DELETE /api/events/:id.
     func deleteEvent(id: String) async throws {
-        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
-        var req = URLRequest(url: base.appendingPathComponent("api/events/\(id)"))
+        guard let token = authToken else { throw VercelNotConfiguredError() }
+        guard let url = apiIDURL(resource: "events", id: id) else { throw VercelNotConfiguredError() }
+        var req = URLRequest(url: url)
         req.httpMethod = "DELETE"
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         let (_, res) = try await session.data(for: req)
