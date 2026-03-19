@@ -124,6 +124,7 @@ async function main() {
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `;
+    await sql`ALTER TABLE custom_cake_orders ADD COLUMN IF NOT EXISTS toppings JSONB DEFAULT '[]'`;
     await sql`CREATE INDEX IF NOT EXISTS idx_custom_cake_orders_user_id ON custom_cake_orders(user_id)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_custom_cake_orders_order_id ON custom_cake_orders(order_id)`;
     console.log('custom_cake_orders OK');
