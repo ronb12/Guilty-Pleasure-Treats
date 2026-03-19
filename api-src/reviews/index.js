@@ -54,7 +54,8 @@ export default async function handler(req, res) {
       `;
       return res.status(200).json(rows.map(rowToReview));
     } catch (err) {
-      if (err?.code === '42P01') return res.status(200).json([]);
+      // Gracefully handle schema drift in production (missing table/column, type mismatch, invalid casts).
+      if (['42P01', '42703', '42883', '22P02'].includes(err?.code)) return res.status(200).json([]);
       console.error('[reviews] GET', err);
       return res.status(500).json({ error: 'Failed to fetch reviews' });
     }
