@@ -245,10 +245,33 @@ final class VercelService {
         return created
     }
 
-    func fetchOrders(userId: String?) async throws -> [Order] {
+    func fetchOrders(
+        userId: String?,
+        status: String? = nil,
+        fulfillmentType: String? = nil,
+        search: String? = nil,
+        dateFrom: Date? = nil,
+        dateTo: Date? = nil
+    ) async throws -> [Order] {
         guard let base = baseURL else { throw VercelNotConfiguredError() }
         var comp = URLComponents(url: base.appendingPathComponent("api/orders"), resolvingAgainstBaseURL: false)!
-        if let uid = userId, !uid.isEmpty { comp.queryItems = [URLQueryItem(name: "userId", value: uid)] }
+        var items = [URLQueryItem]()
+        if let uid = userId, !uid.isEmpty { items.append(URLQueryItem(name: "userId", value: uid)) }
+        if let s = status?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty {
+            items.append(URLQueryItem(name: "status", value: s))
+        }
+        if let f = fulfillmentType?.trimmingCharacters(in: .whitespacesAndNewlines), !f.isEmpty {
+            items.append(URLQueryItem(name: "fulfillmentType", value: f))
+        }
+        if let q = search?.trimmingCharacters(in: .whitespacesAndNewlines), !q.isEmpty {
+            items.append(URLQueryItem(name: "search", value: q))
+        }
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        iso.timeZone = TimeZone(secondsFromGMT: 0)
+        if let d = dateFrom { items.append(URLQueryItem(name: "dateFrom", value: iso.string(from: d))) }
+        if let d = dateTo { items.append(URLQueryItem(name: "dateTo", value: iso.string(from: d))) }
+        if !items.isEmpty { comp.queryItems = items }
         var req = URLRequest(url: comp.url!)
         req.httpMethod = "GET"
         if let t = authToken { req.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization") }
@@ -258,8 +281,21 @@ final class VercelService {
         return try decoder.decode([Order].self, from: data)
     }
 
-    func fetchAllOrders() async throws -> [Order] {
-        try await fetchOrders(userId: nil)
+    func fetchAllOrders(
+        status: String? = nil,
+        fulfillmentType: String? = nil,
+        search: String? = nil,
+        dateFrom: Date? = nil,
+        dateTo: Date? = nil
+    ) async throws -> [Order] {
+        try await fetchOrders(
+            userId: nil,
+            status: status,
+            fulfillmentType: fulfillmentType,
+            search: search,
+            dateFrom: dateFrom,
+            dateTo: dateTo
+        )
     }
 
     func updateOrderStatus(orderId: String, status: OrderStatus) async throws {
@@ -408,7 +444,9 @@ final class VercelService {
             cashAppTag: j["cashAppTag"] as? String,
             venmoUsername: j["venmoUsername"] as? String,
             deliveryFee: j["deliveryFee"] as? Double,
-            shippingFee: j["shippingFee"] as? Double
+            shippingFee: j["shippingFee"] as? Double,
+            settingsLastUpdatedAt: j["settingsLastUpdatedAt"] as? String,
+            settingsLastUpdatedByUserId: j["settingsLastUpdatedByUserId"] as? String
         )
     }
 
@@ -1060,10 +1098,7 @@ final class VercelService {
 
     private func validateResponse(_ http: HTTPURLResponse, data: Data) throws {
         guard (200...299).contains(http.statusCode) else {
-            let json = try? JSONDecoder().decode([String: String].self, from: data)
-            let errorMsg = json?["error"] ?? String(data: data, encoding: .utf8) ?? "Unknown error"
-            let details = json?["details"].map { " \($0)" } ?? ""
-            throw VercelAPIError(message: errorMsg + details, statusCode: http.statusCode)
+            throw VercelAPIError.parse(http: http, data: data)
         }
     }
 
@@ -1095,6 +1130,9 @@ final class VercelService {
         if let d = order.estimatedReadyTime { payload["estimatedReadyTime"] = ISO8601DateFormatter().string(from: d) }
         if let a = order.customCakeOrderIds { payload["customCakeOrderIds"] = a }
         if let a = order.aiCakeDesignIds { payload["aiCakeDesignIds"] = a }
+        if let c = order.promoCode?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty {
+            payload["promoCode"] = c
+        }
         return payload
     }
 }
@@ -1106,7 +1144,37 @@ struct VercelNotConfiguredError: LocalizedError {
 struct VercelAPIError: LocalizedError {
     let message: String
     var statusCode: Int?
+    var requestId: String?
+    /// Raw JSON (or fallback) for "Copy debug info" / support.
+    var debugCopyPayload: String?
     var errorDescription: String? { message }
+
+    /// Text to copy for support (includes request id when present).
+    var supportDebugText: String {
+        var lines = [message]
+        if let c = statusCode { lines.append("HTTP status: \(c)") }
+        if let r = requestId, !r.isEmpty { lines.append("requestId: \(r)") }
+        if let raw = debugCopyPayload, !raw.isEmpty, raw != message { lines.append(raw) }
+        return lines.joined(separator: "\n")
+    }
+
+    static func parse(http: HTTPURLResponse, data: Data) -> VercelAPIError {
+        let raw = String(data: data, encoding: .utf8) ?? ""
+        var msg = raw.isEmpty ? "Unknown error" : raw
+        var requestId: String?
+        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let e = obj["error"] as? String, !e.isEmpty { msg = e }
+            if let details = obj["details"] as? [[String: Any]] {
+                for d in details {
+                    if let r = d["requestId"] as? String, !r.isEmpty {
+                        requestId = r
+                        break
+                    }
+                }
+            }
+        }
+        return VercelAPIError(message: msg, statusCode: http.statusCode, requestId: requestId, debugCopyPayload: raw.isEmpty ? nil : raw)
+    }
 }
 
 struct OrderCreateResponse: Decodable {

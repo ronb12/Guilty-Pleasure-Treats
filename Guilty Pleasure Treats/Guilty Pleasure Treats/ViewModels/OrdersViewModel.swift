@@ -69,12 +69,7 @@ final class OrdersViewModel: ObservableObject {
         }
         do {
             try await api.updateOrderStatus(orderId: orderId, status: status)
-            if status == .completed, let uid = order.userId, !uid.isEmpty {
-                let pointsToAdd = Int(order.total)
-                if pointsToAdd > 0 {
-                    try? await api.addPoints(uid: uid, points: pointsToAdd)
-                }
-            }
+            // Loyalty points for completed orders are awarded once on the server (idempotent).
             await loadOrders()
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)

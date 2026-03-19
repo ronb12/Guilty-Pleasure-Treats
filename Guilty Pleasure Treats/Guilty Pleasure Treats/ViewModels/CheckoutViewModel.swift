@@ -24,8 +24,6 @@ final class CheckoutViewModel: ObservableObject {
     @Published var deliveryFee: Double = 0
     /// Shipping fee in dollars (from business settings). Applied when fulfillment is Shipping.
     @Published var shippingFee: Double = 0
-    /// Tax rate as decimal (e.g. 0.08). Loaded from business settings on checkout; must match server for order creation.
-    @Published var taxRate: Double = AppConstants.taxRate
     @Published var street = ""
     @Published var addressLine2 = ""
     @Published var city = ""
@@ -36,6 +34,8 @@ final class CheckoutViewModel: ObservableObject {
     @Published var promoMessage: String?
     @Published var isLoading = false
     @Published var errorMessage: String?
+    /// Raw API/support text (shown with Copy in checkout error banner).
+    @Published var lastErrorDebugText: String?
     @Published var lastCreatedOrderId: String?
     @Published var lastCreatedOrder: Order?
     @Published var lastPaymentMethod: PaymentMethod = .payAtPickup
@@ -43,6 +43,21 @@ final class CheckoutViewModel: ObservableObject {
     private let api = VercelService.shared
     private let cart = CartManager.shared
     private let auth = AuthService.shared
+    private var cancellables = Set<AnyCancellable>()
+    /// Reused until an order succeeds so retries don’t create duplicates (server idempotency).
+    private var pendingIdempotencyKey: String?
+
+    init() {
+        cart.$taxRate
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
+    }
+
+    /// Tax rate comes from `CartManager` (single source of truth with cart).
+    private var taxRate: Double { cart.taxRate }
     
     /// Earliest date/time the customer can select (now + minimum lead time). Prevents impossible last-minute requests.
     var minScheduledDate: Date {
@@ -72,7 +87,7 @@ final class CheckoutViewModel: ObservableObject {
         return parts.isEmpty ? nil : parts.joined(separator: "\n")
     }
     
-    // Order summary for display (matches placeOrder math).
+    // Order summary for display (matches placeOrder math). Tax uses cart.taxRate.
     var orderSummarySubtotal: Double {
         cart.toOrderItems().reduce(0.0) { $0 + $1.subtotal }
     }
@@ -163,6 +178,7 @@ final class CheckoutViewModel: ObservableObject {
         }
         
         let emailToUse = customerEmail.trimmingCharacters(in: .whitespaces).isEmpty ? auth.currentUser?.email : customerEmail.trimmingCharacters(in: .whitespaces)
+        let promoForApi: String? = appliedPromotion.map { $0.code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }.flatMap { $0.isEmpty ? nil : $0 }
         var order = Order(
             id: nil,
             userId: auth.currentUser?.uid,
@@ -182,21 +198,29 @@ final class CheckoutViewModel: ObservableObject {
             updatedAt: nil,
             estimatedReadyTime: nil,
             customCakeOrderIds: customCakeOrderIds.isEmpty ? nil : customCakeOrderIds,
-            aiCakeDesignIds: aiCakeDesignIds.isEmpty ? nil : aiCakeDesignIds
+            aiCakeDesignIds: aiCakeDesignIds.isEmpty ? nil : aiCakeDesignIds,
+            promoCode: promoForApi
         )
         
         isLoading = true
         errorMessage = nil
+        lastErrorDebugText = nil
         defer { isLoading = false }
         
+        if pendingIdempotencyKey == nil {
+            pendingIdempotencyKey = UUID().uuidString
+        }
+        let idemKey = pendingIdempotencyKey
+        
         do {
-            let created = try await api.createOrder(order)
+            let created = try await api.createOrder(order, idempotencyKey: idemKey)
             order.id = created.id
             order.subtotal = created.subtotal
             order.tax = created.tax
             order.total = created.total
             let orderId = created.id
             lastPaymentMethod = paymentMethod
+            pendingIdempotencyKey = nil
             
             switch paymentMethod {
             case .stripe, .applePay:
@@ -217,6 +241,11 @@ final class CheckoutViewModel: ObservableObject {
             lastCreatedOrder = order
             return true
         } catch {
+            if let apiErr = error as? VercelAPIError {
+                lastErrorDebugText = apiErr.supportDebugText
+            } else {
+                lastErrorDebugText = (error as NSError).localizedDescription
+            }
             errorMessage = FriendlyErrorMessage.message(for: error)
             return false
         }
@@ -225,6 +254,7 @@ final class CheckoutViewModel: ObservableObject {
     func resetAfterConfirmation() {
         lastCreatedOrderId = nil
         lastCreatedOrder = nil
+        pendingIdempotencyKey = nil
         customerName = ""
         customerPhone = ""
         customerEmail = ""

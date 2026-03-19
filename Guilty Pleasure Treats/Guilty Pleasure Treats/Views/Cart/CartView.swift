@@ -110,6 +110,24 @@ struct CartView: View {
     private var cartContentView: some View {
         ScrollView {
             VStack(spacing: 12) {
+                if let warn = cart.businessSettingsWarning {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "wifi.exclamationmark")
+                            .foregroundStyle(AppConstants.Colors.accent)
+                        Text(warn)
+                            .font(.caption)
+                            .foregroundStyle(AppConstants.Colors.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                    .padding()
+                    .background(AppConstants.Colors.cardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+                }
+                Text("Line totals are per item; cart tax is estimated from store settings until checkout.")
+                    .font(.caption2)
+                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 ForEach(cart.items) { item in
                     CartRowView(item: item) {
                         cart.updateQuantity(for: item.id, quantity: item.quantity - 1)
@@ -217,25 +235,43 @@ struct CartRowView: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(AppConstants.Colors.accent)
+                Text("\(item.quantity) × \(item.product.price.currencyFormatted) each")
+                    .font(.caption2)
+                    .foregroundStyle(AppConstants.Colors.textSecondary)
 
                 HStack(spacing: 8) {
                     Button(action: onDecrement) {
                         Image(systemName: "minus.circle")
+                            .font(.title3)
                             .foregroundStyle(AppConstants.Colors.accent)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Decrease quantity of \(item.product.name)")
                     Text("\(item.quantity)")
                         .font(.subheadline)
-                        .frame(minWidth: 24)
+                        .frame(minWidth: 28)
+                        .accessibilityHidden(true)
                     Button(action: onIncrement) {
                         Image(systemName: "plus.circle")
+                            .font(.title3)
                             .foregroundStyle(AppConstants.Colors.accent)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Increase quantity of \(item.product.name)")
                     Spacer()
                     Button(action: onRemove) {
                         Image(systemName: "trash")
                             .foregroundStyle(.red)
-                            .font(.subheadline)
+                            .font(.title3)
+                            .frame(minWidth: 44, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Remove \(item.product.name) from cart")
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

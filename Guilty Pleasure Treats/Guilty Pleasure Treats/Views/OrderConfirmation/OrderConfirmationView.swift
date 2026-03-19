@@ -94,6 +94,11 @@ struct OrderConfirmationView: View {
                             .fontWeight(.semibold)
                             .foregroundStyle(AppConstants.Colors.accent)
                     }
+                    Text("This total was confirmed by the store when your order was placed and is what payment is based on.")
+                        .font(.caption2)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
                 }
                 .padding()
                 .background(AppConstants.Colors.cardBackground)

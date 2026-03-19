@@ -916,6 +916,66 @@ struct AdminOrdersView: View {
 
     private var ordersListContent: some View {
         List {
+            Section("Filter orders") {
+                TextField("Search name, phone, email", text: $viewModel.adminOrderSearchText)
+                    .textFieldStyle(.roundedBorder)
+                Picker("Status", selection: $viewModel.adminOrderStatusFilter) {
+                    Text("Any status").tag("")
+                    ForEach(OrderStatus.allCases, id: \.rawValue) { s in
+                        Text(s.rawValue).tag(s.rawValue)
+                    }
+                }
+                Picker("Fulfillment", selection: $viewModel.adminOrderFulfillmentFilter) {
+                    Text("Any").tag("")
+                    ForEach(FulfillmentType.allCases, id: \.rawValue) { f in
+                        Text(f.rawValue).tag(f.rawValue)
+                    }
+                }
+                Toggle("Created on or after…", isOn: Binding(
+                    get: { viewModel.adminOrderDateFrom != nil },
+                    set: { on in
+                        if on {
+                            viewModel.adminOrderDateFrom = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+                        } else {
+                            viewModel.adminOrderDateFrom = nil
+                        }
+                    }
+                ))
+                if viewModel.adminOrderDateFrom != nil {
+                    DatePicker("Start date", selection: Binding(
+                        get: { viewModel.adminOrderDateFrom ?? Date() },
+                        set: { viewModel.adminOrderDateFrom = $0 }
+                    ), displayedComponents: [.date])
+                }
+                Toggle("Created on or before…", isOn: Binding(
+                    get: { viewModel.adminOrderDateTo != nil },
+                    set: { on in
+                        if on { viewModel.adminOrderDateTo = Date() }
+                        else { viewModel.adminOrderDateTo = nil }
+                    }
+                ))
+                if viewModel.adminOrderDateTo != nil {
+                    DatePicker("End date", selection: Binding(
+                        get: { viewModel.adminOrderDateTo ?? Date() },
+                        set: { viewModel.adminOrderDateTo = $0 }
+                    ), displayedComponents: [.date])
+                }
+                HStack {
+                    Button("Apply filters") {
+                        Task { await viewModel.loadOrders() }
+                    }
+                    .foregroundStyle(AppConstants.Colors.accent)
+                    Button("Clear") {
+                        viewModel.adminOrderStatusFilter = ""
+                        viewModel.adminOrderFulfillmentFilter = ""
+                        viewModel.adminOrderSearchText = ""
+                        viewModel.adminOrderDateFrom = nil
+                        viewModel.adminOrderDateTo = nil
+                        Task { await viewModel.loadOrders() }
+                    }
+                }
+                .font(.subheadline)
+            }
             #if os(macOS)
             Section {
                 Button {
@@ -1239,6 +1299,9 @@ struct AddManualOrderSheet: View {
             }
             .macOSEditSheetPadding()
             .macOSReduceSheetTitleGap()
+            .onAppear {
+                Task { await viewModel.loadBusinessSettings() }
+            }
         }
     }
 
@@ -1615,7 +1678,8 @@ struct AddManualOrderSheet: View {
             updatedAt: nil,
             estimatedReadyTime: nil,
             customCakeOrderIds: nil,
-            aiCakeDesignIds: nil
+            aiCakeDesignIds: nil,
+            promoCode: nil
         )
         await viewModel.createManualOrder(order)
         onDismiss()
@@ -4955,6 +5019,18 @@ struct AdminSettingsView: View {
                     action: { saveSettings() }
                 )
                 .padding(.top, 8)
+
+                if let at = viewModel.businessSettings?.settingsLastUpdatedAt, !at.isEmpty {
+                    Text("Settings audit — last saved: \(at)")
+                        .font(.caption2)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                }
+                if let uid = viewModel.businessSettings?.settingsLastUpdatedByUserId, !uid.isEmpty {
+                    Text("Saved by user id: \(uid)")
+                        .font(.caption2)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                        .textSelection(.enabled)
+                }
             }
             .padding(.horizontal, AppConstants.Layout.screenHorizontalPadding)
             .padding(.bottom, 24)
@@ -5126,6 +5202,31 @@ struct AdminSettingsView: View {
                 Text("Contact information")
             } footer: {
                 Text("Shown to customers for support and order questions.")
+            }
+
+            Section {
+                if let at = viewModel.businessSettings?.settingsLastUpdatedAt, !at.isEmpty {
+                    LabeledContent("Last saved (server)") {
+                        Text(at)
+                            .font(.caption)
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                    }
+                } else {
+                    Text("Timestamps appear after the next save (server records who saved).")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                }
+                if let uid = viewModel.businessSettings?.settingsLastUpdatedByUserId, !uid.isEmpty {
+                    LabeledContent("Saved by user id") {
+                        Text(uid)
+                            .font(.caption2)
+                            .textSelection(.enabled)
+                    }
+                }
+            } header: {
+                Text("Settings audit")
+            } footer: {
+                Text("Updated automatically each time an admin saves business settings.")
             }
         }
     }

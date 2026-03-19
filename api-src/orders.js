@@ -6,6 +6,8 @@ import { sql, hasDb } from '../api/lib/db.js';
 import { getTokenFromRequest, getSession } from '../api/lib/auth.js';
 import { setCors, handleOptions } from '../api/lib/cors.js';
 import { computeOrderTotals, orderTotalsToDollars, normalizeFulfillmentType, toCents } from './lib/orderTotals.js';
+import { checkRateLimit } from './lib/rateLimit.js';
+import { promotionRowToDiscount } from './lib/promoServer.js';
 
 function rowToOrder(row) {
   if (!row) return null;
@@ -69,6 +71,30 @@ export default async function handler(req, res) {
           ORDER BY created_at DESC NULLS LAST
           LIMIT 500
         `;
+        const statusQ = String(req.query?.status ?? '').trim();
+        const fulfillmentQ = String(req.query?.fulfillmentType ?? req.query?.fulfillment_type ?? '').trim();
+        const searchQ = String(req.query?.search ?? req.query?.q ?? '').trim().toLowerCase();
+        const fromStr = String(req.query?.dateFrom ?? req.query?.date_from ?? '').trim();
+        const toStr = String(req.query?.dateTo ?? req.query?.date_to ?? '').trim();
+        const fromTs = fromStr ? Date.parse(fromStr) : NaN;
+        const toTs = toStr ? Date.parse(toStr) : NaN;
+        rows = (rows || []).filter((r) => {
+          if (statusQ && String(r.status ?? '') !== statusQ) return false;
+          if (fulfillmentQ && String(r.fulfillment_type ?? '') !== fulfillmentQ) return false;
+          if (searchQ) {
+            const hay = `${r.customer_name ?? ''} ${r.customer_phone ?? ''} ${r.customer_email ?? ''}`.toLowerCase();
+            if (!hay.includes(searchQ)) return false;
+          }
+          if (Number.isFinite(fromTs)) {
+            const t = r.created_at ? new Date(r.created_at).getTime() : 0;
+            if (t < fromTs) return false;
+          }
+          if (Number.isFinite(toTs)) {
+            const t = r.created_at ? new Date(r.created_at).getTime() : 0;
+            if (t > toTs + 86400000 - 1) return false;
+          }
+          return true;
+        });
       } else {
         const uid = isAdmin ? userIdFilter : session.userId;
         if (!uid) return res.status(200).json([]);
@@ -99,6 +125,12 @@ export default async function handler(req, res) {
       ?? req.headers?.['x-request-id']
       ?? req.headers?.['x-correlation-id']
       ?? null;
+    if (!checkRateLimit(req, 'orders_create', { max: 40, windowMs: 60_000 })) {
+      return res.status(429).json({
+        error: 'Too many orders from this network. Please wait a minute and try again.',
+        details: [{ requestId }],
+      });
+    }
     const customerName = String(body.customerName ?? body.customer_name ?? '').trim();
     const customerPhone = String(body.customerPhone ?? body.customer_phone ?? '').trim();
     const items = Array.isArray(body.items) ? body.items : [];
@@ -117,6 +149,11 @@ export default async function handler(req, res) {
     const estimatedReadyTime = body.estimatedReadyTime ?? body.estimated_ready_time ?? null;
     const customCakeOrderIds = Array.isArray(body.customCakeOrderIds) ? body.customCakeOrderIds : (Array.isArray(body.custom_cake_order_ids) ? body.custom_cake_order_ids : null);
     const aiCakeDesignIds = Array.isArray(body.aiCakeDesignIds) ? body.aiCakeDesignIds : (Array.isArray(body.ai_cake_design_ids) ? body.ai_cake_design_ids : null);
+    const promoCodeRaw = String(body.promoCode ?? body.promo_code ?? '').trim();
+    const promoCode = promoCodeRaw ? promoCodeRaw.toUpperCase() : '';
+
+    let idemKey = String(req.headers?.['idempotency-key'] ?? req.headers?.['Idempotency-Key'] ?? body.idempotencyKey ?? body.idempotency_key ?? '').trim();
+    if (idemKey.length > 200) idemKey = idemKey.slice(0, 200);
 
     const itemsJson = items.map((i) => ({
       id: i.id,
@@ -167,6 +204,46 @@ export default async function handler(req, res) {
         });
       }
 
+      const materiallyDiscounted = discountedSubtotalCents < itemsSubtotalCents - 1;
+      let expectedDiscountedCents = itemsSubtotalCents;
+      if (materiallyDiscounted || promoCode) {
+        if (materiallyDiscounted && !promoCode) {
+          return res.status(400).json({
+            error: 'Promo code is required when a discount is applied.',
+            details: [{ requestId }],
+          });
+        }
+        if (promoCode) {
+          let promoRows;
+          try {
+            promoRows = await sql`
+              SELECT discount_type, value, valid_from, valid_to, is_active
+              FROM promotions
+              WHERE UPPER(TRIM(code)) = ${promoCode}
+              LIMIT 1
+            `;
+          } catch (pe) {
+            if (pe?.code === '42P01') {
+              return res.status(400).json({ error: 'Promotions are not available.', details: [{ requestId }] });
+            }
+            throw pe;
+          }
+          const pr = promoRows?.[0];
+          const itemsSubtotalDollars = itemsSubtotalCents / 100;
+          const discountDollars = promotionRowToDiscount(pr, itemsSubtotalDollars);
+          if (discountDollars == null) {
+            return res.status(400).json({ error: 'Invalid or expired promo code.', details: [{ requestId }] });
+          }
+          expectedDiscountedCents = Math.max(0, Math.round(itemsSubtotalCents - discountDollars * 100));
+        }
+        if (Math.abs(discountedSubtotalCents - expectedDiscountedCents) > 1) {
+          return res.status(400).json({
+            error: 'Order total does not match this promo. Please refresh and try again.',
+            details: [{ requestId }],
+          });
+        }
+      }
+
       let totals;
       try {
         totals = computeOrderTotals({
@@ -189,6 +266,58 @@ export default async function handler(req, res) {
       }
       const computed = orderTotalsToDollars(totals);
 
+      async function fetchOrderRowById(orderId) {
+        const [r] = await sql`
+          SELECT id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
+                 subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
+                 stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
+                 custom_cake_order_ids, ai_cake_design_ids
+          FROM orders WHERE id = ${orderId} LIMIT 1
+        `;
+        return r;
+      }
+
+      async function returnExistingOrder(orderIdStr) {
+        const row = await fetchOrderRowById(orderIdStr);
+        if (!row) return res.status(500).json({ error: 'Failed to load order', details: [{ requestId }] });
+        const order = rowToOrder(row);
+        return res.status(201).json({ id: order.id, subtotal: order.subtotal, tax: order.tax, total: order.total });
+      }
+
+      if (idemKey) {
+        try {
+          const existing = await sql`
+            SELECT order_id FROM order_idempotency WHERE idempotency_key = ${idemKey} LIMIT 1
+          `;
+          const oid = existing?.[0]?.order_id;
+          if (oid) {
+            return returnExistingOrder(String(oid));
+          }
+
+          const claimed = await sql`
+            INSERT INTO order_idempotency (idempotency_key) VALUES (${idemKey})
+            ON CONFLICT (idempotency_key) DO NOTHING
+            RETURNING idempotency_key
+          `;
+          if (!claimed?.length) {
+            for (let i = 0; i < 25; i += 1) {
+              await new Promise((r) => setTimeout(r, 120));
+              const again = await sql`
+                SELECT order_id FROM order_idempotency WHERE idempotency_key = ${idemKey} LIMIT 1
+              `;
+              const o2 = again?.[0]?.order_id;
+              if (o2) return returnExistingOrder(String(o2));
+            }
+            return res.status(409).json({
+              error: 'Duplicate order request is still processing. Please wait and check your orders.',
+              details: [{ requestId }],
+            });
+          }
+        } catch (idemErr) {
+          if (idemErr?.code !== '42P01') throw idemErr;
+        }
+      }
+
       const [row] = await sql`
         INSERT INTO orders (user_id, customer_name, customer_phone, customer_email, delivery_address, items,
           subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status, stripe_payment_intent_id,
@@ -201,6 +330,16 @@ export default async function handler(req, res) {
           manual_paid_at, created_at, updated_at, estimated_ready_time, custom_cake_order_ids, ai_cake_design_ids
       `;
       const order = rowToOrder(row);
+      if (idemKey) {
+        try {
+          await sql`
+            UPDATE order_idempotency SET order_id = ${order.id}
+            WHERE idempotency_key = ${idemKey}
+          `;
+        } catch (e) {
+          if (e?.code !== '42P01') console.warn('[orders] idempotency update', e?.message ?? e);
+        }
+      }
       return res.status(201).json({ id: order.id, subtotal: order.subtotal, tax: order.tax, total: order.total });
     } catch (err) {
       if (err?.code === '42P01') return res.status(503).json({ error: 'Service unavailable' });

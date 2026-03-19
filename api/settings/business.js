@@ -38,6 +38,8 @@ function toAppResponse(row) {
     venmoUsername: v.venmo_username ?? null,
     deliveryFee: v.delivery_fee != null ? Number(v.delivery_fee) : null,
     shippingFee: v.shipping_fee != null ? Number(v.shipping_fee) : null,
+    settingsLastUpdatedAt: v.settings_last_updated_at ?? null,
+    settingsLastUpdatedByUserId: v.settings_last_updated_by_user_id ?? null,
   };
 }
 
@@ -69,14 +71,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  if ((req.method || '').toUpperCase() === 'PATCH') {
-    const token = getTokenFromRequest(req);
-    const session = token ? await getSession(token) : null;
-    if (!session?.userId || session.isAdmin !== true) {
-      return res.status(403).json({ error: 'Admin required' });
-    }
-  }
-
   if (!hasDb() || !sql) {
     return res.status(503).json({ error: 'Service unavailable' });
   }
@@ -87,6 +81,12 @@ export default async function handler(req, res) {
       return res.status(200).json(toAppResponse(row));
     }
 
+    const patchToken = getTokenFromRequest(req);
+    const session = patchToken ? await getSession(patchToken) : null;
+    if (!session?.userId || session.isAdmin !== true) {
+      return res.status(403).json({ error: 'Admin required' });
+    }
+
     const body = typeof req.body === 'object' ? req.body : {};
     const [existing] = await sql`SELECT value_json FROM business_settings WHERE key = 'main' LIMIT 1`;
     const current = existing?.value_json ? { ...DEFAULT_MAIN, ...existing.value_json } : { ...DEFAULT_MAIN };
@@ -95,6 +95,8 @@ export default async function handler(req, res) {
     for (const [k, v] of Object.entries(updates)) {
       if (v !== undefined) next[k] = v;
     }
+    next.settings_last_updated_at = new Date().toISOString();
+    next.settings_last_updated_by_user_id = session?.userId != null ? String(session.userId) : null;
     await sql`
       INSERT INTO business_settings (key, value_json, updated_at)
       VALUES ('main', ${JSON.stringify(next)}::jsonb, NOW())

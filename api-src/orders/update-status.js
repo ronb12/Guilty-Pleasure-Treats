@@ -34,9 +34,18 @@ async function handler(req, res) {
     const isAdmin = auth.isAdmin === true;
     if (order.user_id !== auth.userId && !isAdmin) return res.status(403).json({ error: 'Forbidden' });
 
-    if (status) await sql`UPDATE orders SET status = ${status} WHERE id = ${orderId}`;
+    if (status) await sql`UPDATE orders SET status = ${status}, updated_at = NOW() WHERE id = ${orderId}`;
     if (pickup_time !== undefined) await sql`UPDATE orders SET pickup_time = ${pickup_time ? new Date(pickup_time) : null} WHERE id = ${orderId}`;
     if (ready_by !== undefined) await sql`UPDATE orders SET ready_by = ${ready_by ? new Date(ready_by) : null} WHERE id = ${orderId}`;
+
+    if (status && String(status).trim().toLowerCase() === 'completed') {
+      try {
+        const { attemptAwardLoyaltyForCompletedOrder } = await import('../../api/lib/awardLoyaltyOnOrderCompleted.js');
+        await attemptAwardLoyaltyForCompletedOrder(sql, orderId);
+      } catch (loyaltyErr) {
+        console.error('[orders/update-status] loyalty award', loyaltyErr);
+      }
+    }
 
     if (status && order.user_id) {
       try {

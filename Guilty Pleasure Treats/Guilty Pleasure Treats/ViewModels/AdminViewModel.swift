@@ -70,6 +70,12 @@ struct AdminCustomer: Identifiable {
 final class AdminViewModel: ObservableObject {
     @Published var products: [Product] = []
     @Published var orders: [Order] = []
+    /// Admin Orders tab: passed to API as query filters (server filters in memory on the admin list).
+    @Published var adminOrderStatusFilter: String = ""
+    @Published var adminOrderFulfillmentFilter: String = ""
+    @Published var adminOrderSearchText: String = ""
+    @Published var adminOrderDateFrom: Date? = nil
+    @Published var adminOrderDateTo: Date? = nil
     @Published var businessSettings: BusinessSettings?
     @Published var promotions: [Promotion] = []
     @Published var customCakeOrders: [CustomCakeOrder] = []
@@ -551,7 +557,13 @@ final class AdminViewModel: ObservableObject {
     
     func loadOrders() async {
         do {
-            orders = try await api.fetchAllOrders()
+            orders = try await api.fetchAllOrders(
+                status: adminOrderStatusFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : adminOrderStatusFilter,
+                fulfillmentType: adminOrderFulfillmentFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : adminOrderFulfillmentFilter,
+                search: adminOrderSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : adminOrderSearchText,
+                dateFrom: adminOrderDateFrom,
+                dateTo: adminOrderDateTo
+            )
             if let first = orders.first, let id = first.id, let createdAt = first.createdAt {
                 NotificationService.shared.addNewOrderInAppIfNeeded(
                     orderId: id,
@@ -661,12 +673,7 @@ final class AdminViewModel: ObservableObject {
         guard let orderId = order.id else { return }
         do {
             try await api.updateOrderStatus(orderId: orderId, status: status)
-            if status == .completed, let uid = order.userId, !uid.isEmpty {
-                let pointsToAdd = Int(order.total)
-                if pointsToAdd > 0 {
-                    try? await api.addPoints(uid: uid, points: pointsToAdd)
-                }
-            }
+            // Loyalty earn is server-side when status becomes Completed (idempotent per order).
             successMessage = "Order updated."
             await loadOrders()
         } catch {
@@ -890,7 +897,7 @@ final class AdminViewModel: ObservableObject {
     func saveBusinessSettings(_ settings: BusinessSettings) async {
         do {
             try await api.setBusinessSettings(settings)
-            businessSettings = settings
+            await loadBusinessSettings()
             successMessage = "Settings saved."
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)

@@ -5,6 +5,7 @@
 import { sql, hasDb } from '../lib/db.js';
 import { getTokenFromRequest, getSession } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
+import { checkRateLimit } from '../lib/rateLimit.js';
 
 function rowToMessage(row) {
   if (!row) return null;
@@ -50,6 +51,9 @@ export default async function handler(req, res) {
   }
 
   if ((req.method || '').toUpperCase() === 'POST') {
+    if (!checkRateLimit(req, 'contact_post', { max: 25, windowMs: 600_000 })) {
+      return res.status(429).json({ error: 'Too many messages. Please try again later.' });
+    }
     const body = req.body || {};
     const email = String(body.email ?? '').trim();
     const message = String(body.message ?? '').trim();

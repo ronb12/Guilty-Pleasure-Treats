@@ -15,6 +15,8 @@ final class CartManager: ObservableObject {
     @Published var tipAmount: Double = 0
     /// Decimal rate (e.g. 0.08). Synced from business settings when cart/checkout load settings; fallback `AppConstants.taxRate`.
     @Published var taxRate: Double = AppConstants.taxRate
+    /// Shown on cart/checkout when business settings could not be loaded (tax may use defaults).
+    @Published var businessSettingsWarning: String?
 
     var isEmpty: Bool { items.isEmpty }
     var itemCount: Int { items.reduce(0) { $0 + $1.quantity } }
@@ -23,6 +25,15 @@ final class CartManager: ObservableObject {
     var total: Double { subtotal + tax + tipAmount }
 
     private init() {}
+
+    func applyBusinessSettingsFromServer(_ settings: BusinessSettings) {
+        taxRate = settings.taxRate
+        businessSettingsWarning = nil
+    }
+
+    func markBusinessSettingsLoadFailed() {
+        businessSettingsWarning = "Couldn't load the latest store settings. Tax and totals may use defaults until you're online."
+    }
 
     func setTipAmount(_ amount: Double) {
         tipAmount = max(0, amount)

@@ -5,6 +5,10 @@
 import { sql, hasDb } from '../../api/lib/db.js';
 import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
 import { setCors, handleOptions } from '../../api/lib/cors.js';
+import {
+  attemptAwardLoyaltyForCompletedOrder,
+  requestSetsStatusToCompleted,
+} from '../../api/lib/awardLoyaltyOnOrderCompleted.js';
 
 function rowToOrder(row) {
   if (!row) return null;
@@ -89,6 +93,13 @@ export default async function handler(req, res) {
       if (body.status != null) {
         await sql`UPDATE orders SET status = ${String(body.status)}, updated_at = NOW() WHERE id = ${id}`;
         didUpdate = true;
+        if (requestSetsStatusToCompleted(body.status)) {
+          try {
+            await attemptAwardLoyaltyForCompletedOrder(sql, id);
+          } catch (loyaltyErr) {
+            console.error('[orders/id] loyalty award', loyaltyErr);
+          }
+        }
       }
       if (body.manualPaidAt != null || body.manual_paid_at !== undefined) {
         const v = body.manualPaidAt ?? body.manual_paid_at;

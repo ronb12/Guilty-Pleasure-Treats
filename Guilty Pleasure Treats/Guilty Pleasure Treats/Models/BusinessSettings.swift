@@ -24,6 +24,10 @@ struct BusinessSettings: Codable {
     var deliveryFee: Double?
     /// Shipping fee in dollars (e.g. 8.00). Applied at checkout when fulfillment is Shipping.
     var shippingFee: Double?
+    /// ISO8601 timestamp when an admin last saved business settings (from API).
+    var settingsLastUpdatedAt: String?
+    /// User id (from auth) who last saved settings; informational only.
+    var settingsLastUpdatedByUserId: String?
 
     init(
         storeHours: String? = nil,
@@ -36,7 +40,9 @@ struct BusinessSettings: Codable {
         cashAppTag: String? = nil,
         venmoUsername: String? = nil,
         deliveryFee: Double? = nil,
-        shippingFee: Double? = nil
+        shippingFee: Double? = nil,
+        settingsLastUpdatedAt: String? = nil,
+        settingsLastUpdatedByUserId: String? = nil
     ) {
         self.storeHours = storeHours
         self.deliveryRadiusMiles = deliveryRadiusMiles
@@ -49,5 +55,7 @@ struct BusinessSettings: Codable {
         self.venmoUsername = venmoUsername
         self.deliveryFee = deliveryFee
         self.shippingFee = shippingFee
+        self.settingsLastUpdatedAt = settingsLastUpdatedAt
+        self.settingsLastUpdatedByUserId = settingsLastUpdatedByUserId
     }
 }

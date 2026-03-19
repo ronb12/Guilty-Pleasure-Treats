@@ -5,6 +5,7 @@
  */
 import { neonAuthSignUp, isNeonAuthConfigured } from '../../api/lib/neonAuth.js';
 import { sql, hasDb } from '../../api/lib/db.js';
+import { checkRateLimit } from '../lib/rateLimit.js';
 
 function json(res, status, data) {
   res.setHeader('Content-Type', 'application/json');
@@ -14,6 +15,11 @@ function json(res, status, data) {
 export default async function handler(req, res) {
   if ((req.method || '').toUpperCase() !== 'POST') {
     json(res, 405, { error: 'Method not allowed' });
+    return;
+  }
+
+  if (!checkRateLimit(req, 'auth_signup', { max: 12, windowMs: 900_000 })) {
+    json(res, 429, { error: 'Too many sign-up attempts from this network. Please try again later.' });
     return;
   }
 

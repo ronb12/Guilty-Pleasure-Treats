@@ -50,10 +50,16 @@ struct RootView: View {
         }
         .onAppear {
             Task {
-                if let settings = try? await VercelService.shared.fetchBusinessSettings() {
-                    await MainActor.run {
-                        CartManager.shared.taxRate = settings.taxRate
+                do {
+                    if let settings = try await VercelService.shared.fetchBusinessSettings() {
+                        await MainActor.run {
+                            CartManager.shared.applyBusinessSettingsFromServer(settings)
+                        }
+                    } else {
+                        await MainActor.run { CartManager.shared.markBusinessSettingsLoadFailed() }
                     }
+                } catch {
+                    await MainActor.run { CartManager.shared.markBusinessSettingsLoadFailed() }
                 }
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {

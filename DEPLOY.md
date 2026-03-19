@@ -140,3 +140,14 @@ Reports: per-build API route count, missing count, bakery status; then a detail 
    ```
 
 4. If it still fails, deploy from the [Vercel dashboard](https://vercel.com) by connecting your repo and deploying the branch (no CLI needed).
+
+## Staging / preview environment (recommended)
+
+For safe QA before production:
+
+1. **Vercel**: Create a second Vercel project (or use **Preview** deployments per branch) pointing at the same repo.
+2. **Neon**: Create a **branch** or separate database for staging; set `POSTGRES_URL` / `DATABASE_URL` on the staging Vercel project to that branch’s connection string (never share prod DB with experimental builds).
+3. **Stripe**: Use **test mode** keys (`sk_test_…`, publishable test key) on staging; keep **live** keys only on production.
+4. **iOS / macOS app**: Add a **staging** `AppConstants.vercelBaseURLString` (or build configuration / `.xcconfig`) that targets the preview URL, and run TestFlight builds against staging before promoting.
+
+**After pulling latest backend changes**, run `scripts/add-order-idempotency.sql` on **each** database (staging + prod) if you use order idempotency.

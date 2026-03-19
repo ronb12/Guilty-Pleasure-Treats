@@ -19,6 +19,7 @@ struct ConfirmedOrderItem: Identifiable, Hashable {
 
 struct CheckoutView: View {
     @StateObject private var viewModel = CheckoutViewModel()
+    @ObservedObject private var cart = CartManager.shared
     @StateObject private var auth = AuthService.shared
     /// Pay by link until in-app Stripe is set up; owner sends link from Admin.
     private static let paymentMethod: PaymentMethod = .payByLink
@@ -28,10 +29,18 @@ struct CheckoutView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if let msg = viewModel.errorMessage {
-                    ErrorMessageBanner(message: msg) {
+                    ErrorMessageBanner(message: msg, debugCopyText: viewModel.lastErrorDebugText) {
                         viewModel.errorMessage = nil
+                        viewModel.lastErrorDebugText = nil
                     }
                 }
+                if let warn = cart.businessSettingsWarning {
+                    settingsWarningBanner(warn)
+                }
+                Text("Totals below are estimates from your cart and store settings. After you place the order, tax and fees are confirmed by the server and used for payment.")
+                    .font(.caption)
+                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 
                 contactSection
                 fulfillmentSection
@@ -180,9 +189,24 @@ struct CheckoutView: View {
         }
     }
     
+    private func settingsWarningBanner(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "wifi.exclamationmark")
+                .foregroundStyle(AppConstants.Colors.accent)
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(AppConstants.Colors.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding()
+        .background(AppConstants.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+    }
+
     private var orderSummarySection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            sectionLabel("Order total")
+            sectionLabel("Order total (estimate)")
             HStack {
                 Text("Subtotal")
                 Spacer()

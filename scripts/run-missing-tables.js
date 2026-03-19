@@ -73,9 +73,11 @@ async function main() {
         tip_cents INT NOT NULL DEFAULT 0,
         tax_cents INT NOT NULL DEFAULT 0,
         custom_cake_order_ids TEXT[],
-        ai_cake_design_ids TEXT[]
+        ai_cake_design_ids TEXT[],
+        loyalty_points_awarded INT
       )
     `;
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS loyalty_points_awarded INT`;
     await sql`CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`;

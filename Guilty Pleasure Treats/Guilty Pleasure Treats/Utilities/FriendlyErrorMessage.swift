@@ -14,7 +14,10 @@ enum FriendlyErrorMessage {
             return desc
         }
         if let api = error as? VercelAPIError, !api.message.isEmpty {
-            let msg = api.message
+            var msg = api.message
+            if let rid = api.requestId, !rid.isEmpty {
+                msg += " (ref: \(rid.prefix(12)))"
+            }
             if msg.contains("try again") || msg.contains("Please try again") {
                 return msg
             }
@@ -33,6 +36,7 @@ enum FriendlyErrorMessage {
             if msg.contains("500") || msg.contains("server") || msg.contains("FUNCTION_INVOCATION") {
                 return "Something went wrong. Please try again."
             }
+            return msg
         }
         let ns = error as NSError
         if ns.domain == NSURLErrorDomain {

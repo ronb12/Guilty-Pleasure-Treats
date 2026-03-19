@@ -58,6 +58,8 @@ struct Order: Identifiable, Codable, Equatable {
     var customCakeOrderIds: [String]?
     /// Document IDs of AI cake designs included in this order.
     var aiCakeDesignIds: [String]?
+    /// Sent to API when a promo discount is applied (server validates).
+    var promoCode: String? = nil
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -80,6 +82,7 @@ struct Order: Identifiable, Codable, Equatable {
         case estimatedReadyTime
         case customCakeOrderIds
         case aiCakeDesignIds
+        case promoCode
     }
     
     /// True if order was paid via Stripe or marked paid manually.
