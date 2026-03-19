@@ -196,11 +196,14 @@ struct LoginView: View {
     private var appleSignInSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             SignInWithAppleButton(.signIn) { request in
+                errorMessage = nil
                 currentNonce = randomNonceString()
                 request.requestedScopes = [.fullName, .email]
                 request.nonce = sha256(currentNonce!)
             } onCompletion: { result in
-                Task { await handleSignInWithApple(result) }
+                Task { @MainActor in
+                    await handleSignInWithApple(result)
+                }
             }
             .signInWithAppleButtonStyle(.black)
             .frame(height: 52)
@@ -227,6 +230,7 @@ struct LoginView: View {
         .font(.subheadline)
     }
     
+    @MainActor
     private func handleSignInWithApple(_ result: Result<ASAuthorization, Error>) async {
         switch result {
         case .success(let authorization):
@@ -239,8 +243,10 @@ struct LoginView: View {
                 errorMessage = msg
                 return
             }
+            errorMessage = nil
             do {
                 try await auth.signInWithApple(idToken: idToken, rawNonce: rawNonce, fullName: appleIDCredential.fullName)
+                errorMessage = nil
                 dismiss()
             } catch {
                 debugLog("[Auth] Sign in with Apple error: \(error)")

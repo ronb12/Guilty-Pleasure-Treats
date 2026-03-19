@@ -37,7 +37,11 @@ struct NotificationCenterView: View {
                             }
                         }
                     }
+                    #if os(iOS)
                     .listStyle(.insetGrouped)
+                    #else
+                    .listStyle(.inset)
+                    #endif
                 }
             }
             .background(AppConstants.Colors.secondary)

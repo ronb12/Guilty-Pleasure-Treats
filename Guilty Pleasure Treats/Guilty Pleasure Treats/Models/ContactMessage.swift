@@ -39,11 +39,9 @@ struct ContactMessage: Identifiable, Codable, Equatable {
         return oid
     }
 
-    /// Short reference for list rows and badges (first 8 hex chars of UUID, uppercase).
+    /// Brand-facing order code for list rows and badges (e.g. GPT-A1B2C3D4).
     var orderReferenceShort: String? {
         guard let oid = linkedOrderId else { return nil }
-        let compact = oid.replacingOccurrences(of: "-", with: "")
-        guard compact.count >= 8 else { return oid }
-        return String(compact.prefix(8)).uppercased()
+        return OrderReference.displayCode(from: oid)
     }
 }

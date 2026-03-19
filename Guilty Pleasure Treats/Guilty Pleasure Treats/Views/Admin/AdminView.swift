@@ -22,6 +22,26 @@ private func adminTabTitle(_ full: String, short: String) -> String {
     #endif
 }
 
+#if os(macOS)
+/// Labels for the scrollable admin tab strip (order must match `TabView` tags 0…13 on iOS).
+private let macOSAdminTabBarItems: [(title: String, icon: String)] = [
+    ("Products", "list.bullet"),
+    ("Cats", "folder.fill"),
+    ("Orders", "doc.text"),
+    ("Cust", "person.2"),
+    ("Promos", "tag"),
+    ("Cake", "birthday.cake"),
+    ("Stats", "chart.bar"),
+    ("Reviews", "star.fill"),
+    ("Events", "calendar"),
+    ("Margin", "percent"),
+    ("Msgs", "envelope.badge"),
+    ("Settings", "gearshape"),
+    ("Gallery", "photo.on.rectangle.angled"),
+    ("Stock", "shippingbox.fill"),
+]
+#endif
+
 struct AdminView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var auth = AuthService.shared
@@ -78,59 +98,81 @@ struct AdminView: View {
                         .buttonStyle(.plain)
                     }
 
+                    #if os(iOS)
                     TabView(selection: $selectedTab) {
-                        AdminProductsView(viewModel: viewModel)
+                        adminTabPage(tag: 0)
                             .tabItem { Label(adminTabTitle("Products", short: "Products"), systemImage: "list.bullet") }
                             .tag(0)
-                        AdminCategoriesView(viewModel: viewModel)
+                        adminTabPage(tag: 1)
                             .tabItem { Label(adminTabTitle("Categories", short: "Cats"), systemImage: "folder.fill") }
                             .tag(1)
-                        AdminOrdersView(viewModel: viewModel)
+                        adminTabPage(tag: 2)
                             .tabItem { Label(adminTabTitle("Orders", short: "Orders"), systemImage: "doc.text") }
                             .tag(2)
-                        AdminCustomersView(viewModel: viewModel)
+                        adminTabPage(tag: 3)
                             .tabItem { Label(adminTabTitle("Customers", short: "Cust"), systemImage: "person.2") }
                             .tag(3)
-                        AdminPromotionsView(viewModel: viewModel)
+                        adminTabPage(tag: 4)
                             .tabItem { Label(adminTabTitle("Promos", short: "Promos"), systemImage: "tag") }
                             .tag(4)
-                        AdminCustomCakeOptionsView(viewModel: viewModel)
+                        adminTabPage(tag: 5)
                             .tabItem { Label(adminTabTitle("Cake Options", short: "Cake"), systemImage: "birthday.cake") }
                             .tag(5)
-                        AdminAnalyticsView(viewModel: viewModel)
+                        adminTabPage(tag: 6)
                             .tabItem { Label(adminTabTitle("Analytics", short: "Stats"), systemImage: "chart.bar") }
                             .tag(6)
-                        AdminReviewsView(viewModel: viewModel)
+                        adminTabPage(tag: 7)
                             .tabItem { Label(adminTabTitle("Reviews", short: "Reviews"), systemImage: "star.fill") }
                             .tag(7)
-                        AdminEventsView(viewModel: viewModel)
+                        adminTabPage(tag: 8)
                             .tabItem { Label(adminTabTitle("Events", short: "Events"), systemImage: "calendar") }
                             .tag(8)
-                        AdminMarginsView(viewModel: viewModel)
+                        adminTabPage(tag: 9)
                             .tabItem { Label(adminTabTitle("Margins", short: "Margin"), systemImage: "percent") }
                             .tag(9)
-                        AdminContactMessagesView(
-                            viewModel: viewModel,
-                            onViewOrderFromMessage: { orderId in
-                                viewModel.pendingOrderIdToOpen = orderId
-                                selectedTab = 2
-                            }
-                        )
+                        adminTabPage(tag: 10)
                             .tabItem { Label(adminTabTitle("Messages", short: "Msgs"), systemImage: "envelope.badge") }
                             .tag(10)
-                        AdminSettingsView(viewModel: viewModel)
+                        adminTabPage(tag: 11)
                             .tabItem { Label(adminTabTitle("Settings", short: "Settings"), systemImage: "gearshape") }
                             .tag(11)
-                        AdminCakeGalleryView(viewModel: viewModel)
+                        adminTabPage(tag: 12)
                             .tabItem { Label(adminTabTitle("Gallery", short: "Gallery"), systemImage: "photo.on.rectangle.angled") }
                             .tag(12)
-                        AdminInventoryView(viewModel: viewModel)
+                        adminTabPage(tag: 13)
                             .tabItem { Label(adminTabTitle("Inventory", short: "Stock"), systemImage: "shippingbox.fill") }
                             .tag(13)
                     }
+                    #else
+                    ScrollView(.horizontal, showsIndicators: true) {
+                        HStack(spacing: 8) {
+                            ForEach(Array(macOSAdminTabBarItems.enumerated()), id: \.offset) { index, item in
+                                Button {
+                                    selectedTab = index
+                                } label: {
+                                    Label(item.title, systemImage: item.icon)
+                                        .labelStyle(.titleAndIcon)
+                                        .font(.caption.weight(.medium))
+                                        .lineLimit(1)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .tint(selectedTab == index ? AppConstants.Colors.accent : .secondary)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .background(AppConstants.Colors.cardBackground)
+                    Divider()
+                        .background(AppConstants.Colors.textSecondary.opacity(0.3))
+                    adminTabPage(tag: selectedTab)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .macOSConstrainedContent()
+                    #endif
                 }
                 #if os(macOS)
-                .macOSConstrainedContent()
                 .macOSSheetTopPadding()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(AppConstants.Colors.secondary)
@@ -155,6 +197,34 @@ struct AdminView: View {
                     }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func adminTabPage(tag: Int) -> some View {
+        switch tag {
+        case 0: AdminProductsView(viewModel: viewModel)
+        case 1: AdminCategoriesView(viewModel: viewModel)
+        case 2: AdminOrdersView(viewModel: viewModel)
+        case 3: AdminCustomersView(viewModel: viewModel)
+        case 4: AdminPromotionsView(viewModel: viewModel)
+        case 5: AdminCustomCakeOptionsView(viewModel: viewModel)
+        case 6: AdminAnalyticsView(viewModel: viewModel)
+        case 7: AdminReviewsView(viewModel: viewModel)
+        case 8: AdminEventsView(viewModel: viewModel)
+        case 9: AdminMarginsView(viewModel: viewModel)
+        case 10:
+            AdminContactMessagesView(
+                viewModel: viewModel,
+                onViewOrderFromMessage: { orderId in
+                    viewModel.pendingOrderIdToOpen = orderId
+                    selectedTab = 2
+                }
+            )
+        case 11: AdminSettingsView(viewModel: viewModel)
+        case 12: AdminCakeGalleryView(viewModel: viewModel)
+        case 13: AdminInventoryView(viewModel: viewModel)
+        default: EmptyView()
         }
     }
 
@@ -262,8 +332,8 @@ struct AdminProductsView: View {
 struct AdminCategoriesView: View {
     @ObservedObject var viewModel: AdminViewModel
     @State private var showAddCategory = false
+    /// Use `sheet(item:)` (not `isPresented` + optional) so macOS always builds sheet content with a real category — otherwise the sheet can open empty.
     @State private var editingCategory: ProductCategoryItem?
-    @State private var showEditCategory = false
     @State private var categoryToDelete: ProductCategoryItem?
     
     var body: some View {
@@ -292,7 +362,6 @@ struct AdminCategoriesView: View {
                             .foregroundStyle(AppConstants.Colors.textSecondary)
                         Button("Edit") {
                             editingCategory = item
-                            showEditCategory = true
                         }
                             .foregroundStyle(AppConstants.Colors.accent)
                             .buttonStyle(.borderless)
@@ -316,16 +385,12 @@ struct AdminCategoriesView: View {
                 }
                 .macOSAdminSheetSize()
             }
-            .sheet(isPresented: $showEditCategory, onDismiss: {
-                editingCategory = nil
-            }) {
-                if let item = editingCategory {
-                    EditCategorySheet(viewModel: viewModel, item: item) {
-                        showEditCategory = false
-                        editingCategory = nil
-                    }
-                    .macOSAdminSheetSize()
+            .sheet(item: $editingCategory) { item in
+                EditCategorySheet(viewModel: viewModel, item: item) {
+                    editingCategory = nil
                 }
+                .id(item.id)
+                .macOSAdminSheetSize()
             }
             .alert("Delete category?", isPresented: Binding(get: { categoryToDelete != nil }, set: { if !$0 { categoryToDelete = nil } })) {
                 Button("Cancel", role: .cancel) { categoryToDelete = nil }
@@ -395,6 +460,7 @@ struct AddCategorySheet: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .macOSCompactFormContent()
+            .macOSGroupedFormStyle()
             .navigationTitle("New Category")
             .inlineNavigationTitle()
             .onAppear {
@@ -450,6 +516,7 @@ struct EditCategorySheet: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .macOSCompactFormContent()
+            .macOSGroupedFormStyle()
             .navigationTitle("Edit Category")
             .inlineNavigationTitle()
             .onAppear {
@@ -616,6 +683,7 @@ struct AddProductView: View {
             }
             .frame(maxWidth: .infinity)
             .macOSCompactFormContent()
+            .macOSGroupedFormStyle()
             .navigationTitle("New Product")
             .inlineNavigationTitle()
             .toolbar {
@@ -778,6 +846,7 @@ struct EditProductView: View {
             }
             .frame(maxWidth: .infinity)
             .macOSCompactFormContent()
+            .macOSGroupedFormStyle()
             .navigationTitle("Edit Product")
             .inlineNavigationTitle()
             .toolbar {
@@ -1398,7 +1467,7 @@ struct AddManualOrderSheet: View {
             orderSectionLabel("Address (optional)")
             orderLabeledField("Street address", placeholder: "123 Main St", text: $street)
             orderLabeledField("Apt, suite, unit", placeholder: "Apt 4", text: $addressLine2)
-            HStack(spacing: 12) {
+            Group {
                 orderLabeledField("City", placeholder: "City", text: $city)
                 orderLabeledField("State", placeholder: "State", text: $state)
             }
@@ -1455,9 +1524,9 @@ struct AddManualOrderSheet: View {
                             .buttonStyle(.borderless)
                         }
                     }
-                    HStack(spacing: 12) {
+                    HStack(alignment: .top, spacing: 16) {
                         orderLabeledField("Price", placeholder: "0.00", text: $lineItems[index].priceText)
-                            .frame(maxWidth: .infinity)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         VStack(alignment: .leading, spacing: 6) {
                             Text("Qty")
                                 .font(.caption)
@@ -1465,8 +1534,9 @@ struct AddManualOrderSheet: View {
                                 .foregroundStyle(AppConstants.Colors.textSecondary)
                             TextField("", value: $lineItems[index].quantity, format: .number)
                                 .textFieldStyle(.roundedBorder)
-                                .frame(width: 56)
+                                .frame(minWidth: 64, alignment: .leading)
                         }
+                        .fixedSize(horizontal: true, vertical: false)
                     }
                     orderLabeledField("Notes (optional)", placeholder: "Optional notes", text: $lineItems[index].notes)
                         .font(.caption)
@@ -2362,11 +2432,11 @@ struct AdminPromotionsView: View {
             }
             .sheet(isPresented: $showAddPromo) {
                 AddPromotionView(viewModel: viewModel)
-                    .macOSAdminSheetSize()
+                    .macOSAdminSheetSizeForm()
             }
             .sheet(item: $editingPromo) { p in
                 EditPromotionView(promotion: p, viewModel: viewModel)
-                    .macOSAdminSheetSize()
+                    .macOSAdminSheetSizeForm()
             }
         }
     }
@@ -2413,8 +2483,9 @@ struct AddPromotionView: View {
                     Text("Active")
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .macOSCompactFormContent()
+            .macOSGroupedFormStyle()
             .navigationTitle("New Promotion")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -2486,8 +2557,9 @@ struct EditPromotionView: View {
                     Text("Active")
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .macOSCompactFormContent()
+            .macOSGroupedFormStyle()
             .navigationTitle("Edit Promotion")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -2779,6 +2851,8 @@ struct AdminCakeSizeEditSheet: View {
                     .keyboardType(.decimalPad)
                     #endif
             }
+            .macOSGroupedFormStyle()
+            .macOSEditSheetPadding()
             .navigationTitle(size == nil ? "Add size" : "Edit size")
             .inlineNavigationTitle()
             .onAppear {
@@ -2816,6 +2890,8 @@ struct AdminCakeToppingEditSheet: View {
                     .keyboardType(.decimalPad)
                     #endif
             }
+            .macOSGroupedFormStyle()
+            .macOSEditSheetPadding()
             .navigationTitle(topping == nil ? "Add topping" : "Edit topping")
             .inlineNavigationTitle()
             .onAppear {
@@ -2849,6 +2925,8 @@ struct AdminCakeOptionEditSheet: View {
             Form {
                 TextField("Label", text: $text)
             }
+            .macOSGroupedFormStyle()
+            .macOSEditSheetPadding()
             .navigationTitle(title)
             .inlineNavigationTitle()
             .onAppear { text = label }
@@ -3320,48 +3398,57 @@ struct AdminReviewsView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
+            List {
                 if viewModel.reviews.isEmpty {
-                    ContentUnavailableView {
-                        Label("No reviews yet", systemImage: "star.fill")
-                    } description: {
-                        Text("Customer reviews will appear here.")
+                    // `ContentUnavailableView` centers in the full height on macOS → huge gap under the tab bar; keep empty state in a `List` so it aligns to the top like other admin tabs.
+                    Section {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Label("No reviews yet", systemImage: "star.fill")
+                                .font(.headline)
+                                .foregroundStyle(AppConstants.Colors.textPrimary)
+                            Text("Customer reviews will appear here.")
+                                .font(.subheadline)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
+                        .listRowBackground(Color.clear)
                     }
                 } else {
-                    List {
-                        ForEach(viewModel.reviews) { review in
-                            VStack(alignment: .leading, spacing: 6) {
-                                if let rating = review.rating, rating > 0 {
-                                    HStack(spacing: 2) {
-                                        ForEach(0..<min(rating, 5), id: \.self) { _ in
-                                            Image(systemName: "star.fill")
-                                                .font(.subheadline)
-                                                .foregroundStyle(AppConstants.Colors.accent)
-                                        }
+                    ForEach(viewModel.reviews) { review in
+                        VStack(alignment: .leading, spacing: 6) {
+                            if let rating = review.rating, rating > 0 {
+                                HStack(spacing: 2) {
+                                    ForEach(0..<min(rating, 5), id: \.self) { _ in
+                                        Image(systemName: "star.fill")
+                                            .font(.subheadline)
+                                            .foregroundStyle(AppConstants.Colors.accent)
                                     }
                                 }
-                                if let text = review.text, !text.isEmpty {
-                                    Text(text)
-                                        .font(.body)
-                                        .foregroundStyle(AppConstants.Colors.textPrimary)
-                                }
-                                if let name = review.authorName, !name.isEmpty {
-                                    Text("— \(name)")
-                                        .font(.caption)
-                                        .foregroundStyle(AppConstants.Colors.textSecondary)
-                                }
-                                if let productId = review.productId, !productId.isEmpty {
-                                    Text("Product: \(productId)")
-                                        .font(.caption2)
-                                        .foregroundStyle(AppConstants.Colors.textSecondary)
-                                }
                             }
-                            .padding(.vertical, 8)
+                            if let text = review.text, !text.isEmpty {
+                                Text(text)
+                                    .font(.body)
+                                    .foregroundStyle(AppConstants.Colors.textPrimary)
+                            }
+                            if let name = review.authorName, !name.isEmpty {
+                                Text("— \(name)")
+                                    .font(.caption)
+                                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                            }
+                            if let productId = review.productId, !productId.isEmpty {
+                                Text("Product: \(productId)")
+                                    .font(.caption2)
+                                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                            }
                         }
+                        .padding(.vertical, 8)
                     }
                 }
             }
             .navigationTitle("Reviews")
+            .inlineNavigationTitle()
             .refreshable { await viewModel.loadReviews() }
         }
     }
@@ -3372,61 +3459,88 @@ struct AdminEventsView: View {
     @State private var showAddEvent = false
     @State private var eventToEdit: Event?
 
+    private func presentNewEventSheet() {
+        eventToEdit = nil
+        showAddEvent = true
+    }
+
     var body: some View {
         NavigationStack {
-            Group {
+            List {
                 if viewModel.events.isEmpty {
-                    ContentUnavailableView {
-                        Label("No events yet", systemImage: "calendar")
-                    } description: {
-                        Text("Events (tastings, pop-ups) will appear here. Tap Add to create one; customers will be notified.")
+                    Section {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Label("No events yet", systemImage: "calendar")
+                                .font(.headline)
+                                .foregroundStyle(AppConstants.Colors.textPrimary)
+                            Text("Events (tastings, pop-ups) will appear here. Add one to notify customers.")
+                                .font(.subheadline)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button(action: presentNewEventSheet) {
+                                Label("Add event", systemImage: "plus.circle.fill")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.regular)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
+                        .listRowBackground(Color.clear)
                     }
                 } else {
-                    List {
-                        ForEach(viewModel.events) { event in
-                            Button {
-                                eventToEdit = event
-                            } label: {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text(event.title)
-                                        .font(.headline)
-                                        .foregroundStyle(AppConstants.Colors.textPrimary)
-                                    if let desc = event.eventDescription, !desc.isEmpty {
-                                        Text(desc)
-                                            .font(.subheadline)
-                                            .foregroundStyle(AppConstants.Colors.textSecondary)
-                                            .lineLimit(2)
-                                    }
-                                    if let start = event.startAt {
-                                        Label(start.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
-                                            .font(.caption)
-                                            .foregroundStyle(AppConstants.Colors.textSecondary)
-                                    }
-                                    if let loc = event.location, !loc.isEmpty {
-                                        Label(loc, systemImage: "mappin.circle")
-                                            .font(.caption)
-                                            .foregroundStyle(AppConstants.Colors.textSecondary)
-                                    }
+                    #if os(macOS)
+                    Section {
+                        Button(action: presentNewEventSheet) {
+                            Label("Add event", systemImage: "plus.circle.fill")
+                                .font(.body)
+                                .foregroundStyle(AppConstants.Colors.accent)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    #endif
+                    ForEach(viewModel.events) { event in
+                        Button {
+                            eventToEdit = event
+                        } label: {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(event.title)
+                                    .font(.headline)
+                                    .foregroundStyle(AppConstants.Colors.textPrimary)
+                                if let desc = event.eventDescription, !desc.isEmpty {
+                                    Text(desc)
+                                        .font(.subheadline)
+                                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                                        .lineLimit(2)
                                 }
-                                .padding(.vertical, 4)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                                if let start = event.startAt {
+                                    Label(start.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
+                                        .font(.caption)
+                                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                                }
+                                if let loc = event.location, !loc.isEmpty {
+                                    Label(loc, systemImage: "mappin.circle")
+                                        .font(.caption)
+                                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                                }
                             }
-                            .buttonStyle(.plain)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button(role: .destructive) {
-                                    Task { await viewModel.deleteEvent(id: event.id) }
-                                } label: { Label("Delete", systemImage: "trash") }
-                            }
+                            .padding(.vertical, 4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                Task { await viewModel.deleteEvent(id: event.id) }
+                            } label: { Label("Delete", systemImage: "trash") }
                         }
                     }
                 }
             }
             .navigationTitle("Events")
+            .inlineNavigationTitle()
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button("Add") {
-                        eventToEdit = nil
-                        showAddEvent = true
+                ToolbarItem(placement: toolbarTrailingPlacement) {
+                    Button(action: presentNewEventSheet) {
+                        Label("Add", systemImage: "plus.circle.fill")
                     }
                     .foregroundStyle(AppConstants.Colors.accent)
                 }
@@ -3496,7 +3610,13 @@ private struct AdminEventFormSheet: View {
                 }
                 Section("Description (optional)") {
                     TextEditor(text: $eventDescription)
-                        .frame(minHeight: 60)
+                        .frame(minHeight: 72)
+                        #if os(macOS)
+                        .scrollContentBackground(.hidden)
+                        .padding(4)
+                        .background(Color(nsColor: .textBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        #endif
                 }
                 Section("Start date & time") {
                     Toggle("Set start", isOn: $useStartDate)
@@ -3547,6 +3667,8 @@ private struct AdminEventFormSheet: View {
                     }
                 }
             }
+            .macOSGroupedFormStyle()
+            .macOSEditSheetPadding()
             .navigationTitle(event == nil ? "New event" : "Edit event")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -3631,78 +3753,91 @@ struct AdminContactMessagesView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
+            List {
                 if viewModel.contactMessages.isEmpty {
-                    #if os(macOS)
-                    VStack(alignment: .leading, spacing: 0) {
-                        ContentUnavailableView(
-                            "No messages",
-                            systemImage: "envelope.open",
-                            description: Text("Contact form submissions from the app will appear here.")
-                        )
-                        .frame(maxWidth: .infinity, alignment: .top)
-                        Spacer(minLength: 0)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    #else
-                    ContentUnavailableView(
-                        "No messages",
-                        systemImage: "envelope.open",
-                        description: Text("Contact form submissions from the app will appear here.")
-                    )
-                    #endif
-                } else {
-                    List {
-                        ForEach(viewModel.contactMessages) { msg in
+                    Section {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Label("No messages", systemImage: "envelope.open")
+                                .font(.headline)
+                                .foregroundStyle(AppConstants.Colors.textPrimary)
+                            Text("Contact form submissions from the app will appear here.")
+                                .font(.subheadline)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
                             Button {
-                                selectedMessage = msg
-                                if msg.readAt == nil {
-                                    Task { await viewModel.markContactMessageRead(msg) }
-                                }
+                                showSendMessageSheet = true
                             } label: {
-                                HStack(alignment: .top) {
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(msg.email)
-                                            .font(.subheadline.weight(.medium))
-                                            .foregroundStyle(AppConstants.Colors.textPrimary)
-                                        if let sub = msg.subject, !sub.isEmpty {
-                                            Text(sub)
-                                                .font(.caption)
-                                                .foregroundStyle(AppConstants.Colors.textSecondary)
-                                                .lineLimit(1)
-                                        }
-                                        if let short = msg.orderReferenceShort, let full = msg.linkedOrderId {
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Label("Order #\(short)", systemImage: "number.square.fill")
-                                                    .font(.caption.weight(.semibold))
-                                                    .foregroundStyle(AppConstants.Colors.accent)
-                                                Text(full)
-                                                    .font(.caption2)
-                                                    .monospaced()
-                                                    .foregroundStyle(AppConstants.Colors.textSecondary)
-                                                    .lineLimit(2)
-                                                    .minimumScaleFactor(0.85)
-                                                    .textSelection(.enabled)
-                                            }
-                                            .accessibilityElement(children: .combine)
-                                            .accessibilityLabel("Linked order, reference \(short), full identifier \(full)")
-                                        }
-                                        Text(msg.message)
+                                Label("Send message to customers", systemImage: "paperplane.fill")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.regular)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
+                        .listRowBackground(Color.clear)
+                    }
+                } else {
+                    #if os(macOS)
+                    Section {
+                        Button {
+                            showSendMessageSheet = true
+                        } label: {
+                            Label("Send message", systemImage: "paperplane.fill")
+                                .font(.body)
+                                .foregroundStyle(AppConstants.Colors.accent)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    #endif
+                    ForEach(viewModel.contactMessages) { msg in
+                        Button {
+                            selectedMessage = msg
+                            if msg.readAt == nil {
+                                Task { await viewModel.markContactMessageRead(msg) }
+                            }
+                        } label: {
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(msg.email)
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundStyle(AppConstants.Colors.textPrimary)
+                                    if let sub = msg.subject, !sub.isEmpty {
+                                        Text(sub)
                                             .font(.caption)
                                             .foregroundStyle(AppConstants.Colors.textSecondary)
-                                            .lineLimit(2)
+                                            .lineLimit(1)
                                     }
-                                    Spacer()
-                                    if msg.readAt == nil {
-                                        Circle()
-                                            .fill(AppConstants.Colors.accent)
-                                            .frame(width: 8, height: 8)
+                                    if let short = msg.orderReferenceShort, let full = msg.linkedOrderId {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Label(short, systemImage: "number.square.fill")
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(AppConstants.Colors.accent)
+                                            Text(full)
+                                                .font(.caption2)
+                                                .monospaced()
+                                                .foregroundStyle(AppConstants.Colors.textSecondary)
+                                                .lineLimit(2)
+                                                .minimumScaleFactor(0.85)
+                                                .textSelection(.enabled)
+                                        }
+                                        .accessibilityElement(children: .combine)
+                                        .accessibilityLabel("Linked order, reference \(short), full identifier \(full)")
                                     }
-                                    if let created = msg.createdAt {
-                                        Text(created.shortDateString)
-                                            .font(.caption2)
-                                            .foregroundStyle(AppConstants.Colors.textSecondary)
-                                    }
+                                    Text(msg.message)
+                                        .font(.caption)
+                                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                                        .lineLimit(2)
+                                }
+                                Spacer()
+                                if msg.readAt == nil {
+                                    Circle()
+                                        .fill(AppConstants.Colors.accent)
+                                        .frame(width: 8, height: 8)
+                                }
+                                if let created = msg.createdAt {
+                                    Text(created.shortDateString)
+                                        .font(.caption2)
+                                        .foregroundStyle(AppConstants.Colors.textSecondary)
                                 }
                             }
                         }
@@ -3710,15 +3845,9 @@ struct AdminContactMessagesView: View {
                 }
             }
             .navigationTitle("Messages")
+            .inlineNavigationTitle()
             .toolbar {
-                #if os(macOS)
-                ToolbarItem(placement: .principal) {
-                    Text("Messages")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                #endif
-                ToolbarItem(placement: .primaryAction) {
+                ToolbarItem(placement: toolbarTrailingPlacement) {
                     Button {
                         showSendMessageSheet = true
                     } label: {
@@ -3748,7 +3877,7 @@ struct AdminContactMessagesView: View {
                     viewModel: viewModel,
                     onDismiss: { showSendMessageSheet = false }
                 )
-                .macOSAdminSheetSize()
+                .macOSAdminSheetSizeForm()
             }
         }
     }
@@ -3775,46 +3904,153 @@ struct SendAdminMessageSheet: View {
     @State private var isSending = false
     @FocusState private var bodyFocused: Bool
 
+    private var recipientFieldPlaceholder: String {
+        #if os(macOS)
+        "Email, user ID, or leave blank for everyone"
+        #else
+        "Email or user ID (leave blank for all customers)"
+        #endif
+    }
+
+    private var canSend: Bool {
+        !bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSending
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    TextField("Email or user ID (leave blank for all customers)", text: $recipient)
-                        .textContentType(.emailAddress)
-                        .autocapitalization(.none)
-                        .keyboardType(.emailAddress)
-                } header: {
-                    Text("Recipient")
-                } footer: {
-                    Text("Leave blank to send to all customers. Enter an email or user ID to send to one person.")
+            Group {
+                #if os(macOS)
+                sendMessageFormMacOS
+                #else
+                Form {
+                    Section {
+                        TextField(recipientFieldPlaceholder, text: $recipient)
+                            .textContentType(.emailAddress)
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.emailAddress)
+                    } header: {
+                        Text("Recipient")
+                    } footer: {
+                        Text("Leave blank to send to all customers. Enter an email or user ID to send to one person.")
+                    }
+                    Section {
+                        TextField("Message", text: $bodyText, axis: .vertical)
+                            .lineLimit(4...12)
+                            .focused($bodyFocused)
+                    } header: {
+                        Text("Message")
+                    }
                 }
-                Section {
-                    TextField("Message", text: $bodyText, axis: .vertical)
-                        .lineLimit(4...12)
-                        .focused($bodyFocused)
-                } header: {
-                    Text("Message")
-                }
+                .macOSGroupedFormStyle()
+                .macOSEditSheetPadding()
+                #endif
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .navigationTitle("Send message")
-            .navigationBarTitleDisplayMode(.inline)
+            .inlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         onDismiss()
                         dismiss()
                     }
+                    .disabled(isSending)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Send") {
-                        sendMessage()
+                    if isSending {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Button("Send") {
+                            sendMessage()
+                        }
+                        .disabled(!canSend)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(canSend ? AppConstants.Colors.accent : Color.secondary)
                     }
-                    .disabled(bodyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSending)
                 }
             }
             .onAppear { bodyFocused = true }
         }
     }
+
+    #if os(macOS)
+    @ViewBuilder
+    private var sendMessageFormMacOS: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Recipient")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppConstants.Colors.textPrimary)
+                    TextField(recipientFieldPlaceholder, text: $recipient)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.body)
+                        .controlSize(.large)
+                    Text("Leave blank to notify all signed-in customers. Enter one email or user ID to message a single person.")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(AppConstants.Colors.cardBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Message")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(AppConstants.Colors.textPrimary)
+                    ZStack(alignment: .topLeading) {
+                        TextEditor(text: $bodyText)
+                            .font(.body)
+                            .focused($bodyFocused)
+                            .scrollContentBackground(.hidden)
+                            .frame(minHeight: 220)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                        if bodyText.isEmpty {
+                            Text("Write your message here…")
+                                .font(.body)
+                                .foregroundStyle(.tertiary)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 14)
+                                .allowsHitTesting(false)
+                        }
+                    }
+                    .background(Color(nsColor: .textBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(Color(nsColor: .separatorColor).opacity(0.9), lineWidth: 1)
+                    )
+                    Text("This is sent as an in-app notification to customers.")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(AppConstants.Colors.cardBackground)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 4)
+            .padding(.bottom, 16)
+        }
+    }
+    #endif
 
     private func sendMessage() {
         let trimmed = bodyText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -3880,7 +4116,7 @@ struct ContactMessageDetailSheet: View {
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(AppConstants.Colors.textPrimary)
                             if let short = message.orderReferenceShort {
-                                Text("Reference #\(short) — use this to match the customer’s picker or a short mention in email.")
+                                Text("Reference \(short) — use this to match the customer’s picker or a short mention in email.")
                                     .font(.caption)
                                     .foregroundStyle(AppConstants.Colors.textSecondary)
                             }
@@ -4004,7 +4240,7 @@ struct ContactMessageDetailSheet: View {
             bodyParts.append("ORDER REFERENCE (use in Admin → Orders search / filter):")
             bodyParts.append(oid)
             if let short = message.orderReferenceShort {
-                bodyParts.append("Short ref: #\(short)")
+                bodyParts.append("Short ref: \(short)")
             }
         }
         bodyParts.append("")
@@ -4733,6 +4969,8 @@ struct AddGalleryCakeSheet: View {
                     #endif
                 }
             }
+            .macOSGroupedFormStyle()
+            .macOSEditSheetPadding()
             .navigationTitle("Add to gallery")
             .inlineNavigationTitle()
             .toolbar {
@@ -4903,6 +5141,8 @@ struct EditGalleryCakeSheet: View {
                     #endif
                 }
             }
+            .macOSGroupedFormStyle()
+            .macOSEditSheetPadding()
             .navigationTitle("Edit gallery item")
             .inlineNavigationTitle()
             .onAppear {

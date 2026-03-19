@@ -34,6 +34,8 @@ async function main() {
     `;
     await sql`CREATE INDEX IF NOT EXISTS idx_users_email ON users(LOWER(email))`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_sub TEXT`;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_apple_sub ON users(apple_sub) WHERE apple_sub IS NOT NULL`;
     console.log('users OK');
 
     // sessions (local auth after login)

@@ -24,6 +24,18 @@ function getClient() {
 
 let cachedClient = null;
 
+/** Human-facing order code (matches app: GPT- + first 8 hex chars of UUID). */
+export function orderDisplayCode(orderId) {
+  if (!orderId) return '';
+  const s = String(orderId).trim();
+  const compact = s.replace(/-/g, '');
+  const eight =
+    compact.length >= 8
+      ? compact.slice(0, 8).toUpperCase()
+      : s.replace(/-/g, '').slice(0, 12).toUpperCase() || s;
+  return `GPT-${eight}`;
+}
+
 /**
  * Send a push notification to one device token.
  * @param {string} deviceToken - Hex string (e.g. from iOS deviceToken)
@@ -59,9 +71,10 @@ export async function sendPushNotification(deviceToken, title, body, data = {}) 
 export async function notifyNewOrder(deviceTokens, orderId, customerName, total) {
   if (!Array.isArray(deviceTokens) || deviceTokens.length === 0) return;
   const title = 'New order';
+  const code = orderDisplayCode(orderId);
   const body = customerName
-    ? `${customerName} – $${Number(total).toFixed(2)}`
-    : `Order #${(orderId || '').slice(-8)} – $${Number(total).toFixed(2)}`;
+    ? `${customerName} · ${code} – $${Number(total).toFixed(2)}`
+    : `${code} – $${Number(total).toFixed(2)}`;
   const data = { type: 'new_order', orderId: orderId || '' };
   const client = cachedClient ?? getClient();
   if (!client) return;
@@ -102,8 +115,7 @@ export async function notifyNewMessage(deviceTokens, messageId, fromName, subjec
     ? (subjectOrPreview ? `${fromName}: ${subjectOrPreview}` : fromName)
     : (subjectOrPreview || 'Customer sent you a message');
   const oid = orderId && String(orderId).trim() ? String(orderId).trim() : '';
-  const orderShort = oid ? String(oid.replace(/-/g, '')).slice(0, 8).toUpperCase() : '';
-  if (orderShort) body = `${body} · Order #${orderShort}`;
+  if (oid) body = `${body} · ${orderDisplayCode(oid)}`;
   const data = { type: 'new_message', messageId: messageId || '', orderId: oid };
   const client = cachedClient ?? getClient();
   if (!client) return;

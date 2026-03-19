@@ -46,7 +46,7 @@ struct OrderDetailView: View {
         let name = order.customerName.trimmingCharacters(in: .whitespaces)
         if !name.isEmpty { return "Order · \(name)" }
         if let id = order.id, !id.isEmpty {
-            return "Order #\(id.prefix(8))"
+            return "Order \(OrderReference.displayCode(from: id))"
         }
         return "Order details"
     }
@@ -85,7 +85,7 @@ struct OrderDetailView: View {
         }
         .sheet(isPresented: $showCancelRequestSheet) {
             ContactView(
-                initialSubject: order.id.map { "Cancel order #\($0.prefix(8))" },
+                initialSubject: order.id.map { "Cancel order \(OrderReference.displayCode(from: $0))" },
                 initialMessage: "I would like to cancel this order. Please confirm."
             )
         }
@@ -143,7 +143,13 @@ struct OrderDetailView: View {
                     .overlay(Group {
                         if reviewText.isEmpty {
                             Text("Add a comment (optional)")
-                                .foregroundStyle(Color(.placeholderText))
+                                #if os(iOS)
+                                .foregroundStyle(Color(uiColor: .placeholderText))
+                                #elseif os(macOS)
+                                .foregroundStyle(Color(nsColor: .placeholderTextColor))
+                                #else
+                                .foregroundStyle(.secondary)
+                                #endif
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -237,7 +243,7 @@ struct OrderDetailView: View {
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(order.id.map { "Order #\($0.prefix(8))" } ?? "Sample order")
+                Text(order.id.map { OrderReference.displayCode(from: $0) } ?? "Sample order")
                     .font(.headline)
                     .foregroundStyle(AppConstants.Colors.textPrimary)
                 Spacer()

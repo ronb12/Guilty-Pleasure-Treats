@@ -47,9 +47,9 @@ struct OrderConfirmationView: View {
                 
                 VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text("Order #")
+                        Text("Order")
                         Spacer()
-                        Text(orderId.prefix(8))
+                        Text(OrderReference.displayCode(from: orderId))
                             .fontWeight(.medium)
                     }
                     .font(.subheadline)

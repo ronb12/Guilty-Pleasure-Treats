@@ -50,7 +50,7 @@ struct AICakeDesignOrderDetailView: View {
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(order.id.map { "Gallery order #\($0.prefix(8))" } ?? "Gallery order")
+                Text(order.id.map { "Gallery order \(OrderReference.displayCode(from: $0))" } ?? "Gallery order")
                     .font(.headline)
                     .foregroundStyle(AppConstants.Colors.textPrimary)
                 Spacer()
@@ -61,7 +61,7 @@ struct AICakeDesignOrderDetailView: View {
                     .foregroundStyle(AppConstants.Colors.textSecondary)
             }
             if let orderId = order.orderId, !orderId.isEmpty {
-                Text("Main order: #\(orderId.prefix(8))")
+                Text("Main order: \(OrderReference.displayCode(from: orderId))")
                     .font(.caption)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
             }

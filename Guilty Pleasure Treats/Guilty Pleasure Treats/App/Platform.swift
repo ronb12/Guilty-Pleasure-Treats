@@ -28,13 +28,23 @@ extension Image {
 
 #if os(iOS)
 extension View {
-    /// Applies `.navigationBarTitleDisplayMode(.inline)` on iOS; no-op on macOS.
+    /// Applies `.navigationBarTitleDisplayMode(.inline)` on iOS.
     func inlineNavigationTitle() -> some View {
         self.navigationBarTitleDisplayMode(.inline)
     }
-    /// Applies `.navigationBarTitleDisplayMode(.large)` on iOS; no-op on macOS.
+    /// Applies `.navigationBarTitleDisplayMode(.large)` on iOS.
     func largeNavigationTitle() -> some View {
         self.navigationBarTitleDisplayMode(.large)
+    }
+}
+#elseif os(macOS)
+extension View {
+    /// macOS `NavigationStack` defaults to a tall title strip; use inline so content sits under the tab bar like other admin tabs (deployment macOS 14+).
+    func inlineNavigationTitle() -> some View {
+        self.toolbarTitleDisplayMode(.inline)
+    }
+    func largeNavigationTitle() -> some View {
+        self.toolbarTitleDisplayMode(.automatic)
     }
 }
 #else
@@ -84,24 +94,37 @@ extension View {
         self.padding(.top, 20)
     }
     /// Bounded size so sheet fits on screen, content scrolls, and toolbar buttons stay accessible.
+    /// Pulls the whole sheet (including `NavigationStack` title) closer to the window top — SwiftUI adds a large default gap on macOS.
     func macOSAdminSheetSize() -> some View {
-        self.frame(minWidth: 700, maxWidth: 780, minHeight: 400, maxHeight: 540)
+        self.padding(.top, -32)
+            .frame(minWidth: 700, maxWidth: 780, minHeight: 400, maxHeight: 540)
     }
     /// Larger bounded size for product add/edit and add order; max height keeps window on screen so Cancel/Save stay visible.
     func macOSAdminSheetSizeLarge() -> some View {
-        self.frame(minWidth: 640, maxWidth: 860, minHeight: 500, maxHeight: 700)
+        self.padding(.top, -32)
+            .frame(minWidth: 640, maxWidth: 860, minHeight: 500, maxHeight: 700)
     }
-    /// Tighter spacing so edit sheet content fits without scrolling.
+    /// Multi-section admin forms (e.g. promotions): shorter min width so sheets fit inside the admin window, extra height so grouped `Form` + toolbar aren’t clipped.
+    func macOSAdminSheetSizeForm() -> some View {
+        self.padding(.top, -32)
+            .frame(minWidth: 520, idealWidth: 600, maxWidth: 720, minHeight: 460, idealHeight: 560, maxHeight: 720)
+    }
+    /// Compact controls on iOS only. On macOS, `.small` Form rows often collide labels with fields.
     func macOSCompactFormContent() -> some View {
-        self.controlSize(.small)
+        self
     }
-    /// Horizontal padding so form content isn't cut off at sheet edges on macOS.
+    /// Horizontal padding so form content isn’t clipped or cramped at sheet edges on macOS.
     func macOSEditSheetPadding() -> some View {
-        self.padding(.horizontal, 12)
+        self.padding(.horizontal, 20)
     }
-    /// Reduces the large gap between sheet top and navigation title on macOS.
+    /// Form style that gives clearer section spacing on macOS admin sheets.
+    func macOSGroupedFormStyle() -> some View {
+        self.formStyle(.grouped)
+    }
+    /// Historically applied negative padding on `Form`, which does **not** move the navigation title on macOS.
+    /// Title tightening is handled by `macOSAdminSheetSize` / `macOSAdminSheetSizeLarge` on the sheet root instead.
     func macOSReduceSheetTitleGap() -> some View {
-        self.padding(.top, -20)
+        self
     }
 }
 #else
@@ -110,8 +133,10 @@ extension View {
     func macOSSheetTopPadding() -> some View { self }
     func macOSAdminSheetSize() -> some View { self }
     func macOSAdminSheetSizeLarge() -> some View { self }
+    func macOSAdminSheetSizeForm() -> some View { self }
     func macOSCompactFormContent() -> some View { self }
     func macOSEditSheetPadding() -> some View { self }
+    func macOSGroupedFormStyle() -> some View { self }
     func macOSReduceSheetTitleGap() -> some View { self }
 }
 #endif

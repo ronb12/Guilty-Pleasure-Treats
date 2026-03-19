@@ -31,16 +31,9 @@ struct ContactView: View {
         [("", "General inquiry (no order)")] + userOrders.compactMap { o in
             guard let id = o.id else { return nil }
             let dateStr = o.createdAt.map { $0.formatted(date: .abbreviated, time: .omitted) } ?? "Order"
-            let shortRef = orderShortReference(from: id)
-            return (id, "Order #\(shortRef) · \(dateStr) · \(o.total.currencyFormatted)")
+            let code = OrderReference.displayCode(from: id)
+            return (id, "\(code) · \(dateStr) · \(o.total.currencyFormatted)")
         }
-    }
-
-    /// First 8 hex chars of UUID for a readable “order number” in the picker and for admin cross-reference.
-    private func orderShortReference(from orderId: String) -> String {
-        let compact = orderId.replacingOccurrences(of: "-", with: "")
-        if compact.count >= 8 { return String(compact.prefix(8)).uppercased() }
-        return String(orderId.prefix(12))
     }
 
     var body: some View {
@@ -90,7 +83,7 @@ struct ContactView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Regarding (optional)")
                                 .font(.subheadline.weight(.medium))
-                            Text("Link this message to an order so the bakery can look it up by order number.")
+                            Text("Link this message to an order so the bakery can look it up (order numbers look like GPT-…).")
                                 .font(.caption)
                                 .foregroundStyle(AppConstants.Colors.textSecondary)
                             if ordersLoading {

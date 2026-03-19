@@ -50,7 +50,7 @@ struct CustomCakeOrderDetailView: View {
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(order.id.map { "Custom cake #\($0.prefix(8))" } ?? "Custom cake order")
+                Text(order.id.map { "Custom cake \(OrderReference.displayCode(from: $0))" } ?? "Custom cake order")
                     .font(.headline)
                     .foregroundStyle(AppConstants.Colors.textPrimary)
                 Spacer()
@@ -61,7 +61,7 @@ struct CustomCakeOrderDetailView: View {
                     .foregroundStyle(AppConstants.Colors.textSecondary)
             }
             if let orderId = order.orderId, !orderId.isEmpty {
-                Text("Main order: #\(orderId.prefix(8))")
+                Text("Main order: \(OrderReference.displayCode(from: orderId))")
                     .font(.caption)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
             }

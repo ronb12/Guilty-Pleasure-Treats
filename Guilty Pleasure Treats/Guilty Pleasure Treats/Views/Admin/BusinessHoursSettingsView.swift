@@ -22,12 +22,32 @@ struct BusinessHoursSettingsView: View {
                 if vm.businessHoursSettings == nil && !isLoading {
                     Text("Could not load settings. Pull to retry.")
                 } else {
+                    #if os(macOS)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Lead time (hours)")
+                        TextField("24", text: $leadTimeHoursStr)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: 280, alignment: .leading)
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Min order (cents)")
+                        TextField("0", text: $minOrderCentsStr)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: 280, alignment: .leading)
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Tax rate (%)")
+                        TextField("0", text: $taxRatePercentStr)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: 280, alignment: .leading)
+                    }
+                    #else
                     HStack {
                         Text("Lead time (hours)")
                         Spacer()
                         TextField("24", text: $leadTimeHoursStr)
                             .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
+                            .multilineTextAlignment(TextAlignment.trailing)
                             .frame(width: 60)
                     }
                     HStack {
@@ -35,7 +55,7 @@ struct BusinessHoursSettingsView: View {
                         Spacer()
                         TextField("0", text: $minOrderCentsStr)
                             .keyboardType(.numberPad)
-                            .multilineTextAlignment(.trailing)
+                            .multilineTextAlignment(TextAlignment.trailing)
                             .frame(width: 80)
                     }
                     HStack {
@@ -43,9 +63,10 @@ struct BusinessHoursSettingsView: View {
                         Spacer()
                         TextField("0", text: $taxRatePercentStr)
                             .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
+                            .multilineTextAlignment(TextAlignment.trailing)
                             .frame(width: 60)
                     }
+                    #endif
                 }
             } header: {
                 Text("Business settings")

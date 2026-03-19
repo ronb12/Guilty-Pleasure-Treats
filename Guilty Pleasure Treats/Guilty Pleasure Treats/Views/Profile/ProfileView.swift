@@ -41,6 +41,12 @@ struct ProfileView: View {
         .sheet(isPresented: $showLogin) {
             LoginView()
         }
+        .onChange(of: auth.authState) { _, newState in
+            // Dismiss login when auth succeeds (sheet doesn’t auto-close; avoids stale error banner over a signed-in session).
+            if case .signedIn = newState {
+                showLogin = false
+            }
+        }
         #if os(iOS)
         .fullScreenCover(isPresented: $showAdmin) { AdminView() }
         #else

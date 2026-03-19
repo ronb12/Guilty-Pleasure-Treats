@@ -119,6 +119,7 @@ final class AuthService: ObservableObject {
     }
 
     /// Sign in with email and password. Same pattern as Firebase: one async call, throws on failure with Firebase-style error messages.
+    @MainActor
     func signIn(email: String, password: String) async throws {
         guard let url = apiURL(pathComponents: "api", "auth", "login") else {
             debugLog("[Auth] signIn: vercelBaseURL nil")
@@ -262,6 +263,7 @@ final class AuthService: ObservableObject {
     }
 
     /// Sign in with Apple: send identity token to Vercel.
+    @MainActor
     func signInWithApple(idToken: String, rawNonce: String, fullName: PersonNameComponents?) async throws {
         guard let url = apiURL(pathComponents: "api", "auth", "apple") else {
             debugLog("[Auth] signInWithApple: vercelBaseURL nil")
@@ -271,7 +273,7 @@ final class AuthService: ObservableObject {
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        var body: [String: Any] = ["identityToken": idToken]
+        var body: [String: Any] = ["identityToken": idToken, "rawNonce": rawNonce]
         if let fn = fullName {
             body["fullName"] = ["givenName": fn.givenName ?? "", "familyName": fn.familyName ?? ""]
         }
