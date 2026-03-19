@@ -101,7 +101,8 @@ struct LoginView: View {
             emailField
             passwordField
             if isSignUp {
-                displayNameField
+                nameField
+                phoneField
             }
             PrimaryButton(
                 title: isSignUp ? "Create Account" : "Sign In",

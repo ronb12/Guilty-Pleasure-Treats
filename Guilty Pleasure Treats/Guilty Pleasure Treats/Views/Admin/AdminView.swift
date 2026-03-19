@@ -241,8 +241,8 @@ struct AdminProductsView: View {
                     .macOSAdminSheetSizeLarge()
             }
             .overlay(alignment: .top) {
-                if let msg = viewModel.errorMessage {
-                    ErrorMessageBanner(message: msg) { viewModel.clearMessages() }
+                if let msg = viewModel.errorMessage ?? viewModel.productLoadWarning {
+                    ErrorMessageBanner(message: msg) { viewModel.dismissProductBanner() }
                         .padding()
                 }
                 if let msg = viewModel.successMessage {
@@ -332,8 +332,8 @@ struct AdminCategoriesView: View {
                 }
             }
             .overlay(alignment: .top) {
-                if let msg = viewModel.errorMessage {
-                    ErrorMessageBanner(message: msg) { viewModel.clearMessages() }
+                if let msg = viewModel.categoryErrorMessage {
+                    ErrorMessageBanner(message: msg) { viewModel.dismissCategoryBanner() }
                         .padding()
                 }
                 if let msg = viewModel.successMessage {
@@ -4243,8 +4243,8 @@ struct AdminInventoryView: View {
                     .macOSAdminSheetSizeLarge()
             }
             .overlay(alignment: .top) {
-                if let msg = viewModel.errorMessage {
-                    ErrorMessageBanner(message: msg) { viewModel.clearMessages() }
+                if let msg = viewModel.errorMessage ?? viewModel.productLoadWarning {
+                    ErrorMessageBanner(message: msg) { viewModel.dismissProductBanner() }
                         .padding()
                 }
                 if let msg = viewModel.successMessage {

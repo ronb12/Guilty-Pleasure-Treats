@@ -85,6 +85,10 @@ final class AdminViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var successMessage: String?
+    /// Product list fetch failed (sample inventory shown). Shown only on Products / Inventory tabs so other tabs aren’t spammed.
+    @Published var productLoadWarning: String?
+    /// Category add/update/delete failures only. Shown only on Categories tab.
+    @Published var categoryErrorMessage: String?
     
     @Published var editingProduct: Product?
     @Published var newProductImage: PlatformImage?
@@ -397,6 +401,7 @@ final class AdminViewModel: ObservableObject {
     func loadProducts() async {
         isLoading = true
         errorMessage = nil
+        productLoadWarning = nil
         do {
             products = try await api.fetchProducts()
             if products.isEmpty {
@@ -404,7 +409,7 @@ final class AdminViewModel: ObservableObject {
             }
         } catch {
             products = Self.sampleProductsForDisplay()
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            productLoadWarning = FriendlyErrorMessage.message(for: error)
         }
         isLoading = false
         if AuthService.shared.userProfile?.isAdmin == true, !lowStockProducts.isEmpty {
@@ -435,6 +440,7 @@ final class AdminViewModel: ObservableObject {
     func addCategory(name: String, displayOrder: Int = 0) async {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
+        categoryErrorMessage = nil
         do {
             let item = try await api.addProductCategory(name: trimmed, displayOrder: displayOrder)
             productCategories.append(item)
@@ -442,29 +448,31 @@ final class AdminViewModel: ObservableObject {
             successMessage = "Category added."
             await loadProductCategories()
         } catch {
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            categoryErrorMessage = FriendlyErrorMessage.message(for: error)
         }
     }
 
     func updateCategory(_ item: ProductCategoryItem, name: String? = nil, displayOrder: Int? = nil) async {
         guard let n = name?.trimmingCharacters(in: .whitespaces), !n.isEmpty else { return }
+        categoryErrorMessage = nil
         do {
             try await api.updateProductCategory(id: item.id, name: n, displayOrder: displayOrder ?? item.displayOrder)
             successMessage = "Category updated."
             await loadProductCategories()
         } catch {
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            categoryErrorMessage = FriendlyErrorMessage.message(for: error)
         }
     }
 
     func deleteCategory(_ item: ProductCategoryItem) async {
+        categoryErrorMessage = nil
         do {
             try await api.deleteProductCategory(id: item.id)
             productCategories.removeAll { $0.id == item.id }
             successMessage = "Category removed."
             await loadProductCategories()
         } catch {
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            categoryErrorMessage = FriendlyErrorMessage.message(for: error)
         }
     }
 
@@ -553,7 +561,10 @@ final class AdminViewModel: ObservableObject {
                 )
             }
         } catch {
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            orders = []
+            #if DEBUG
+            print("[Admin] loadOrders failed: \(error)")
+            #endif
         }
     }
     
@@ -707,7 +718,9 @@ final class AdminViewModel: ObservableObject {
             businessHoursSettings = try await api.fetchBusinessHours()
         } catch {
             businessHoursSettings = nil
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            #if DEBUG
+            print("[Admin] loadBusinessHours failed: \(error)")
+            #endif
         }
     }
 
@@ -740,13 +753,29 @@ final class AdminViewModel: ObservableObject {
     func clearMessages() {
         errorMessage = nil
         successMessage = nil
+        productLoadWarning = nil
+        categoryErrorMessage = nil
+    }
+
+    /// Dismiss banner on Products / Inventory without clearing category-specific errors.
+    func dismissProductBanner() {
+        errorMessage = nil
+        productLoadWarning = nil
+        successMessage = nil
+    }
+
+    func dismissCategoryBanner() {
+        categoryErrorMessage = nil
     }
 
     func loadContactMessages() async {
         do {
             contactMessages = try await api.fetchContactMessages()
         } catch {
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            contactMessages = []
+            #if DEBUG
+            print("[Admin] loadContactMessages failed: \(error)")
+            #endif
         }
     }
 
@@ -842,7 +871,10 @@ final class AdminViewModel: ObservableObject {
         do {
             businessSettings = try await api.fetchBusinessSettings() ?? BusinessSettings()
         } catch {
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            businessSettings = BusinessSettings()
+            #if DEBUG
+            print("[Admin] loadBusinessSettings failed: \(error)")
+            #endif
         }
     }
 
@@ -869,7 +901,10 @@ final class AdminViewModel: ObservableObject {
         do {
             promotions = try await api.fetchPromotions()
         } catch {
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            promotions = []
+            #if DEBUG
+            print("[Admin] loadPromotions failed: \(error)")
+            #endif
         }
     }
     
@@ -910,7 +945,11 @@ final class AdminViewModel: ObservableObject {
             customCakeOrders = try await custom
             aiCakeDesignOrders = try await ai
         } catch {
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            customCakeOrders = []
+            aiCakeDesignOrders = []
+            #if DEBUG
+            print("[Admin] loadSpecialOrders failed: \(error)")
+            #endif
         }
     }
 
@@ -929,7 +968,9 @@ final class AdminViewModel: ObservableObject {
         } catch {
             // On error, show builder defaults so admin can still see and edit the same list as the cake maker.
             customCakeOptions = Self.defaultCakeOptionsForDisplay()
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            #if DEBUG
+            print("[Admin] loadCustomCakeOptions failed: \(error)")
+            #endif
         }
     }
 
@@ -964,7 +1005,10 @@ final class AdminViewModel: ObservableObject {
         do {
             cakeGalleryItems = try await api.fetchGalleryCakes()
         } catch {
-            errorMessage = FriendlyErrorMessage.message(for: error)
+            cakeGalleryItems = []
+            #if DEBUG
+            print("[Admin] loadCakeGallery failed: \(error)")
+            #endif
         }
     }
 
