@@ -21,12 +21,11 @@ export function bodyBool(val) {
 }
 
 /**
- * Sold out for API / app: true if `is_sold_out` OR not `is_available` (when column exists).
- * Fixes Neon rows where inventory exists but `is_available` was false without toggling sold-out.
+ * Sold-out flag for clients: **only** `is_sold_out`.
+ * Do not OR with `is_available` — that column can drift and then toggling "Available" in admin
+ * clears `is_sold_out` but the UI still looked "sold out". `is_available` is kept in sync on writes.
  */
 export function soldOutFromRow(row) {
   if (!row) return false;
-  if (pgBool(row.is_sold_out)) return true;
-  if (row.is_available === undefined || row.is_available === null) return false;
-  return !pgBool(row.is_available);
+  return pgBool(row.is_sold_out);
 }
