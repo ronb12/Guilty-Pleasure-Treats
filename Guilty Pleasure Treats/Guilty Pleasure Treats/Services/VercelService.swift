@@ -8,7 +8,7 @@
 import Foundation
 
 /// Lightweight user from Vercel auth (replaces Firebase User for auth state).
-struct VercelUser {
+struct VercelUser: Equatable {
     let uid: String
     let email: String?
     let displayName: String?

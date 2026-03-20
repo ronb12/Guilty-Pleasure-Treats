@@ -46,7 +46,7 @@ enum AuthError: LocalizedError {
 }
 
 /// Auth state for the app.
-enum AuthState {
+enum AuthState: Equatable {
     case loading
     case signedIn(VercelUser)
     case signedOut

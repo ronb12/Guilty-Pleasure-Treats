@@ -258,7 +258,9 @@ struct LoginView: View {
         case .failure(let err):
             if (err as NSError).code != ASAuthorizationError.canceled.rawValue {
                 debugLog("[Auth] Sign in with Apple failure: \(err)")
-                errorMessage = FriendlyErrorMessage.message(for: err)
+                if let msg = FriendlyErrorMessage.appleSignInMessage(for: err), !msg.isEmpty {
+                    errorMessage = msg
+                }
             }
         }
     }

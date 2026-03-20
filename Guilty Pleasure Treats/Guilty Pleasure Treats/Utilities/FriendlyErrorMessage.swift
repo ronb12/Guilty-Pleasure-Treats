@@ -6,8 +6,36 @@
 //
 
 import Foundation
+#if canImport(AuthenticationServices)
+import AuthenticationServices
+#endif
 
 enum FriendlyErrorMessage {
+    /// Human-readable copy for Sign in with Apple **before** the server runs. Code **1000** = `ASAuthorizationError.failed` (not a wrong password—usually capability / provisioning / Simulator).
+    static func appleSignInMessage(for error: Error) -> String? {
+        #if canImport(AuthenticationServices)
+        let ns = error as NSError
+        // Same as `ASAuthorizationError.errorDomain` (string avoids SDK edge cases).
+        if ns.domain == "com.apple.AuthenticationServices.AuthorizationError" {
+            switch ns.code {
+            case ASAuthorizationError.canceled.rawValue:
+                return nil
+            case ASAuthorizationError.failed.rawValue:
+                return "Sign in with Apple couldn’t start (error 1000). This is usually an app setup issue, not your Apple ID password. Fix: Apple Developer → Identifiers → your App ID → enable Sign In with Apple; Xcode → target → Signing & Capabilities → add Sign In with Apple; clean build. On Simulator, sign in to an Apple ID under Settings → Apple ID, or try a real iPhone."
+            case ASAuthorizationError.invalidResponse.rawValue:
+                return "Sign in with Apple returned an invalid response. Please try again."
+            case ASAuthorizationError.notHandled.rawValue:
+                return "Sign in with Apple couldn’t be handled. Please try again."
+            case ASAuthorizationError.unknown.rawValue:
+                return "Sign in with Apple failed for an unknown reason. Please try again."
+            default:
+                break
+            }
+        }
+        #endif
+        return message(for: error)
+    }
+
     /// Returns a short message suitable for ErrorMessageBanner. Uses Firebase-style messages for auth errors.
     static func message(for error: Error) -> String {
         if let authErr = error as? AuthError, let desc = authErr.errorDescription, !desc.isEmpty {

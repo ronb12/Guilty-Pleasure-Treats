@@ -38,11 +38,19 @@ struct ProfileView: View {
                 }
             }
         }
+        // iOS: fullScreenCover — Sign in with Apple often fails in `.sheet` (ASAuthorizationError 1000) because
+        // ASAuthorizationController can’t resolve a valid presentation anchor; fullScreenCover fixes that.
+        #if os(iOS)
+        .fullScreenCover(isPresented: $showLogin) {
+            LoginView()
+        }
+        #else
         .sheet(isPresented: $showLogin) {
             LoginView()
         }
+        #endif
         .onChange(of: auth.authState) { _, newState in
-            // Dismiss login when auth succeeds (sheet doesn’t auto-close; avoids stale error banner over a signed-in session).
+            // Dismiss login when auth succeeds (cover/sheet doesn’t auto-close; avoids stale error banner).
             if case .signedIn = newState {
                 showLogin = false
             }
