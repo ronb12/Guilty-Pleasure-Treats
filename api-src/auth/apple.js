@@ -44,6 +44,47 @@ function displayNameFromBody(body) {
   return combined.length ? combined : null;
 }
 
+async function findUserByAppleSubject(sub) {
+  try {
+    const rows = await sql`
+      SELECT id, email, display_name, phone, is_admin, points
+      FROM users
+      WHERE apple_sub = ${sub}
+      LIMIT 1
+    `;
+    if (rows[0]) return rows[0];
+  } catch (e) {
+    if (e?.code !== '42703') throw e;
+  }
+  // Backward compatibility: older schemas use apple_id instead of apple_sub.
+  const rows = await sql`
+    SELECT id, email, display_name, phone, is_admin, points
+    FROM users
+    WHERE apple_id = ${sub}
+    LIMIT 1
+  `;
+  return rows[0] || null;
+}
+
+async function insertUserForAppleSubject({ sub, tokenEmail, displayName }) {
+  try {
+    const inserted = await sql`
+      INSERT INTO users (email, display_name, apple_sub, points, is_admin)
+      VALUES (${tokenEmail || null}, ${displayName || null}, ${sub}, 0, false)
+      RETURNING id, email, display_name, phone, is_admin, points
+    `;
+    return inserted[0] || null;
+  } catch (e) {
+    if (e?.code !== '42703') throw e;
+  }
+  const inserted = await sql`
+    INSERT INTO users (email, display_name, apple_id, points, is_admin)
+    VALUES (${tokenEmail || null}, ${displayName || null}, ${sub}, 0, false)
+    RETURNING id, email, display_name, phone, is_admin, points
+  `;
+  return inserted[0] || null;
+}
+
 export default async function handler(req, res) {
   if ((req.method || '').toUpperCase() !== 'POST') {
     json(res, 405, { error: 'Method not allowed' });
@@ -124,23 +165,14 @@ export default async function handler(req, res) {
   const fromClientName = displayNameFromBody(body);
 
   try {
-    let rows = await sql`
-      SELECT id, email, display_name, phone, is_admin, points, apple_sub
-      FROM users
-      WHERE apple_sub = ${sub}
-      LIMIT 1
-    `;
-    let userRow = rows[0];
+    let userRow = await findUserByAppleSubject(sub);
 
     if (!userRow) {
-      const email = tokenEmail || null;
-      const displayName = fromClientName || null;
-      const inserted = await sql`
-        INSERT INTO users (email, display_name, apple_sub, points, is_admin)
-        VALUES (${email}, ${displayName}, ${sub}, 0, false)
-        RETURNING id, email, display_name, phone, is_admin, points
-      `;
-      userRow = inserted[0];
+      userRow = await insertUserForAppleSubject({
+        sub,
+        tokenEmail,
+        displayName: fromClientName,
+      });
     } else {
       if (!userRow.email && tokenEmail) {
         await sql`
