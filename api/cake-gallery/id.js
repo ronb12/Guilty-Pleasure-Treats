@@ -3,9 +3,9 @@
  * PATCH /api/cake-gallery/:id — update (admin). Body: { imageUrl?, title?, description?, category?, price?, displayOrder? }.
  * DELETE /api/cake-gallery/:id — delete (admin).
  */
-import { sql, hasDb } from '../../lib/db.js';
-import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
-import { setCors, handleOptions } from '../../lib/cors.js';
+import { sql, hasDb } from '../lib/db.js';
+import { getTokenFromRequest, getSession } from '../lib/auth.js';
+import { setCors, handleOptions } from '../lib/cors.js';
 
 function rowToItem(row) {
   if (!row) return null;

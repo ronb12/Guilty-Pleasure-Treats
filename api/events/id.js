@@ -3,9 +3,9 @@
  * PATCH /api/events/:id - update event (admin only).
  * DELETE /api/events/:id - delete event (admin only).
  */
-import { sql, hasDb } from '../../lib/db.js';
-import { getAuth } from '../../lib/auth.js';
-import { setCors, handleOptions } from '../../lib/cors.js';
+import { sql, hasDb } from '../lib/db.js';
+import { getAuth } from '../lib/auth.js';
+import { setCors, handleOptions } from '../lib/cors.js';
 
 function rowToEvent(row) {
   if (!row) return null;

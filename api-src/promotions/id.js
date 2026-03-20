@@ -3,9 +3,9 @@
  * PATCH /api/promotions/:id — update promotion (admin).
  * DELETE /api/promotions/:id — delete promotion (admin).
  */
-import { sql, hasDb } from '../../lib/db.js';
-import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
-import { setCors, handleOptions } from '../../lib/cors.js';
+import { sql, hasDb } from '../lib/db.js';
+import { getTokenFromRequest, getSession } from '../lib/auth.js';
+import { setCors, handleOptions } from '../lib/cors.js';
 
 function rowToPromotion(row) {
   if (!row) return null;
