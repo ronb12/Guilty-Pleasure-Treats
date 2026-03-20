@@ -44,6 +44,10 @@ Example:
 APPLE_BUNDLE_ID=com.bradleyvirtualsolutions.Guilty-Pleasure-Treats
 ```
 
+### Debug (optional, Production only when investigating)
+
+Set **`AUTH_DEBUG_APPLE=1`** (or `true`) in Vercel **Production** (or Preview). On **`jwtVerify` failure** only, the server logs a second line with the identity token’s **protected header** — **`kid`** and **`alg`** only (no payload, no signature). Use this to tell **real Apple tokens** (typically `alg: ES256`, valid `kid`) from **test / malformed** traffic. Remove or unset when done and redeploy.
+
 ## `AuthorizationError Code=1000`
 
 Apple reports **`ASAuthorizationError.failed` (1000)** when the **Sign in with Apple UI fails before your server runs**. It is **not** “wrong Apple ID password” — the password sheet often never completes.

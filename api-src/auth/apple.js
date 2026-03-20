@@ -155,6 +155,21 @@ export default async function handler(req, res) {
       const decoded = jose.decodeJwt(identityToken);
       tokenAud = decoded?.aud ?? null;
     } catch (_) { /* ignore decode errors */ }
+    // Gated: set AUTH_DEBUG_APPLE=1 on Vercel to log header kid/alg only (no token body).
+    const appleDebug =
+      process.env.AUTH_DEBUG_APPLE === '1' ||
+      /^true$/i.test(String(process.env.AUTH_DEBUG_APPLE || '').trim());
+    if (appleDebug) {
+      try {
+        const hdr = jose.decodeProtectedHeader(identityToken);
+        console.error('[auth/apple] jwtVerify failed — header (debug)', {
+          kid: hdr.kid ?? null,
+          alg: hdr.alg ?? null,
+        });
+      } catch (_) {
+        console.error('[auth/apple] jwtVerify failed — header (debug): could not decode protected header');
+      }
+    }
     console.error('[auth/apple] jwtVerify failed', {
       message: err?.message || String(err),
       code: err?.code,
