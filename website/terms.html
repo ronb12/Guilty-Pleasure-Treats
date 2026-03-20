@@ -1,21 +1,91 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Terms of Service — Guilty Pleasure Treats</title>
+  <title>Terms of Service | Guilty Pleasure Treats</title>
+  <meta name="description" content="Terms of Service for Guilty Pleasure Treats app. Use of the app, orders, payment, and more." />
+  <link rel="icon" href="favicon.png" type="image/png" sizes="any" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1.25rem; color: #2d1a24; line-height: 1.6; }
-    a { color: #c2186e; }
-    h1 { font-size: 1.5rem; }
+    .legal-page { padding: 2rem 0 4rem; }
+    .legal-page .container { max-width: 720px; }
+    .legal-page h1 { font-family: var(--font-display); font-size: 1.75rem; margin: 0 0 0.5rem; color: var(--text); }
+    .legal-page .meta { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 2rem; }
+    .legal-page h2 { font-family: var(--font-display); font-size: 1.2rem; margin: 2rem 0 0.75rem; color: var(--text); }
+    .legal-page p, .legal-page ul { margin: 0 0 1rem; color: var(--text-muted); line-height: 1.65; }
+    .legal-page ul { padding-left: 1.5rem; }
+    .legal-page li { margin-bottom: 0.35rem; }
+    .legal-page a { color: var(--accent); text-decoration: none; }
+    .legal-page a:hover { text-decoration: underline; }
+    .legal-footer-links { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid rgba(232,67,147,0.2); }
+    .legal-footer-links a { margin-right: 1rem; }
   </style>
 </head>
 <body>
-  <p><a href="/">← Home</a></p>
-  <h1>Terms of Service — Guilty Pleasure Treats</h1>
-  <p><strong>Last updated:</strong> March 2026</p>
-  <p>By using the Guilty Pleasure Treats app, you agree to our Terms of Service. Orders, payments (via our payment provider), custom / AI-designed products, loyalty offers, and limitations of liability are described in full in the <strong>Terms of Service</strong> inside the app.</p>
-  <p>Questions: <a href="mailto:info@guiltypleasuretreats.com">info@guiltypleasuretreats.com</a></p>
-  <p><a href="/">Back to home</a></p>
+  <header class="header">
+    <div class="container header-inner">
+      <a href="/" class="logo">
+        <img src="header-cake.png" alt="" class="logo-img" width="44" height="44" />
+        <span>Guilty Pleasure Treats</span>
+      </a>
+      <nav class="nav">
+        <a href="/#menu">Menu</a>
+        <a href="/#custom">Custom Cakes</a>
+        <a href="/#contact">Contact</a>
+        <a href="/privacy">Privacy Policy</a>
+      </nav>
+      <a href="/#order" class="btn btn-primary">Order Online</a>
+    </div>
+  </header>
+
+  <main class="legal-page">
+    <div class="container">
+      <h1>Terms of Service — Guilty Pleasure Treats</h1>
+      <p class="meta"><strong>Last updated:</strong> March 2026 | <strong>Operator:</strong> Guilty Pleasure Treats</p>
+
+      <p>By using the Guilty Pleasure Treats app, you agree to these Terms. If you do not agree, do not use the app.</p>
+
+      <h2>1. Use of the App</h2>
+      <p>You must be at least 13 (or the age of majority in your jurisdiction). You agree to provide accurate information, keep your account secure, and not use the app for any illegal or harmful purpose.</p>
+
+      <h2>2. Orders and Payment</h2>
+      <p>Orders are offers to purchase; we may accept or decline them. Prices and availability may change. Payment is processed by our payment provider (e.g., Stripe). Pickup and delivery times are estimates; we are not liable for delays beyond our control.</p>
+
+      <h2>3. Custom and AI-Designed Products</h2>
+      <p>You are responsible for ensuring design instructions and images do not infringe others' rights. We may refuse to produce inappropriate or infringing content.</p>
+
+      <h2>4. Rewards and Promotions</h2>
+      <p>Loyalty points and promotions are offered at our discretion and may change. Points have no cash value unless stated.</p>
+
+      <h2>5. Intellectual Property</h2>
+      <p>The app and its content are owned by us or our licensors. You may not copy or distribute our content without permission. You grant us a license to use your submitted content to provide and improve our services.</p>
+
+      <h2>6. Disclaimers and Liability</h2>
+      <p>The app and products are provided "as is." We disclaim warranties to the fullest extent permitted by law. Our liability is limited to the amount you paid us in the 12 months before the claim (or $100 if greater).</p>
+
+      <h2>7. Termination, Changes, and Contact</h2>
+      <p>We may suspend or terminate access at any time. We may update these Terms; continued use means acceptance. For questions, use the Support URL or contact email in the app or on our website.</p>
+
+      <p>Thank you for using Guilty Pleasure Treats.</p>
+
+      <div class="legal-footer-links">
+        <a href="/">Home</a>
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/#contact">Contact</a>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p class="footer-tagline">Handcrafted with care · Fresh from our kitchen to yours</p>
+      <p class="footer-copy">© Guilty Pleasure Treats</p>
+    </div>
+  </footer>
+  <script src="app.js"></script>
 </body>
 </html>
