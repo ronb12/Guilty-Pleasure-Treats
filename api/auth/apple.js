@@ -85,7 +85,17 @@ export default async function handler(req, res) {
     const verified = await jose.jwtVerify(identityToken, APPLE_JWKS, verifyOpts);
     payload = verified.payload;
   } catch (err) {
-    console.error('[auth/apple] jwtVerify failed', err?.message || err, 'code=', err?.code);
+    let tokenAud = null;
+    try {
+      const decoded = jose.decodeJwt(identityToken);
+      tokenAud = decoded?.aud ?? null;
+    } catch (_) { /* ignore decode errors */ }
+    console.error('[auth/apple] jwtVerify failed', {
+      message: err?.message || String(err),
+      code: err?.code,
+      tokenAud,
+      allowedAudiences: audiences,
+    });
     json(res, 401, { error: 'Sign in with Apple could not be verified. Please try again.' });
     return;
   }

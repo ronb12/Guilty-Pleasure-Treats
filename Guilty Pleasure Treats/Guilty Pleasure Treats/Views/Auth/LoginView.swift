@@ -17,6 +17,7 @@ struct LoginView: View {
     @State private var phone = ""
     @State private var isSignUp = false
     @State private var isLoading = false
+    @State private var isAppleSigningIn = false
     @State private var errorMessage: String?
     @State private var currentNonce: String?
     @State private var showForgotPassword = false
@@ -196,10 +197,13 @@ struct LoginView: View {
     private var appleSignInSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             SignInWithAppleButton(.signIn) { request in
+                guard !isAppleSigningIn else { return }
                 errorMessage = nil
-                currentNonce = randomNonceString()
+                isAppleSigningIn = true
+                let nonce = randomNonceString()
+                currentNonce = nonce
                 request.requestedScopes = [.fullName, .email]
-                request.nonce = sha256(currentNonce!)
+                request.nonce = sha256(nonce)
             } onCompletion: { result in
                 Task { @MainActor in
                     await handleSignInWithApple(result)
@@ -207,6 +211,7 @@ struct LoginView: View {
             }
             .signInWithAppleButtonStyle(.black)
             .frame(height: 52)
+            .disabled(isAppleSigningIn || isLoading)
             Text("Use the same account with either email/password or Sign in with Apple.")
                 .font(.caption)
                 .foregroundStyle(AppConstants.Colors.textSecondary)
@@ -232,6 +237,10 @@ struct LoginView: View {
     
     @MainActor
     private func handleSignInWithApple(_ result: Result<ASAuthorization, Error>) async {
+        defer {
+            currentNonce = nil
+            isAppleSigningIn = false
+        }
         switch result {
         case .success(let authorization):
             guard let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential,
