@@ -32,16 +32,14 @@ final class OrdersViewModel: ObservableObject {
                 }
             } else if isAdmin {
                 orders = try await api.fetchAllOrders()
-                if orders.isEmpty { useSampleOrders() }
             } else {
                 orders = try await api.fetchOrders(userId: auth.currentUser?.uid)
-                if orders.isEmpty { useSampleOrders() }
             }
         } catch {
             if signedIn {
-                useSampleOrders()
+                orders = []
                 if VercelService.isConfigured {
-                    errorMessage = "Showing sample orders. Sign in or check your connection to load your orders."
+                    errorMessage = "Couldn’t load orders. Check your connection and try again."
                 }
             } else {
                 orders = []
@@ -49,13 +47,8 @@ final class OrdersViewModel: ObservableObject {
         }
         isLoading = false
     }
-
-    /// Show sample orders when API returns none or fails, so the list has example data.
-    private func useSampleOrders() {
-        orders = SampleDataService.sampleOrders
-    }
     
-    /// Sample orders (id starts with "sample-") are for display only; they don't exist in the API.
+    /// Legacy: ids starting with `sample-` (old demo data) are ignored for API updates.
     func isSampleOrder(_ order: Order) -> Bool {
         guard let id = order.id else { return false }
         return id.hasPrefix("sample-")

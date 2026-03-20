@@ -6,7 +6,7 @@
 import { sql, hasDb } from '../lib/db.js';
 import { getTokenFromRequest, getSession } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
-import { pgBool, bodyBool } from '../pgBool.js';
+import { pgBool, bodyBool, soldOutFromRow } from '../pgBool.js';
 
 function rowToProduct(row) {
   if (!row) return null;
@@ -19,9 +19,9 @@ function rowToProduct(row) {
     cost: row.cost != null ? Number(row.cost) : null,
     imageURL: row.image_url ?? null,
     category: row.category,
-    isFeatured: Boolean(row.is_featured),
-    isSoldOut: Boolean(row.is_sold_out),
-    isVegetarian: Boolean(row.is_vegetarian),
+    isFeatured: pgBool(row.is_featured),
+    isSoldOut: soldOutFromRow(row),
+    isVegetarian: pgBool(row.is_vegetarian),
     stockQuantity: row.stock_quantity ?? null,
     lowStockThreshold: row.low_stock_threshold ?? null,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
@@ -87,6 +87,8 @@ export default async function handler(req, res) {
 
     if (!name) return res.status(400).json({ error: 'Name is required' });
 
+    const isAvailable = !isSoldOut;
+
     const patchProduct = () => sql`
       UPDATE products SET
         name = ${name},
@@ -100,6 +102,7 @@ export default async function handler(req, res) {
         is_vegetarian = ${isVegetarian},
         stock_quantity = ${stockQuantity},
         low_stock_threshold = ${lowStockThreshold},
+        is_available = ${isAvailable},
         updated_at = NOW()
       WHERE id = ${id}::uuid
       RETURNING *
@@ -113,14 +116,21 @@ export default async function handler(req, res) {
       if (err?.code === '22P02') return res.status(400).json({ error: 'Invalid product id' });
       const missingVeg =
         err?.code === '42703' && String(err.message || '').includes('is_vegetarian');
-      if (missingVeg) {
+      const missingAvail =
+        err?.code === '42703' && String(err.message || '').includes('is_available');
+      if (missingVeg || missingAvail) {
         try {
-          await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegetarian BOOLEAN NOT NULL DEFAULT false`;
+          if (missingVeg) {
+            await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegetarian BOOLEAN NOT NULL DEFAULT false`;
+          }
+          if (missingAvail) {
+            await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_available BOOLEAN NOT NULL DEFAULT true`;
+          }
           const [row] = await patchProduct();
           if (!row) return res.status(404).json({ error: 'Product not found' });
           return res.status(200).json(rowToProduct(row));
         } catch (err2) {
-          console.error('[products/id] PATCH after is_vegetarian migrate', err2);
+          console.error('[products/id] PATCH after column migrate', err2);
           return res.status(500).json({ error: 'Failed to update product', details: err2.message });
         }
       }

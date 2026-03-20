@@ -1,15 +1,10 @@
 import { sql, hasDb } from '../api/lib/db.js';
 import { setCors, handleOptions } from '../api/lib/cors.js';
 import { getTokenFromRequest, getSession } from '../api/lib/auth.js';
-import { pgBool, bodyBool } from './pgBool.js';
+import { pgBool, bodyBool, soldOutFromRow } from './pgBool.js';
 
-const placeholderProducts = [
-  { id: '1', name: 'Classic Cupcake', category: 'Cupcakes', price: 3.5, description: '', imageURL: null, isFeatured: false, isSoldOut: false, isVegetarian: false, stockQuantity: 24, lowStockThreshold: 5, createdAt: null, updatedAt: null },
-  { id: '2', name: 'Chocolate Chip Cookie', category: 'Cookies', price: 2.5, description: '', imageURL: null, isFeatured: false, isSoldOut: false, isVegetarian: false, stockQuantity: 36, lowStockThreshold: 8, createdAt: null, updatedAt: null },
-  { id: '3', name: 'Vanilla Bean Cupcake', category: 'Cupcakes', price: 3.99, description: '', imageURL: null, isFeatured: false, isSoldOut: false, isVegetarian: false, stockQuantity: 12, lowStockThreshold: 4, createdAt: null, updatedAt: null },
-  { id: '4', name: 'Birthday Cake (6 inch)', category: 'Cakes', price: 28, description: '', imageURL: null, isFeatured: true, isSoldOut: false, isVegetarian: false, stockQuantity: 3, lowStockThreshold: 1, createdAt: null, updatedAt: null },
-  { id: '5', name: 'Chocolate Fudge Brownie', category: 'Brownies', price: 4, description: '', imageURL: null, isFeatured: false, isSoldOut: false, isVegetarian: false, stockQuantity: 20, lowStockThreshold: 5, createdAt: null, updatedAt: null },
-];
+/** When DATABASE_URL is unset (local/static hosting), return an empty list — production uses Neon. */
+const emptyProductsList = [];
 
 function rowToProduct(row) {
   if (!row) return null;
@@ -23,7 +18,7 @@ function rowToProduct(row) {
     imageURL: row.image_url ?? null,
     category: row.category,
     isFeatured: pgBool(row.is_featured),
-    isSoldOut: pgBool(row.is_sold_out),
+    isSoldOut: soldOutFromRow(row),
     isVegetarian: pgBool(row.is_vegetarian),
     stockQuantity: row.stock_quantity ?? null,
     lowStockThreshold: row.low_stock_threshold ?? null,
@@ -55,9 +50,11 @@ export default async function handler(req, res) {
     const stockQuantity = body.stockQuantity != null ? Number(body.stockQuantity) : null;
     const lowStockThreshold = body.lowStockThreshold != null ? Number(body.lowStockThreshold) : null;
     const cost = body.cost != null && body.cost !== '' ? Number(body.cost) : null;
+    /** Keep in sync with is_sold_out: available for sale unless marked sold out. */
+    const isAvailable = !isSoldOut;
     const insertProduct = () => sql`
-      INSERT INTO products (name, description, price, cost, image_url, category, is_featured, is_sold_out, is_vegetarian, stock_quantity, low_stock_threshold)
-      VALUES (${name}, ${description}, ${price}, ${cost}, ${imageURL}, ${category}, ${isFeatured}, ${isSoldOut}, ${isVegetarian}, ${stockQuantity}, ${lowStockThreshold})
+      INSERT INTO products (name, description, price, cost, image_url, category, is_featured, is_sold_out, is_vegetarian, stock_quantity, low_stock_threshold, is_available)
+      VALUES (${name}, ${description}, ${price}, ${cost}, ${imageURL}, ${category}, ${isFeatured}, ${isSoldOut}, ${isVegetarian}, ${stockQuantity}, ${lowStockThreshold}, ${isAvailable})
       RETURNING *
     `;
     try {
@@ -67,14 +64,21 @@ export default async function handler(req, res) {
     } catch (err) {
       const missingVeg =
         err?.code === '42703' && String(err.message || '').includes('is_vegetarian');
-      if (missingVeg) {
+      const missingAvail =
+        err?.code === '42703' && String(err.message || '').includes('is_available');
+      if (missingVeg || missingAvail) {
         try {
-          await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegetarian BOOLEAN NOT NULL DEFAULT false`;
+          if (missingVeg) {
+            await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegetarian BOOLEAN NOT NULL DEFAULT false`;
+          }
+          if (missingAvail) {
+            await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_available BOOLEAN NOT NULL DEFAULT true`;
+          }
           const rows = await insertProduct();
           const row = rows[0];
           return res.status(201).json(rowToProduct(row));
         } catch (err2) {
-          console.error('products POST after is_vegetarian migrate', err2);
+          console.error('products POST after column migrate', err2);
           return res.status(500).json({ error: 'Failed to create product', details: err2.message });
         }
       }
@@ -96,7 +100,7 @@ export default async function handler(req, res) {
   }
 
   if (!hasDb() || !sql) {
-    return res.status(200).json(placeholderProducts);
+    return res.status(200).json(emptyProductsList);
   }
 
   try {

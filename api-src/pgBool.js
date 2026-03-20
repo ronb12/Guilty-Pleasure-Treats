@@ -19,3 +19,14 @@ export function pgBool(val) {
 export function bodyBool(val) {
   return pgBool(val);
 }
+
+/**
+ * Sold out for API / app: true if `is_sold_out` OR not `is_available` (when column exists).
+ * Fixes Neon rows where inventory exists but `is_available` was false without toggling sold-out.
+ */
+export function soldOutFromRow(row) {
+  if (!row) return false;
+  if (pgBool(row.is_sold_out)) return true;
+  if (row.is_available === undefined || row.is_available === null) return false;
+  return !pgBool(row.is_available);
+}

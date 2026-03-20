@@ -410,11 +410,8 @@ final class AdminViewModel: ObservableObject {
         productLoadWarning = nil
         do {
             products = try await api.fetchProducts()
-            if products.isEmpty {
-                products = Self.sampleProductsForDisplay()
-            }
         } catch {
-            products = Self.sampleProductsForDisplay()
+            products = []
             productLoadWarning = FriendlyErrorMessage.message(for: error)
         }
         isLoading = false
@@ -423,15 +420,6 @@ final class AdminViewModel: ObservableObject {
                 count: lowStockProducts.count,
                 firstProductName: lowStockProducts.first?.name
             )
-        }
-    }
-
-    /// Same sample products as the menu fallback, so Admin Products matches what customers see when API is empty or fails.
-    private static func sampleProductsForDisplay() -> [Product] {
-        SampleDataService.sampleProducts.enumerated().map { index, p in
-            var product = p
-            product.id = "sample-\(index)"
-            return product
         }
     }
 
