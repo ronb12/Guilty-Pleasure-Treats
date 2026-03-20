@@ -14,6 +14,7 @@ import { checkRateLimit } from '../lib/rateLimit.js';
 
 const APPLE_ISSUER = 'https://appleid.apple.com';
 const APPLE_JWKS = jose.createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'));
+let appleColumnWarningLogged = false;
 
 function json(res, status, data) {
   res.setHeader('Content-Type', 'application/json');
@@ -85,6 +86,28 @@ async function insertUserForAppleSubject({ sub, tokenEmail, displayName }) {
   return inserted[0] || null;
 }
 
+async function logAppleSchemaWarningOnce() {
+  if (appleColumnWarningLogged) return;
+  try {
+    const cols = await sql`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'users'
+        AND column_name IN ('apple_sub', 'apple_id')
+    `;
+    const names = new Set(cols.map((c) => c.column_name));
+    if (!names.has('apple_sub') && names.has('apple_id')) {
+      console.warn('[auth/apple] users.apple_id detected without users.apple_sub. Legacy fallback active; run apple column migration.');
+    } else if (!names.has('apple_sub') && !names.has('apple_id')) {
+      console.warn('[auth/apple] users table has no apple_sub/apple_id column. Apple login will fail until schema is updated.');
+    }
+    appleColumnWarningLogged = true;
+  } catch (e) {
+    // Non-fatal: keep auth path working even if info_schema is unavailable.
+    console.warn('[auth/apple] could not verify apple column schema', e?.message || e);
+  }
+}
+
 export default async function handler(req, res) {
   if ((req.method || '').toUpperCase() !== 'POST') {
     json(res, 405, { error: 'Method not allowed' });
@@ -105,6 +128,7 @@ export default async function handler(req, res) {
     json(res, 503, { error: 'Database is not available.' });
     return;
   }
+  await logAppleSchemaWarningOnce();
 
   const body = req.body || {};
   const identityToken = typeof body.identityToken === 'string' ? body.identityToken.trim() : '';

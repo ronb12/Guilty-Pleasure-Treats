@@ -35,6 +35,22 @@ async function main() {
     await sql`CREATE INDEX IF NOT EXISTS idx_users_email ON users(LOWER(email))`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT`;
     await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_sub TEXT`;
+    await sql`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'apple_id'
+        ) THEN
+          UPDATE users
+          SET apple_sub = apple_id
+          WHERE apple_sub IS NULL
+            AND apple_id IS NOT NULL
+            AND BTRIM(apple_id) <> '';
+        END IF;
+      END $$;
+    `;
     await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_apple_sub ON users(apple_sub) WHERE apple_sub IS NOT NULL`;
     console.log('users OK');
 
