@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Guilty Pleasure Treats</title>
+  <meta name="description" content="Guilty Pleasure Treats — order custom bakery treats, cakes, and more. Download our app for the full experience." />
+  <style>
+    :root {
+      --pink: #c2186e;
+      --pink-dark: #8e1250;
+      --cream: #fff5f8;
+      --text: #2d1a24;
+      --muted: #6b5060;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text);
+      background: linear-gradient(165deg, var(--cream) 0%, #ffeef5 45%, #fff 100%);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    .wrap {
+      max-width: 40rem;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 4rem;
+    }
+    header { text-align: center; margin-bottom: 2rem; }
+    h1 {
+      font-size: clamp(1.75rem, 5vw, 2.25rem);
+      font-weight: 700;
+      margin: 0 0 0.5rem;
+      color: var(--pink-dark);
+    }
+    .tagline { color: var(--muted); font-size: 1.05rem; margin: 0; }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 1.5rem 1.75rem;
+      box-shadow: 0 8px 32px rgba(194, 24, 110, 0.12);
+      border: 1px solid rgba(194, 24, 110, 0.15);
+      margin-bottom: 1.25rem;
+    }
+    .card h2 { font-size: 1.1rem; margin: 0 0 0.75rem; color: var(--pink-dark); }
+    .card p { margin: 0 0 0.75rem; color: var(--muted); font-size: 0.95rem; }
+    .card p:last-child { margin-bottom: 0; }
+    a {
+      color: var(--pink);
+      font-weight: 600;
+      text-decoration: none;
+    }
+    a:hover { text-decoration: underline; }
+    .links { display: flex; flex-wrap: wrap; gap: 1rem 1.25rem; margin-top: 0.5rem; }
+    #contact address { font-style: normal; color: var(--muted); font-size: 0.95rem; }
+    footer {
+      text-align: center;
+      margin-top: 2.5rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid rgba(194, 24, 110, 0.2);
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Guilty Pleasure Treats</h1>
+      <p class="tagline">Custom cakes, bakery treats, and sweet moments — order through our mobile app.</p>
+    </header>
+
+    <div class="card">
+      <h2>Get the app</h2>
+      <p>This site hosts our <strong>checkout API</strong> and support links. For menus, ordering, and rewards, use the <strong>Guilty Pleasure Treats</strong> app on iPhone, iPad, or Mac.</p>
+    </div>
+
+    <div class="card">
+      <h2>Quick links</h2>
+      <nav class="links" aria-label="Site links">
+        <a href="/api/health">API status</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+      </nav>
+    </div>
+
+    <div class="card" id="contact">
+      <h2>Contact</h2>
+      <address>
+        <p><strong>Email:</strong> <a href="mailto:info@guiltypleasuretreats.com">info@guiltypleasuretreats.com</a></p>
+        <p><strong>Instagram:</strong> <a href="https://www.instagram.com/gp_treats" rel="noopener noreferrer">@gp_treats</a></p>
+      </address>
+    </div>
+
+    <footer>
+      <p>&copy; 2026 Guilty Pleasure Treats. All rights reserved.</p>
+    </footer>
+  </div>
+</body>
+</html>
