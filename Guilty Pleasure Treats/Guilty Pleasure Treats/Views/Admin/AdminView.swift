@@ -627,14 +627,27 @@ struct AddProductView: View {
     @State private var lowStockText = ""
     @State private var selectedImage: PlatformImage?
     @State private var showImagePicker = false
+    @State private var isSaving = false
     
     private var categoryOptions: [String] {
         viewModel.productCategoryNames.isEmpty ? ProductCategory.allCases.map(\.rawValue) : viewModel.productCategoryNames
     }
     
+    private var canSaveNewProduct: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !priceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    
     var body: some View {
         NavigationStack {
             Form {
+                if let err = viewModel.errorMessage, !err.isEmpty {
+                    Section {
+                        Text(err)
+                            .font(.subheadline)
+                            .foregroundStyle(.red)
+                            .accessibilityIdentifier("addProductError")
+                    }
+                }
                 TextField("Name", text: $name)
                 TextField("Description", text: $description, axis: .vertical)
                     #if os(macOS)
@@ -692,14 +705,18 @@ struct AddProductView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        Task {
+                        Task { @MainActor in
+                            guard canSaveNewProduct, !isSaving else { return }
+                            isSaving = true
+                            defer { isSaving = false }
+                            let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
                             let price = Double(priceText.replacingOccurrences(of: ",", with: "")) ?? 0
                             let cost = Double(costText.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces))
                             let costOpt = (cost != nil && cost! > 0) ? cost : nil
                             let stock = Int(stockText.trimmingCharacters(in: .whitespaces))
                             let low = Int(lowStockText.trimmingCharacters(in: .whitespaces))
                             let didSave = await viewModel.addProduct(
-                                name: name,
+                                name: trimmedName,
                                 description: description,
                                 price: price,
                                 cost: costOpt,
@@ -715,11 +732,25 @@ struct AddProductView: View {
                             }
                         }
                     }
-                    .disabled(name.isEmpty || priceText.isEmpty)
+                    .disabled(!canSaveNewProduct || isSaving)
                 }
             }
             .macOSEditSheetPadding()
             .macOSReduceSheetTitleGap()
+            .overlay {
+                if isSaving {
+                    ZStack {
+                        Color.black.opacity(0.15)
+                        ProgressView("Saving…")
+                            .padding(20)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    .ignoresSafeArea()
+                }
+            }
+            .onAppear {
+                viewModel.dismissProductBanner()
+            }
             .sheet(isPresented: $showImagePicker) {
                 ImagePicker(image: $selectedImage)
             }
@@ -744,6 +775,7 @@ struct EditProductView: View {
     @State private var selectedImage: PlatformImage?
     @State private var showImagePicker = false
     @State private var showDeleteConfirm = false
+    @State private var isSaving = false
     
     private var canDelete: Bool {
         guard let id = product.id else { return false }
@@ -778,6 +810,13 @@ struct EditProductView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if let err = viewModel.errorMessage, !err.isEmpty {
+                    Section {
+                        Text(err)
+                            .font(.subheadline)
+                            .foregroundStyle(.red)
+                    }
+                }
                 if isSampleProduct {
                     Section {
                         Text("Sample product — changes won't save to the server. Use Add to create real products.")
@@ -858,7 +897,10 @@ struct EditProductView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        Task {
+                        Task { @MainActor in
+                            guard !isSaving else { return }
+                            isSaving = true
+                            defer { isSaving = false }
                             var updated = product
                             updated.name = name
                             updated.productDescription = description
@@ -877,10 +919,25 @@ struct EditProductView: View {
                             }
                         }
                     }
+                    .disabled(isSaving)
                 }
             }
             .macOSEditSheetPadding()
             .macOSReduceSheetTitleGap()
+            .overlay {
+                if isSaving {
+                    ZStack {
+                        Color.black.opacity(0.15)
+                        ProgressView("Saving…")
+                            .padding(20)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    .ignoresSafeArea()
+                }
+            }
+            .onAppear {
+                viewModel.dismissProductBanner()
+            }
             .sheet(isPresented: $showImagePicker) {
                 ImagePicker(image: $selectedImage)
             }

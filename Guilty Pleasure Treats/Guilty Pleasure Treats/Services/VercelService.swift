@@ -190,12 +190,28 @@ final class VercelService {
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
         try validateResponse(http, data: data)
         let j = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        return j?["id"] as? String ?? ""
+        let id = Self.stringId(from: j?["id"])
+        guard let id, !id.isEmpty else {
+            throw VercelAPIError(message: "Server did not return a product id. Try again or check the API.", statusCode: http.statusCode, requestId: nil, debugCopyPayload: nil)
+        }
+        return id
+    }
+
+    /// JSONSerialization may return UUID `id` as String or other types depending on backend.
+    private static func stringId(from value: Any?) -> String? {
+        switch value {
+        case let s as String: return s
+        case let n as NSNumber: return n.stringValue
+        default: return nil
+        }
     }
 
     func updateProduct(_ product: Product) async throws {
-        guard let id = product.id, let token = authToken else { return }
-        guard let url = apiIDURL(resource: "products", id: id) else { throw VercelNotConfiguredError() }
+        guard let rawId = product.id?.trimmingCharacters(in: .whitespacesAndNewlines), !rawId.isEmpty else {
+            throw VercelAPIError(message: "Missing product id.", statusCode: nil, requestId: nil, debugCopyPayload: nil)
+        }
+        guard authToken != nil else { throw VercelNotConfiguredError() }
+        guard let url = apiIDURL(resource: "products", id: rawId) else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
         req.httpMethod = "PATCH"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -220,7 +236,7 @@ final class VercelService {
     }
 
     func deleteProduct(id: String) async throws {
-        guard let token = authToken else { return }
+        guard authToken != nil else { throw VercelNotConfiguredError() }
         guard let url = apiIDURL(resource: "products", id: id) else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
         req.httpMethod = "DELETE"

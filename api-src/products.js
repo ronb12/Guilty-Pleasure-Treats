@@ -1,6 +1,7 @@
 import { sql, hasDb } from '../api/lib/db.js';
 import { setCors, handleOptions } from '../api/lib/cors.js';
 import { getTokenFromRequest, getSession } from '../api/lib/auth.js';
+import { pgBool, bodyBool } from './pgBool.js';
 
 const placeholderProducts = [
   { id: '1', name: 'Classic Cupcake', category: 'Cupcakes', price: 3.5, description: '', imageURL: null, isFeatured: false, isSoldOut: false, isVegetarian: false, stockQuantity: 24, lowStockThreshold: 5, createdAt: null, updatedAt: null },
@@ -21,9 +22,9 @@ function rowToProduct(row) {
     cost: row.cost != null ? Number(row.cost) : null,
     imageURL: row.image_url ?? null,
     category: row.category,
-    isFeatured: Boolean(row.is_featured),
-    isSoldOut: Boolean(row.is_sold_out),
-    isVegetarian: Boolean(row.is_vegetarian),
+    isFeatured: pgBool(row.is_featured),
+    isSoldOut: pgBool(row.is_sold_out),
+    isVegetarian: pgBool(row.is_vegetarian),
     stockQuantity: row.stock_quantity ?? null,
     lowStockThreshold: row.low_stock_threshold ?? null,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
@@ -48,21 +49,35 @@ export default async function handler(req, res) {
     const price = Number(body.price) ?? 0;
     const imageURL = body.imageURL ?? null;
     const category = String(body.category ?? '').trim();
-    const isFeatured = Boolean(body.isFeatured);
-    const isSoldOut = Boolean(body.isSoldOut);
-    const isVegetarian = Boolean(body.isVegetarian);
+    const isFeatured = bodyBool(body.isFeatured);
+    const isSoldOut = bodyBool(body.isSoldOut);
+    const isVegetarian = bodyBool(body.isVegetarian);
     const stockQuantity = body.stockQuantity != null ? Number(body.stockQuantity) : null;
     const lowStockThreshold = body.lowStockThreshold != null ? Number(body.lowStockThreshold) : null;
     const cost = body.cost != null && body.cost !== '' ? Number(body.cost) : null;
+    const insertProduct = () => sql`
+      INSERT INTO products (name, description, price, cost, image_url, category, is_featured, is_sold_out, is_vegetarian, stock_quantity, low_stock_threshold)
+      VALUES (${name}, ${description}, ${price}, ${cost}, ${imageURL}, ${category}, ${isFeatured}, ${isSoldOut}, ${isVegetarian}, ${stockQuantity}, ${lowStockThreshold})
+      RETURNING *
+    `;
     try {
-      const rows = await sql`
-        INSERT INTO products (name, description, price, cost, image_url, category, is_featured, is_sold_out, is_vegetarian, stock_quantity, low_stock_threshold)
-        VALUES (${name}, ${description}, ${price}, ${cost}, ${imageURL}, ${category}, ${isFeatured}, ${isSoldOut}, ${isVegetarian}, ${stockQuantity}, ${lowStockThreshold})
-        RETURNING *
-      `;
+      const rows = await insertProduct();
       const row = rows[0];
       return res.status(201).json(rowToProduct(row));
     } catch (err) {
+      const missingVeg =
+        err?.code === '42703' && String(err.message || '').includes('is_vegetarian');
+      if (missingVeg) {
+        try {
+          await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegetarian BOOLEAN NOT NULL DEFAULT false`;
+          const rows = await insertProduct();
+          const row = rows[0];
+          return res.status(201).json(rowToProduct(row));
+        } catch (err2) {
+          console.error('products POST after is_vegetarian migrate', err2);
+          return res.status(500).json({ error: 'Failed to create product', details: err2.message });
+        }
+      }
       if (err?.code === '42703') {
         return res.status(500).json({
           error: 'Database schema out of date',

@@ -66,15 +66,27 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
         cost = try c.decodeIfPresent(Double.self, forKey: .cost)
         imageURL = try c.decodeIfPresent(String.self, forKey: .imageURL)
         category = try c.decode(String.self, forKey: .category)
-        isFeatured = try c.decodeIfPresent(Bool.self, forKey: .isFeatured) ?? false
-        isSoldOut = try c.decodeIfPresent(Bool.self, forKey: .isSoldOut) ?? false
-        isVegetarian = try c.decodeIfPresent(Bool.self, forKey: .isVegetarian) ?? false
+        isFeatured = Self.decodeFlexibleBool(c, key: .isFeatured)
+        isSoldOut = Self.decodeFlexibleBool(c, key: .isSoldOut)
+        isVegetarian = Self.decodeFlexibleBool(c, key: .isVegetarian)
         stockQuantity = try c.decodeIfPresent(Int.self, forKey: .stockQuantity)
         lowStockThreshold = try c.decodeIfPresent(Int.self, forKey: .lowStockThreshold)
         createdAt = Product.parseISO8601(try c.decodeIfPresent(String.self, forKey: .createdAt))
         updatedAt = Product.parseISO8601(try c.decodeIfPresent(String.self, forKey: .updatedAt))
     }
     
+    /// Bool, 0/1, or string "true"/"false"/"t"/"f" (avoids bad API payloads marking items sold out).
+    private static func decodeFlexibleBool(_ c: KeyedDecodingContainer<CodingKeys>, key: CodingKeys) -> Bool {
+        if let b = try? c.decode(Bool.self, forKey: key) { return b }
+        if let i = try? c.decode(Int.self, forKey: key) { return i != 0 }
+        if let s = try? c.decode(String.self, forKey: key) {
+            let t = s.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if ["true", "t", "1", "yes"].contains(t) { return true }
+            if ["false", "f", "0", "no", ""].contains(t) { return false }
+        }
+        return false
+    }
+
     private static func parseISO8601(_ s: String?) -> Date? {
         guard let s = s, !s.isEmpty else { return nil }
         let withFractional = ISO8601DateFormatter()

@@ -6,6 +6,7 @@
 import { sql, hasDb } from '../lib/db.js';
 import { getTokenFromRequest, getSession } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
+import { pgBool, bodyBool } from '../pgBool.js';
 
 function rowToProduct(row) {
   if (!row) return null;
@@ -77,37 +78,52 @@ export default async function handler(req, res) {
     const price = Number(body.price) ?? 0;
     const imageURL = body.imageURL ?? null;
     const category = String(body.category ?? '').trim();
-    const isFeatured = Boolean(body.isFeatured);
-    const isSoldOut = Boolean(body.isSoldOut);
-    const isVegetarian = Boolean(body.isVegetarian);
+    const isFeatured = bodyBool(body.isFeatured);
+    const isSoldOut = bodyBool(body.isSoldOut);
+    const isVegetarian = bodyBool(body.isVegetarian);
     const stockQuantity = body.stockQuantity != null ? Number(body.stockQuantity) : null;
     const lowStockThreshold = body.lowStockThreshold != null ? Number(body.lowStockThreshold) : null;
     const cost = body.cost != null && body.cost !== '' ? Number(body.cost) : null;
 
     if (!name) return res.status(400).json({ error: 'Name is required' });
 
+    const patchProduct = () => sql`
+      UPDATE products SET
+        name = ${name},
+        description = ${description},
+        price = ${price},
+        cost = ${cost},
+        image_url = ${imageURL},
+        category = ${category},
+        is_featured = ${isFeatured},
+        is_sold_out = ${isSoldOut},
+        is_vegetarian = ${isVegetarian},
+        stock_quantity = ${stockQuantity},
+        low_stock_threshold = ${lowStockThreshold},
+        updated_at = NOW()
+      WHERE id = ${id}::uuid
+      RETURNING *
+    `;
+
     try {
-      const [row] = await sql`
-        UPDATE products SET
-          name = ${name},
-          description = ${description},
-          price = ${price},
-          cost = ${cost},
-          image_url = ${imageURL},
-          category = ${category},
-          is_featured = ${isFeatured},
-          is_sold_out = ${isSoldOut},
-          is_vegetarian = ${isVegetarian},
-          stock_quantity = ${stockQuantity},
-          low_stock_threshold = ${lowStockThreshold},
-          updated_at = NOW()
-        WHERE id = ${id}::uuid
-        RETURNING *
-      `;
+      const [row] = await patchProduct();
       if (!row) return res.status(404).json({ error: 'Product not found' });
       return res.status(200).json(rowToProduct(row));
     } catch (err) {
       if (err?.code === '22P02') return res.status(400).json({ error: 'Invalid product id' });
+      const missingVeg =
+        err?.code === '42703' && String(err.message || '').includes('is_vegetarian');
+      if (missingVeg) {
+        try {
+          await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegetarian BOOLEAN NOT NULL DEFAULT false`;
+          const [row] = await patchProduct();
+          if (!row) return res.status(404).json({ error: 'Product not found' });
+          return res.status(200).json(rowToProduct(row));
+        } catch (err2) {
+          console.error('[products/id] PATCH after is_vegetarian migrate', err2);
+          return res.status(500).json({ error: 'Failed to update product', details: err2.message });
+        }
+      }
       if (err?.code === '42703') {
         return res.status(500).json({
           error: 'Database schema out of date',

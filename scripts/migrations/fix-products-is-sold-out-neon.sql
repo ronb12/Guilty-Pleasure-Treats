@@ -1,0 +1,9 @@
+-- Run in Neon SQL Editor if products show "sold out" incorrectly.
+-- 1) See current values:
+--    SELECT id, name, is_sold_out FROM products;
+-- 2) If is_sold_out should be false for all in-stock items:
+--    UPDATE products SET is_sold_out = false WHERE is_sold_out IS NOT TRUE;
+-- 3) Ensure column is boolean (not text). If needed:
+--    ALTER TABLE products
+--      ALTER COLUMN is_sold_out TYPE boolean
+--      USING (is_sold_out::text IN ('true', 't', '1'));
