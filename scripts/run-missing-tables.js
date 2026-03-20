@@ -50,16 +50,16 @@ async function main() {
     console.log('sessions OK');
 
     // password_reset_tokens (forgot-password / reset-password API)
+    // Stores SHA-256 hex of the reset secret in `token` (matches common Neon setups).
     await sql`
       CREATE TABLE IF NOT EXISTS password_reset_tokens (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id UUID NOT NULL,
-        token_hash TEXT NOT NULL,
+        token TEXT NOT NULL,
         expires_at TIMESTAMPTZ NOT NULL,
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `;
-    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_password_reset_token_hash ON password_reset_tokens(token_hash)`;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_password_reset_token ON password_reset_tokens(token)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_password_reset_user_id ON password_reset_tokens(user_id)`;
     console.log('password_reset_tokens OK');
 

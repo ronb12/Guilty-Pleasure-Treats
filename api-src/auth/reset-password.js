@@ -56,9 +56,9 @@ export default async function handler(req, res) {
   try {
     const tokenHash = hashToken(token);
     const rows = await sql`
-      SELECT id, user_id, expires_at
+      SELECT user_id, expires_at
       FROM password_reset_tokens
-      WHERE token_hash = ${tokenHash} AND expires_at > NOW()
+      WHERE token = ${tokenHash} AND expires_at > NOW()
       LIMIT 1
     `;
 
@@ -74,7 +74,7 @@ export default async function handler(req, res) {
     `;
     const user = userRows[0];
     if (!user) {
-      await sql`DELETE FROM password_reset_tokens WHERE id = ${match.id}`;
+      await sql`DELETE FROM password_reset_tokens WHERE token = ${tokenHash}`;
       json(res, 400, { error: 'Invalid or expired reset link.' });
       return;
     }
@@ -105,6 +105,11 @@ export default async function handler(req, res) {
   } catch (err) {
     if (err?.code === '42P01' || /password_reset_tokens/i.test(String(err?.message || ''))) {
       console.error('[auth/reset-password] missing table password_reset_tokens', err);
+      json(res, 503, { error: 'Password reset is not ready. Please contact support.' });
+      return;
+    }
+    if (err?.code === '42703') {
+      console.error('[auth/reset-password] schema mismatch (expected column token on password_reset_tokens)', err);
       json(res, 503, { error: 'Password reset is not ready. Please contact support.' });
       return;
     }
