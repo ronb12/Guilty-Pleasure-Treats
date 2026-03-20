@@ -27,8 +27,9 @@ function hashToken(plain) {
  * User can reset if they have a credential (email/password) in Neon Auth or a bcrypt password in public.users.
  */
 async function findResettableUser(emailNorm) {
+  // Only columns we need — avoid optional columns (e.g. apple_sub) that older DBs may lack.
   const rows = await sql`
-    SELECT id, email, neon_auth_id, password_hash, apple_sub
+    SELECT id, neon_auth_id, password_hash
     FROM users
     WHERE LOWER(TRIM(email)) = ${emailNorm}
     LIMIT 1
