@@ -55,12 +55,26 @@ export default async function handler(req, res) {
 
   try {
     const tokenHash = hashToken(token);
-    const rows = await sql`
-      SELECT user_id, expires_at
-      FROM password_reset_tokens
-      WHERE token = ${tokenHash} AND expires_at > NOW()
-      LIMIT 1
-    `;
+    let rows;
+    try {
+      rows = await sql`
+        SELECT user_id, expires_at
+        FROM password_reset_tokens
+        WHERE token = ${tokenHash} AND expires_at > NOW()
+        LIMIT 1
+      `;
+    } catch (selErr) {
+      if (selErr?.code === '42703' && /column.*token/i.test(String(selErr.message || ''))) {
+        rows = await sql`
+          SELECT user_id, expires_at
+          FROM password_reset_tokens
+          WHERE token_hash = ${tokenHash} AND expires_at > NOW()
+          LIMIT 1
+        `;
+      } else {
+        throw selErr;
+      }
+    }
 
     const match = rows[0];
     if (!match) {
@@ -105,11 +119,6 @@ export default async function handler(req, res) {
   } catch (err) {
     if (err?.code === '42P01' || /password_reset_tokens/i.test(String(err?.message || ''))) {
       console.error('[auth/reset-password] missing table password_reset_tokens', err);
-      json(res, 503, { error: 'Password reset is not ready. Please contact support.' });
-      return;
-    }
-    if (err?.code === '42703') {
-      console.error('[auth/reset-password] schema mismatch (expected column token on password_reset_tokens)', err);
       json(res, 503, { error: 'Password reset is not ready. Please contact support.' });
       return;
     }

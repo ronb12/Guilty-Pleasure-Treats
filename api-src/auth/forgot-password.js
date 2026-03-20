@@ -100,21 +100,27 @@ export default async function handler(req, res) {
     const expiresAt = new Date(Date.now() + RESET_EXPIRY_MS);
 
     await sql`DELETE FROM password_reset_tokens WHERE user_id = ${user.userId}`;
-    // Column is `token` (SHA-256 hex of the secret); matches existing Neon schemas without `id` / `token_hash`.
-    await sql`
-      INSERT INTO password_reset_tokens (user_id, token, expires_at)
-      VALUES (${user.userId}, ${tokenHash}, ${expiresAt})
-    `;
+    // SHA-256 hex stored in `token` (common) or `token_hash` (older script).
+    try {
+      await sql`
+        INSERT INTO password_reset_tokens (user_id, token, expires_at)
+        VALUES (${user.userId}, ${tokenHash}, ${expiresAt})
+      `;
+    } catch (insertErr) {
+      if (insertErr?.code === '42703' && /column.*token/i.test(String(insertErr.message || ''))) {
+        await sql`
+          INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+          VALUES (${user.userId}, ${tokenHash}, ${expiresAt})
+        `;
+      } else {
+        throw insertErr;
+      }
+    }
 
     json(res, 200, { token: plainToken });
   } catch (err) {
     if (err?.code === '42P01' || /password_reset_tokens/i.test(String(err?.message || ''))) {
       console.error('[auth/forgot-password] missing table password_reset_tokens — run scripts/run-missing-tables.js', err);
-      json(res, 503, { error: 'Password reset is not ready. Please contact support.' });
-      return;
-    }
-    if (err?.code === '42703') {
-      console.error('[auth/forgot-password] schema mismatch (expected column token on password_reset_tokens)', err);
       json(res, 503, { error: 'Password reset is not ready. Please contact support.' });
       return;
     }
