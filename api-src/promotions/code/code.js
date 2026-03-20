@@ -15,6 +15,9 @@ function rowToPromotion(row) {
     validTo: row.valid_to ? new Date(row.valid_to).toISOString() : null,
     isActive: Boolean(row.is_active),
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+    minSubtotal: row.min_subtotal != null ? Number(row.min_subtotal) : null,
+    minTotalQuantity: row.min_total_quantity != null ? Number(row.min_total_quantity) : null,
+    firstOrderOnly: Boolean(row.first_order_only),
   };
 }
 
@@ -33,7 +36,8 @@ export default async function handler(req, res) {
   if (!hasDb() || !sql) return res.status(503).json({ error: 'Service unavailable' });
   try {
     const rows = await sql`
-      SELECT id, code, discount_type, value, valid_from, valid_to, is_active, created_at
+      SELECT id, code, discount_type, value, valid_from, valid_to, is_active, created_at,
+             min_subtotal, min_total_quantity, first_order_only
       FROM promotions
       WHERE UPPER(TRIM(code)) = ${code}
       LIMIT 1

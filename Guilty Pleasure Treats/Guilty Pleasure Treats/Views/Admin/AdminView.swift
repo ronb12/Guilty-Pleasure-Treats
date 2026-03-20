@@ -2538,6 +2538,11 @@ struct AdminPromotionsView: View {
                             Text("\(p.discountType) · \(p.value)")
                                 .font(.caption)
                                 .foregroundStyle(AppConstants.Colors.textSecondary)
+                            if let rules = p.rewardRulesCaption {
+                                Text(rules)
+                                    .font(.caption2)
+                                    .foregroundStyle(AppConstants.Colors.textSecondary.opacity(0.9))
+                            }
                         }
                         Spacer()
                         if p.isActive {
@@ -2587,6 +2592,9 @@ struct AddPromotionView: View {
     @State private var discountType = PromotionDiscountType.percent.rawValue
     @State private var valueText = ""
     @State private var isActive = true
+    @State private var minSubtotalText = ""
+    @State private var minTotalQuantityText = ""
+    @State private var firstOrderOnly = false
     
     var body: some View {
         NavigationStack {
@@ -2623,6 +2631,22 @@ struct AddPromotionView: View {
                     Text("Value")
                 }
                 Section {
+                    TextField("Minimum cart ($), optional", text: $minSubtotalText)
+                        #if os(iOS)
+                        .keyboardType(.decimalPad)
+                        #endif
+                    TextField("Minimum total items, optional", text: $minTotalQuantityText)
+                        #if os(iOS)
+                        .keyboardType(.numberPad)
+                        #endif
+                    Toggle("First order only (signed-in, no prior orders)", isOn: $firstOrderOnly)
+                } header: {
+                    Text("Reward rules")
+                } footer: {
+                    Text("Leave minimums blank for no threshold. First-order offers require checkout while signed in.")
+                        .font(.caption)
+                }
+                Section {
                     Toggle("Active", isOn: $isActive)
                 } header: {
                     Text("Active")
@@ -2638,8 +2662,26 @@ struct AddPromotionView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         let val = Double(valueText) ?? 0
+                        let minSub: Double? = {
+                            let t = minSubtotalText.trimmingCharacters(in: .whitespaces)
+                            guard !t.isEmpty, let d = Double(t.replacingOccurrences(of: ",", with: "")), d > 0 else { return nil }
+                            return d
+                        }()
+                        let minQty: Int? = {
+                            let t = minTotalQuantityText.trimmingCharacters(in: .whitespaces)
+                            guard !t.isEmpty, let i = Int(t), i > 0 else { return nil }
+                            return i
+                        }()
                         Task {
-                            let ok = await viewModel.addPromotion(Promotion(code: code, discountType: discountType, value: val, isActive: isActive))
+                            let ok = await viewModel.addPromotion(Promotion(
+                                code: code,
+                                discountType: discountType,
+                                value: val,
+                                isActive: isActive,
+                                minSubtotal: minSub,
+                                minTotalQuantity: minQty,
+                                firstOrderOnly: firstOrderOnly
+                            ))
                             if ok { dismiss() }
                         }
                     }
@@ -2660,6 +2702,9 @@ struct EditPromotionView: View {
     @State private var discountType: String
     @State private var valueText: String
     @State private var isActive: Bool
+    @State private var minSubtotalText: String
+    @State private var minTotalQuantityText: String
+    @State private var firstOrderOnly: Bool
     
     init(promotion: Promotion, viewModel: AdminViewModel) {
         self.promotion = promotion
@@ -2668,6 +2713,17 @@ struct EditPromotionView: View {
         _discountType = State(initialValue: promotion.discountType)
         _valueText = State(initialValue: String(format: "%.2f", promotion.value))
         _isActive = State(initialValue: promotion.isActive)
+        if let m = promotion.minSubtotal, m > 0 {
+            _minSubtotalText = State(initialValue: String(format: "%.2f", m))
+        } else {
+            _minSubtotalText = State(initialValue: "")
+        }
+        if let q = promotion.minTotalQuantity, q > 0 {
+            _minTotalQuantityText = State(initialValue: String(q))
+        } else {
+            _minTotalQuantityText = State(initialValue: "")
+        }
+        _firstOrderOnly = State(initialValue: promotion.firstOrderOnly)
     }
     
     var body: some View {
@@ -2705,6 +2761,22 @@ struct EditPromotionView: View {
                     Text("Value")
                 }
                 Section {
+                    TextField("Minimum cart ($), optional", text: $minSubtotalText)
+                        #if os(iOS)
+                        .keyboardType(.decimalPad)
+                        #endif
+                    TextField("Minimum total items, optional", text: $minTotalQuantityText)
+                        #if os(iOS)
+                        .keyboardType(.numberPad)
+                        #endif
+                    Toggle("First order only (signed-in, no prior orders)", isOn: $firstOrderOnly)
+                } header: {
+                    Text("Reward rules")
+                } footer: {
+                    Text("Clear minimum fields to remove thresholds. Server enforces the same rules at checkout.")
+                        .font(.caption)
+                }
+                Section {
                     Toggle("Active", isOn: $isActive)
                 } header: {
                     Text("Active")
@@ -2720,11 +2792,24 @@ struct EditPromotionView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         let val = Double(valueText.replacingOccurrences(of: ",", with: "")) ?? promotion.value
+                        let minSub: Double? = {
+                            let t = minSubtotalText.trimmingCharacters(in: .whitespaces)
+                            guard !t.isEmpty, let d = Double(t.replacingOccurrences(of: ",", with: "")), d > 0 else { return nil }
+                            return d
+                        }()
+                        let minQty: Int? = {
+                            let t = minTotalQuantityText.trimmingCharacters(in: .whitespaces)
+                            guard !t.isEmpty, let i = Int(t), i > 0 else { return nil }
+                            return i
+                        }()
                         var p = promotion
                         p.code = code.trimmingCharacters(in: .whitespacesAndNewlines)
                         p.discountType = discountType
                         p.value = val
                         p.isActive = isActive
+                        p.minSubtotal = minSub
+                        p.minTotalQuantity = minQty
+                        p.firstOrderOnly = firstOrderOnly
                         Task {
                             let ok = await viewModel.updatePromotion(p)
                             if ok { dismiss() }

@@ -109,6 +109,19 @@ function readBody(req) {
   });
 }
 
+/**
+ * iOS/macOS use /api/<resource>/id?id=<realId>. Path segment "id" is not the row id.
+ */
+function assignDetailIdFromSegments(q, segs) {
+  if (segs.length < 2) return;
+  if (segs[1] === 'id') {
+    if (segs.length > 2) q.id = segs[2];
+    // else keep q.id from ?id= query string
+  } else {
+    q.id = segs[1];
+  }
+}
+
 function getPathKey(req) {
   let rawPath = req.query.path;
   if (typeof rawPath === 'string' && rawPath.startsWith('[[')) rawPath = null;
@@ -142,10 +155,16 @@ function getPathKey(req) {
     key = 'upload';
   } else if (segs[0] === 'products') {
     if (segs.length === 1) key = 'products';
-    else { key = 'products/id'; q.id = segs[1]; }
+    else {
+      key = 'products/id';
+      assignDetailIdFromSegments(q, segs);
+    }
   } else if (segs[0] === 'orders') {
     if (segs.length === 1) key = 'orders';
-    else { key = 'orders/id'; q.id = segs[1]; }
+    else {
+      key = 'orders/id';
+      assignDetailIdFromSegments(q, segs);
+    }
   } else if (segs[0] === 'auth' && segs[1]) {
     key = `auth/${segs[1]}`;
   } else if (segs[0] === 'users' && segs[1] === 'me') {
@@ -157,13 +176,22 @@ function getPathKey(req) {
   } else if (segs[0] === 'promotions') {
     if (segs.length === 1) key = 'promotions';
     else if (segs[1] === 'code' && segs[2]) { key = 'promotions/code/code'; q.code = segs[2]; }
-    else { key = 'promotions/id'; q.id = segs[1]; }
+    else {
+      key = 'promotions/id';
+      assignDetailIdFromSegments(q, segs);
+    }
   } else if (segs[0] === 'custom-cake-orders') {
     if (segs.length === 1) key = 'custom-cake-orders';
-    else { key = 'custom-cake-orders/id'; q.id = segs[1]; }
+    else {
+      key = 'custom-cake-orders/id';
+      assignDetailIdFromSegments(q, segs);
+    }
   } else if (segs[0] === 'ai-cake-designs') {
     if (segs.length === 1) key = 'ai-cake-designs';
-    else { key = 'ai-cake-designs/id'; q.id = segs[1]; }
+    else {
+      key = 'ai-cake-designs/id';
+      assignDetailIdFromSegments(q, segs);
+    }
   } else if (segs[0] === 'custom-cake-options') {
     key = 'custom-cake-options';
   } else if (segs[0] === 'settings' && segs[1] === 'custom-cake-options') {
@@ -176,7 +204,7 @@ function getPathKey(req) {
       q.id = segs[1];
     } else {
       key = 'contact/id';
-      q.id = segs[1];
+      assignDetailIdFromSegments(q, segs);
     }
   } else if (segs[0] === 'admin-messages') {
     key = 'admin-messages';
@@ -188,13 +216,22 @@ function getPathKey(req) {
     key = 'ai/generate-image';
   } else if (segs[0] === 'cake-gallery') {
     if (segs.length === 1) key = 'cake-gallery';
-    else { key = 'cake-gallery/id'; q.id = segs[1]; }
+    else {
+      key = 'cake-gallery/id';
+      assignDetailIdFromSegments(q, segs);
+    }
   } else if (segs[0] === 'product-categories') {
     if (segs.length === 1) key = 'product-categories';
-    else { key = 'product-categories/id'; q.id = segs[1]; }
+    else {
+      key = 'product-categories/id';
+      assignDetailIdFromSegments(q, segs);
+    }
   } else if (segs[0] === 'customers') {
     if (segs.length === 1) key = 'customers';
-    else { key = 'customers/id'; q.id = segs[1]; }
+    else {
+      key = 'customers/id';
+      assignDetailIdFromSegments(q, segs);
+    }
   } else if (segs[0] === 'push' && segs[1] === 'register') {
     key = 'push/register';
   } else if (segs[0] === 'analytics' && segs[1] === 'summary') {
@@ -203,7 +240,10 @@ function getPathKey(req) {
     key = 'reviews';
   } else if (segs[0] === 'events') {
     if (segs.length === 1) key = 'events';
-    else { key = 'events/id'; q.id = segs[1]; }
+    else {
+      key = 'events/id';
+      assignDetailIdFromSegments(q, segs);
+    }
   }
   return { key, q };
 }

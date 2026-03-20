@@ -22,9 +22,16 @@ struct Promotion: Identifiable, Codable {
     var validTo: Date?
     var isActive: Bool
     var createdAt: Date?
+    /// Minimum cart subtotal (dollars) before discount applies. Nil = no minimum.
+    var minSubtotal: Double?
+    /// Minimum sum of line item quantities. Nil = no minimum.
+    var minTotalQuantity: Int?
+    /// When true, customer must be signed in with zero prior completed orders.
+    var firstOrderOnly: Bool
 
     enum CodingKeys: String, CodingKey {
         case id, code, discountType, value, validFrom, validTo, isActive, createdAt
+        case minSubtotal, minTotalQuantity, firstOrderOnly
     }
 
     init(
@@ -35,7 +42,10 @@ struct Promotion: Identifiable, Codable {
         validFrom: Date? = nil,
         validTo: Date? = nil,
         isActive: Bool = true,
-        createdAt: Date? = nil
+        createdAt: Date? = nil,
+        minSubtotal: Double? = nil,
+        minTotalQuantity: Int? = nil,
+        firstOrderOnly: Bool = false
     ) {
         self.id = id
         self.code = code
@@ -45,6 +55,9 @@ struct Promotion: Identifiable, Codable {
         self.validTo = validTo
         self.isActive = isActive
         self.createdAt = createdAt
+        self.minSubtotal = minSubtotal
+        self.minTotalQuantity = minTotalQuantity
+        self.firstOrderOnly = firstOrderOnly
     }
 
     init(from decoder: Decoder) throws {
@@ -57,6 +70,9 @@ struct Promotion: Identifiable, Codable {
         validTo = try c.decodeIfPresent(Date.self, forKey: .validTo)
         isActive = try c.decodeIfPresent(Bool.self, forKey: .isActive) ?? true
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
+        minSubtotal = try c.decodeIfPresent(Double.self, forKey: .minSubtotal)
+        minTotalQuantity = try c.decodeIfPresent(Int.self, forKey: .minTotalQuantity)
+        firstOrderOnly = try c.decodeIfPresent(Bool.self, forKey: .firstOrderOnly) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -69,6 +85,9 @@ struct Promotion: Identifiable, Codable {
         try c.encodeIfPresent(validTo, forKey: .validTo)
         try c.encode(isActive, forKey: .isActive)
         try c.encodeIfPresent(createdAt, forKey: .createdAt)
+        try c.encodeIfPresent(minSubtotal, forKey: .minSubtotal)
+        try c.encodeIfPresent(minTotalQuantity, forKey: .minTotalQuantity)
+        try c.encode(firstOrderOnly, forKey: .firstOrderOnly)
     }
 
     private static func decodeFlexibleId(from c: KeyedDecodingContainer<CodingKeys>) -> String? {
@@ -110,6 +129,53 @@ struct Promotion: Identifiable, Codable {
         case .none:
             return "Use code \(codeUpper) at checkout"
         }
+    }
+
+    /// Extra line for banners (requirements only).
+    var rewardRulesCaption: String? {
+        var parts: [String] = []
+        if let m = minSubtotal, m > 0 {
+            parts.append("Min \(m.currencyFormatted) cart")
+        }
+        if let q = minTotalQuantity, q > 0 {
+            parts.append("Min \(q) items")
+        }
+        if firstOrderOnly {
+            parts.append("First order only")
+        }
+        guard !parts.isEmpty else { return nil }
+        return parts.joined(separator: " · ")
+    }
+
+    /// Matches server `promotionEligibilityFailure` copy for consistent UX.
+    func eligibilityFailureMessage(
+        subtotal: Double,
+        totalItemQuantity: Int,
+        signedInUser: Bool,
+        priorCompletedOrderCount: Int?
+    ) -> String? {
+        let sub = subtotal
+        guard sub.isFinite, sub >= 0 else {
+            return "Invalid cart subtotal."
+        }
+        if let minS = minSubtotal, minS > 0, sub + 1e-9 < minS {
+            return String(format: "This promo needs a minimum cart of $%.2f before discount (you have $%.2f).", minS, sub)
+        }
+        if let minQ = minTotalQuantity, minQ > 0, totalItemQuantity < minQ {
+            return "This promo needs at least \(minQ) items in your cart (you have \(totalItemQuantity))."
+        }
+        if firstOrderOnly {
+            if !signedInUser {
+                return "Sign in with your account to use this first-order promo."
+            }
+            guard let prior = priorCompletedOrderCount else {
+                return "Could not verify first-order eligibility. Please try again."
+            }
+            if prior > 0 {
+                return "This promo is only for your first order."
+            }
+        }
+        return nil
     }
 
     /// Short date note for the home banner (optional).

@@ -54,6 +54,12 @@ final class CheckoutViewModel: ObservableObject {
                 self?.objectWillChange.send()
             }
             .store(in: &cancellables)
+        cart.$items
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
     }
 
     /// Tax rate comes from `CartManager` (single source of truth with cart).
@@ -107,6 +113,12 @@ final class CheckoutViewModel: ObservableObject {
     var discountAmount: Double {
         guard let promo = appliedPromotion else { return 0 }
         let subtotal = cart.toOrderItems().reduce(0.0) { $0 + $1.subtotal }
+        let qty = cart.itemCount
+        let signedIn = auth.currentUser != nil
+        let prior = auth.userProfile?.completedOrderCount
+        if promo.eligibilityFailureMessage(subtotal: subtotal, totalItemQuantity: qty, signedInUser: signedIn, priorCompletedOrderCount: prior) != nil {
+            return 0
+        }
         switch promo.discountTypeEnum {
         case .percent:
             return subtotal * (promo.value / 100)
@@ -115,6 +127,18 @@ final class CheckoutViewModel: ObservableObject {
         case .none:
             return 0
         }
+    }
+
+    /// When a code is applied but cart / account doesn’t meet reward rules (matches server).
+    var promoEligibilityBlocker: String? {
+        guard let promo = appliedPromotion else { return nil }
+        let subtotal = cart.toOrderItems().reduce(0.0) { $0 + $1.subtotal }
+        return promo.eligibilityFailureMessage(
+            subtotal: subtotal,
+            totalItemQuantity: cart.itemCount,
+            signedInUser: auth.currentUser != nil,
+            priorCompletedOrderCount: auth.userProfile?.completedOrderCount
+        )
     }
     
     func applyPromoCode() async {
@@ -126,8 +150,22 @@ final class CheckoutViewModel: ObservableObject {
         }
         do {
             if let promo = try await api.fetchPromotion(byCode: code) {
+                if promo.firstOrderOnly, auth.currentUser != nil {
+                    await auth.refreshProfile()
+                }
                 appliedPromotion = promo
-                promoMessage = "Applied: \(promo.code)"
+                let subtotal = cart.toOrderItems().reduce(0.0) { $0 + $1.subtotal }
+                let prior = auth.userProfile?.completedOrderCount
+                if let blocker = promo.eligibilityFailureMessage(
+                    subtotal: subtotal,
+                    totalItemQuantity: cart.itemCount,
+                    signedInUser: auth.currentUser != nil,
+                    priorCompletedOrderCount: prior
+                ) {
+                    promoMessage = blocker
+                } else {
+                    promoMessage = "Discount applied — \(promo.code.uppercased())"
+                }
             } else {
                 appliedPromotion = nil
                 promoMessage = "Invalid or expired code."

@@ -7,7 +7,7 @@ import { getTokenFromRequest, getSession } from '../api/lib/auth.js';
 import { setCors, handleOptions } from '../api/lib/cors.js';
 import { computeOrderTotals, orderTotalsToDollars, normalizeFulfillmentType, toCents } from './lib/orderTotals.js';
 import { checkRateLimit } from './lib/rateLimit.js';
-import { promotionRowToDiscount } from './lib/promoServer.js';
+import { evaluatePromotion } from './lib/promoServer.js';
 
 function rowToOrder(row) {
   if (!row) return null;
@@ -217,7 +217,8 @@ export default async function handler(req, res) {
           let promoRows;
           try {
             promoRows = await sql`
-              SELECT discount_type, value, valid_from, valid_to, is_active
+              SELECT discount_type, value, valid_from, valid_to, is_active,
+                     min_subtotal, min_total_quantity, first_order_only
               FROM promotions
               WHERE UPPER(TRIM(code)) = ${promoCode}
               LIMIT 1
@@ -230,10 +231,45 @@ export default async function handler(req, res) {
           }
           const pr = promoRows?.[0];
           const itemsSubtotalDollars = itemsSubtotalCents / 100;
-          const discountDollars = promotionRowToDiscount(pr, itemsSubtotalDollars);
-          if (discountDollars == null) {
-            return res.status(400).json({ error: 'Invalid or expired promo code.', details: [{ requestId }] });
+          const totalQuantity = itemsJson.reduce((sum, i) => {
+            const q = Math.trunc(Number(i?.quantity ?? 0));
+            return sum + (q > 0 ? q : 0);
+          }, 0);
+
+          let priorOrderCount = 0;
+          if (pr?.first_order_only) {
+            if (!userId) {
+              return res.status(400).json({
+                error: 'Sign in with your account to use this first-order promo.',
+                details: [{ requestId, code: 'SIGNIN_REQUIRED' }],
+              });
+            }
+            try {
+              const [rc] = await sql`
+                SELECT COUNT(*)::int AS c FROM orders WHERE user_id::text = ${String(userId)}
+              `;
+              priorOrderCount = Number(rc?.c ?? 0);
+            } catch (cntErr) {
+              console.error('[orders] POST promo first-order count', cntErr);
+              return res.status(400).json({
+                error: 'Could not verify first-order eligibility. Please try again.',
+                details: [{ requestId, code: 'ELIGIBILITY_UNKNOWN' }],
+              });
+            }
           }
+
+          const promoEval = evaluatePromotion(pr, itemsSubtotalDollars, {
+            totalQuantity,
+            userId: userId || null,
+            priorOrderCount,
+          });
+          if (!promoEval.ok) {
+            return res.status(400).json({
+              error: promoEval.message,
+              details: [{ requestId, code: promoEval.code }],
+            });
+          }
+          const discountDollars = promoEval.discountDollars;
           expectedDiscountedCents = Math.max(0, Math.round(itemsSubtotalCents - discountDollars * 100));
         }
         if (Math.abs(discountedSubtotalCents - expectedDiscountedCents) > 1) {

@@ -355,11 +355,18 @@ async function main() {
         valid_to TIMESTAMPTZ,
         is_active BOOLEAN NOT NULL DEFAULT true,
         created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        min_subtotal DECIMAL(10,2),
+        min_total_quantity INTEGER,
+        first_order_only BOOLEAN NOT NULL DEFAULT false
       )
     `;
     await sql`CREATE INDEX IF NOT EXISTS idx_promotions_code ON promotions(code)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_promotions_created_at ON promotions(created_at DESC)`;
+    await sql`ALTER TABLE promotions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
+    await sql`ALTER TABLE promotions ADD COLUMN IF NOT EXISTS min_subtotal DECIMAL(10,2)`;
+    await sql`ALTER TABLE promotions ADD COLUMN IF NOT EXISTS min_total_quantity INTEGER`;
+    await sql`ALTER TABLE promotions ADD COLUMN IF NOT EXISTS first_order_only BOOLEAN NOT NULL DEFAULT false`;
     console.log('promotions OK');
 
     // business_settings (custom_cake_options, main config, etc.)

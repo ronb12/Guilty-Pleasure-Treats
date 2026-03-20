@@ -293,7 +293,11 @@ struct CheckoutView: View {
                 .foregroundStyle(AppConstants.Colors.accent)
                 .disabled(viewModel.promoCode.trimmingCharacters(in: .whitespaces).isEmpty && viewModel.appliedPromotion == nil)
             }
-            if let msg = viewModel.promoMessage {
+            if let blocker = viewModel.promoEligibilityBlocker {
+                Text(blocker)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            } else if let msg = viewModel.promoMessage {
                 Text(msg)
                     .font(.caption)
                     .foregroundStyle(viewModel.appliedPromotion != nil ? .green : AppConstants.Colors.textSecondary)

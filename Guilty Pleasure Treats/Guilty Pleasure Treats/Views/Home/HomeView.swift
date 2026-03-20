@@ -482,6 +482,11 @@ struct HomeView: View {
                                 .foregroundStyle(AppConstants.Colors.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .textSelection(.enabled)
+                            if let rules = promo.rewardRulesCaption {
+                                Text(rules)
+                                    .font(.caption2)
+                                    .foregroundStyle(AppConstants.Colors.textSecondary.opacity(0.95))
+                            }
                             if let cap = promo.homeValidityCaption {
                                 Text(cap)
                                     .font(.caption2)

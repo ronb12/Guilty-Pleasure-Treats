@@ -18,6 +18,9 @@ function rowToPromotion(row) {
     validTo: row.valid_to ? new Date(row.valid_to).toISOString() : null,
     isActive: Boolean(row.is_active),
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+    minSubtotal: row.min_subtotal != null ? Number(row.min_subtotal) : null,
+    minTotalQuantity: row.min_total_quantity != null ? Number(row.min_total_quantity) : null,
+    firstOrderOnly: Boolean(row.first_order_only),
   };
 }
 
@@ -36,12 +39,14 @@ export default async function handler(req, res) {
   if ((req.method || '').toUpperCase() === 'GET') {
     try {
       const [row] = await sql`
-        SELECT id, code, discount_type, value, valid_from, valid_to, is_active, created_at
-        FROM promotions WHERE id = ${id}
+        SELECT id, code, discount_type, value, valid_from, valid_to, is_active, created_at,
+               min_subtotal, min_total_quantity, first_order_only
+        FROM promotions WHERE id = ${id}::uuid
       `;
       if (!row) return res.status(404).json({ error: 'Promotion not found' });
       return res.status(200).json(rowToPromotion(row));
     } catch (err) {
+      if (err?.code === '22P02') return res.status(400).json({ error: 'Invalid promotion id' });
       if (err?.code === '42P01') return res.status(404).json({ error: 'Promotion not found' });
       console.error('[promotions/id] GET', err);
       return res.status(500).json({ error: 'Failed to fetch promotion' });
@@ -51,14 +56,15 @@ export default async function handler(req, res) {
   if ((req.method || '').toUpperCase() === 'PATCH' || (req.method || '').toUpperCase() === 'DELETE') {
     const token = getTokenFromRequest(req);
     const session = token ? await getSession(token) : null;
-    if (!session?.userId || session.isAdmin !== true) return res.status(403).json({ error: 'Admin required' });
+    if (!session?.isAdmin) return res.status(403).json({ error: 'Admin required' });
 
     if ((req.method || '').toUpperCase() === 'DELETE') {
       try {
-        const result = await sql`DELETE FROM promotions WHERE id = ${id} RETURNING id`;
+        const result = await sql`DELETE FROM promotions WHERE id = ${id}::uuid RETURNING id`;
         if (!result?.length) return res.status(404).json({ error: 'Promotion not found' });
         return res.status(204).end();
       } catch (err) {
+        if (err?.code === '22P02') return res.status(400).json({ error: 'Invalid promotion id' });
         if (err?.code === '42P01') return res.status(503).json({ error: 'Service unavailable' });
         console.error('[promotions/id] DELETE', err);
         return res.status(500).json({ error: 'Failed to delete promotion' });
@@ -68,30 +74,63 @@ export default async function handler(req, res) {
     const body = req.body || {};
     const code = body.code != null ? String(body.code).trim().toUpperCase() : null;
     const discountType = body.discountType ?? body.discount_type ?? null;
-    const value = body.value != null ? Number(body.value) : null;
+    const valueRaw = body.value != null ? Number(body.value) : null;
+    const value = valueRaw != null && Number.isFinite(valueRaw) ? valueRaw : null;
     const isActive = body.isActive !== undefined ? Boolean(body.isActive) : (body.is_active !== undefined ? Boolean(body.is_active) : null);
     const validFrom = body.validFrom ?? body.valid_from ?? null;
     const validTo = body.validTo ?? body.valid_to ?? null;
+    const minSubIn = body.minSubtotal !== undefined || body.min_subtotal !== undefined
+      ? (body.minSubtotal ?? body.min_subtotal)
+      : undefined;
+    const minQtyIn = body.minTotalQuantity !== undefined || body.min_total_quantity !== undefined
+      ? (body.minTotalQuantity ?? body.min_total_quantity)
+      : undefined;
+    const firstOrderIn = body.firstOrderOnly !== undefined || body.first_order_only !== undefined
+      ? (body.firstOrderOnly ?? body.first_order_only)
+      : undefined;
 
     try {
-      const [existing] = await sql`SELECT id FROM promotions WHERE id = ${id}`;
+      const [existing] = await sql`SELECT id FROM promotions WHERE id = ${id}::uuid`;
       if (!existing) return res.status(404).json({ error: 'Promotion not found' });
 
-      if (code != null) await sql`UPDATE promotions SET code = ${code}, updated_at = NOW() WHERE id = ${id}`;
-      if (discountType != null) await sql`UPDATE promotions SET discount_type = ${discountType}, updated_at = NOW() WHERE id = ${id}`;
-      if (value != null) await sql`UPDATE promotions SET value = ${value}, updated_at = NOW() WHERE id = ${id}`;
-      if (isActive !== null) await sql`UPDATE promotions SET is_active = ${isActive}, updated_at = NOW() WHERE id = ${id}`;
-      if (validFrom !== undefined) await sql`UPDATE promotions SET valid_from = ${validFrom ? new Date(validFrom) : null}, updated_at = NOW() WHERE id = ${id}`;
-      if (validTo !== undefined) await sql`UPDATE promotions SET valid_to = ${validTo ? new Date(validTo) : null}, updated_at = NOW() WHERE id = ${id}`;
+      if (code != null) {
+        if (!code) return res.status(400).json({ error: 'Code cannot be empty' });
+        await sql`UPDATE promotions SET code = ${code}, updated_at = NOW() WHERE id = ${id}::uuid`;
+      }
+      if (discountType != null) await sql`UPDATE promotions SET discount_type = ${discountType}, updated_at = NOW() WHERE id = ${id}::uuid`;
+      if (value != null) await sql`UPDATE promotions SET value = ${value}, updated_at = NOW() WHERE id = ${id}::uuid`;
+      if (isActive !== null) await sql`UPDATE promotions SET is_active = ${isActive}, updated_at = NOW() WHERE id = ${id}::uuid`;
+      if (validFrom !== undefined) await sql`UPDATE promotions SET valid_from = ${validFrom ? new Date(validFrom) : null}, updated_at = NOW() WHERE id = ${id}::uuid`;
+      if (validTo !== undefined) await sql`UPDATE promotions SET valid_to = ${validTo ? new Date(validTo) : null}, updated_at = NOW() WHERE id = ${id}::uuid`;
+      if (minSubIn !== undefined) {
+        const n = minSubIn == null ? null : Number(minSubIn);
+        const dbVal = n != null && Number.isFinite(n) && n > 0 ? n : null;
+        await sql`UPDATE promotions SET min_subtotal = ${dbVal}, updated_at = NOW() WHERE id = ${id}::uuid`;
+      }
+      if (minQtyIn !== undefined) {
+        const n = minQtyIn == null ? null : Math.trunc(Number(minQtyIn));
+        const dbVal = n != null && Number.isFinite(n) && n > 0 ? n : null;
+        await sql`UPDATE promotions SET min_total_quantity = ${dbVal}, updated_at = NOW() WHERE id = ${id}::uuid`;
+      }
+      if (firstOrderIn !== undefined) {
+        await sql`UPDATE promotions SET first_order_only = ${Boolean(firstOrderIn)}, updated_at = NOW() WHERE id = ${id}::uuid`;
+      }
 
       const [row] = await sql`
-        SELECT id, code, discount_type, value, valid_from, valid_to, is_active, created_at
-        FROM promotions WHERE id = ${id}
+        SELECT id, code, discount_type, value, valid_from, valid_to, is_active, created_at,
+               min_subtotal, min_total_quantity, first_order_only
+        FROM promotions WHERE id = ${id}::uuid
       `;
       return res.status(200).json(rowToPromotion(row) ?? { id });
     } catch (err) {
+      if (err?.code === '22P02') return res.status(400).json({ error: 'Invalid promotion id' });
+      if (err?.code === '23505') return res.status(409).json({ error: 'A promotion with this code already exists' });
+      if (err?.code === '42703' && String(err.message || '').includes('updated_at')) {
+        console.error('[promotions/id] PATCH missing updated_at column — run schema migration', err);
+        return res.status(503).json({ error: 'Database schema out of date (updated_at). Run migrations.' });
+      }
       if (err?.code === '42P01') return res.status(503).json({ error: 'Service unavailable' });
-      console.error('[promotions/id] PATCH', err);
+      console.error('[promotions/id] PATCH', err?.code, err?.message, err);
       return res.status(500).json({ error: 'Failed to update promotion' });
     }
   }

@@ -17,8 +17,10 @@ struct UserProfile: Codable {
     /// Loyalty points: 1 point per $1 spent. Stored in Firestore.
     var points: Int
     var createdAt: Date?
+    /// Prior orders count from API (for first-order promos). Omitted in older API responses.
+    var completedOrderCount: Int
     
-    init(uid: String, email: String? = nil, displayName: String? = nil, phone: String? = nil, isAdmin: Bool = false, points: Int = 0, createdAt: Date? = nil) {
+    init(uid: String, email: String? = nil, displayName: String? = nil, phone: String? = nil, isAdmin: Bool = false, points: Int = 0, createdAt: Date? = nil, completedOrderCount: Int = 0) {
         self.uid = uid
         self.email = email
         self.displayName = displayName
@@ -26,10 +28,11 @@ struct UserProfile: Codable {
         self.isAdmin = isAdmin
         self.points = points
         self.createdAt = createdAt
+        self.completedOrderCount = completedOrderCount
     }
     
     enum CodingKeys: String, CodingKey {
-        case uid, email, displayName, phone, isAdmin, points, createdAt
+        case uid, email, displayName, phone, isAdmin, points, createdAt, completedOrderCount
     }
     
     init(from decoder: Decoder) throws {
@@ -41,5 +44,6 @@ struct UserProfile: Codable {
         isAdmin = try c.decodeIfPresent(Bool.self, forKey: .isAdmin) ?? false
         points = try c.decodeIfPresent(Int.self, forKey: .points) ?? 0
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
+        completedOrderCount = try c.decodeIfPresent(Int.self, forKey: .completedOrderCount) ?? 0
     }
 }

@@ -17,6 +17,9 @@ function rowToPromotion(row) {
     validTo: row.valid_to ? new Date(row.valid_to).toISOString() : null,
     isActive: Boolean(row.is_active),
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+    minSubtotal: row.min_subtotal != null ? Number(row.min_subtotal) : null,
+    minTotalQuantity: row.min_total_quantity != null ? Number(row.min_total_quantity) : null,
+    firstOrderOnly: Boolean(row.first_order_only),
   };
 }
 
@@ -32,7 +35,8 @@ export default async function handler(req, res) {
     if (!hasDb() || !sql) return res.status(200).json([]);
     try {
       const rows = await sql`
-        SELECT id, code, discount_type, value, valid_from, valid_to, is_active, created_at
+        SELECT id, code, discount_type, value, valid_from, valid_to, is_active, created_at,
+               min_subtotal, min_total_quantity, first_order_only
         FROM promotions
         ORDER BY created_at DESC NULLS LAST
         LIMIT 200
@@ -58,15 +62,20 @@ export default async function handler(req, res) {
     const isActive = body.isActive !== false && body.is_active !== false;
     const validFrom = body.validFrom ?? body.valid_from ?? null;
     const validTo = body.validTo ?? body.valid_to ?? null;
+    const minSub = body.minSubtotal != null ? Number(body.minSubtotal) : (body.min_subtotal != null ? Number(body.min_subtotal) : null);
+    const minQty = body.minTotalQuantity != null ? Math.trunc(Number(body.minTotalQuantity)) : (body.min_total_quantity != null ? Math.trunc(Number(body.min_total_quantity)) : null);
+    const firstOrderOnly = body.firstOrderOnly === true || body.first_order_only === true;
+    const minSubDb = minSub != null && Number.isFinite(minSub) && minSub > 0 ? minSub : null;
+    const minQtyDb = minQty != null && Number.isFinite(minQty) && minQty > 0 ? minQty : null;
     if (!code) return res.status(400).json({ error: 'code is required' });
 
     try {
       const [row] = await sql`
-        INSERT INTO promotions (code, discount_type, value, valid_from, valid_to, is_active)
+        INSERT INTO promotions (code, discount_type, value, valid_from, valid_to, is_active, min_subtotal, min_total_quantity, first_order_only)
         VALUES (${code}, ${discountType}, ${value},
           ${validFrom ? new Date(validFrom) : null},
           ${validTo ? new Date(validTo) : null},
-          ${isActive})
+          ${isActive}, ${minSubDb}, ${minQtyDb}, ${firstOrderOnly})
         RETURNING id, code, discount_type, value, valid_from, valid_to, is_active, created_at
       `;
       return res.status(201).json({ id: row?.id?.toString?.() ?? row?.id });

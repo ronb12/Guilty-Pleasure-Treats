@@ -402,6 +402,9 @@ final class VercelService {
         try validateResponse(http, data: data)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         guard let uid = json?["uid"] as? String else { return nil }
+        let completedOrders = (json?["completedOrderCount"] as? NSNumber)?.intValue
+            ?? (json?["completedOrderCount"] as? Int)
+            ?? 0
         return UserProfile(
             uid: uid,
             email: json?["email"] as? String,
@@ -409,7 +412,8 @@ final class VercelService {
             phone: json?["phone"] as? String,
             isAdmin: (json?["isAdmin"] as? Bool) ?? false,
             points: (json?["points"] as? Int) ?? 0,
-            createdAt: (json?["createdAt"] as? String).flatMap { ISO8601DateFormatter().date(from: $0) }
+            createdAt: (json?["createdAt"] as? String).flatMap { ISO8601DateFormatter().date(from: $0) },
+            completedOrderCount: completedOrders
         )
     }
 
@@ -645,14 +649,17 @@ final class VercelService {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "code": promotion.code,
             "discountType": promotion.discountType,
             "value": promotion.value,
             "validFrom": promotion.validFrom.map { ISO8601DateFormatter().string(from: $0) } as Any,
             "validTo": promotion.validTo.map { ISO8601DateFormatter().string(from: $0) } as Any,
             "isActive": promotion.isActive,
+            "firstOrderOnly": promotion.firstOrderOnly,
         ]
+        if let m = promotion.minSubtotal, m > 0 { body["minSubtotal"] = m }
+        if let q = promotion.minTotalQuantity, q > 0 { body["minTotalQuantity"] = q }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
@@ -676,9 +683,20 @@ final class VercelService {
             "discountType": promotion.discountType,
             "value": promotion.value,
             "isActive": promotion.isActive,
+            "firstOrderOnly": promotion.firstOrderOnly,
         ]
         if let d = promotion.validFrom { body["validFrom"] = ISO8601DateFormatter().string(from: d) }
         if let d = promotion.validTo { body["validTo"] = ISO8601DateFormatter().string(from: d) }
+        if let m = promotion.minSubtotal, m > 0 {
+            body["minSubtotal"] = m
+        } else {
+            body["minSubtotal"] = NSNull()
+        }
+        if let q = promotion.minTotalQuantity, q > 0 {
+            body["minTotalQuantity"] = q
+        } else {
+            body["minTotalQuantity"] = NSNull()
+        }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }

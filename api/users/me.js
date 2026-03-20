@@ -41,7 +41,16 @@ export default async function handler(req, res) {
         FROM users WHERE id::text = ${sessionUserId} LIMIT 1
       `;
       if (!row) return res.status(404).json({ error: 'User not found' });
-      return res.status(200).json(userResponse(row));
+      let completedOrderCount = 0;
+      try {
+        const [cnt] = await sql`
+          SELECT COUNT(*)::int AS c FROM orders WHERE user_id::text = ${sessionUserId}
+        `;
+        completedOrderCount = Number(cnt?.c ?? 0);
+      } catch (e) {
+        if (e?.code !== '42P01') console.error('[users/me] order count', e);
+      }
+      return res.status(200).json({ ...userResponse(row), completedOrderCount });
     } catch (err) {
       console.error('[users/me] GET', err);
       return res.status(500).json({ error: 'Failed to load profile' });
