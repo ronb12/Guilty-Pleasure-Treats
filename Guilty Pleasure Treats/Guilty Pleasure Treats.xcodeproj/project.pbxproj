@@ -249,7 +249,7 @@
 			mainGroup = 471236BC2F66DDB000F4F356;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				471236F52F66DDB200F4F356 /* XCRemoteSwiftPackageReference "stripe-ios" */,
+				471236F52F66DDB200F4F356 /* XCRemoteSwiftPackageReference "stripe-ios-spm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 471236C62F66DDB000F4F356 /* Products */;
@@ -738,9 +738,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		471236F52F66DDB200F4F356 /* XCRemoteSwiftPackageReference "stripe-ios" */ = {
+		471236F52F66DDB200F4F356 /* XCRemoteSwiftPackageReference "stripe-ios-spm" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/stripe/stripe-ios";
+			repositoryURL = "https://github.com/stripe/stripe-ios-spm";
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 24.0.0;
@@ -751,7 +751,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		471236FB2F66DDB200F4F356 /* StripePaymentSheet */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 471236F52F66DDB200F4F356 /* XCRemoteSwiftPackageReference "stripe-ios" */;
+			package = 471236F52F66DDB200F4F356 /* XCRemoteSwiftPackageReference "stripe-ios-spm" */;
 			productName = StripePaymentSheet;
 		};
 /* End XCSwiftPackageProductDependency section */

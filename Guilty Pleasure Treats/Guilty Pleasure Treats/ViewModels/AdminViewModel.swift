@@ -119,7 +119,7 @@ final class AdminViewModel: ObservableObject {
 
     /// Products that are low in stock (stock ≤ threshold) and not sold out. Used for in-app banner and local notification.
     var lowStockProducts: [Product] {
-        products.filter { $0.isLowStock && !$0.isSoldOut }
+        products.filter { $0.showsAdminLowStockBadge }
     }
 
     var customers: [AdminCustomer] {
@@ -360,9 +360,9 @@ final class AdminViewModel: ObservableObject {
                 thresholdStr = "—"
             }
             let status: String
-            if p.isSoldOut {
+            if p.isSoldOutByInventory {
                 status = "Sold out"
-            } else if p.isLowStock {
+            } else if p.showsAdminLowStockBadge {
                 status = "Low stock"
             } else if p.stockQuantity != nil {
                 status = "OK"
@@ -371,8 +371,8 @@ final class AdminViewModel: ObservableObject {
             }
             rows += "<tr><td>\(esc(p.name))</td><td>\(esc(p.category))</td><td>\(esc(stockStr))</td><td>\(esc(thresholdStr))</td><td>\(esc(status))</td></tr>"
         }
-        let lowCount = list.filter { $0.isLowStock && !$0.isSoldOut }.count
-        let soldOutCount = list.filter(\.isSoldOut).count
+        let lowCount = list.filter { $0.showsAdminLowStockBadge }.count
+        let soldOutCount = list.filter { $0.isSoldOutByInventory }.count
         return """
         <!DOCTYPE html>
         <html>
@@ -946,23 +946,29 @@ final class AdminViewModel: ObservableObject {
         }
     }
     
-    func addPromotion(_ promotion: Promotion) async {
+    @discardableResult
+    func addPromotion(_ promotion: Promotion) async -> Bool {
         do {
             _ = try await api.addPromotion(promotion)
             successMessage = "Promotion added."
             await loadPromotions()
+            return true
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)
+            return false
         }
     }
-    
-    func updatePromotion(_ promotion: Promotion) async {
+
+    @discardableResult
+    func updatePromotion(_ promotion: Promotion) async -> Bool {
         do {
             try await api.updatePromotion(promotion)
             successMessage = "Promotion updated."
             await loadPromotions()
+            return true
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)
+            return false
         }
     }
     

@@ -33,7 +33,7 @@ struct HomeView: View {
                         trustStrip
                         
                         VStack(alignment: .leading, spacing: 24) {
-                            promotionsBanner
+                            promotionsSection
                                 .opacity(sectionVisible ? 1 : 0)
                                 .offset(y: sectionVisible ? 0 : 12)
                             
@@ -458,28 +458,48 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
     
-    private var promotionsBanner: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "tag.fill")
-                .font(.title2)
-                .foregroundStyle(AppConstants.Colors.accent)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Sweet Deals")
-                    .font(.headline)
-                    .foregroundStyle(AppConstants.Colors.textPrimary)
-                Text("Order 3+ items and get 10% off your next visit!")
-                    .font(.caption)
-                    .foregroundStyle(AppConstants.Colors.textSecondary)
+    /// Live promos from admin (`GET /api/promotions`); hidden when none are active in-date.
+    @ViewBuilder
+    private var promotionsSection: some View {
+        if viewModel.activePromotions.isEmpty {
+            EmptyView()
+        } else {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 14) {
+                    Image(systemName: "tag.fill")
+                        .font(.title2)
+                        .foregroundStyle(AppConstants.Colors.accent)
+                    Text("Sweet deals")
+                        .font(.headline)
+                        .foregroundStyle(AppConstants.Colors.textPrimary)
+                    Spacer()
+                }
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(viewModel.activePromotions, id: \.listingId) { promo in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(promo.customerFacingOfferLine)
+                                .font(.caption)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .textSelection(.enabled)
+                            if let cap = promo.homeValidityCaption {
+                                Text(cap)
+                                    .font(.caption2)
+                                    .foregroundStyle(AppConstants.Colors.textSecondary.opacity(0.9))
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
             }
-            Spacer()
+            .padding(AppConstants.Layout.cardPadding)
+            .background(AppConstants.Colors.promotionBanner)
+            .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+            .overlay(
+                RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius)
+                    .stroke(AppConstants.Colors.accent.opacity(0.2), lineWidth: 1)
+            )
         }
-        .padding(AppConstants.Layout.cardPadding)
-        .background(AppConstants.Colors.promotionBanner)
-        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius)
-                .stroke(AppConstants.Colors.accent.opacity(0.2), lineWidth: 1)
-        )
     }
     
     private func sectionHeader(_ title: String) -> some View {

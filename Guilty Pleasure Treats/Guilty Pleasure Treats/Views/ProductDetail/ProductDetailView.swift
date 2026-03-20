@@ -71,7 +71,7 @@ struct ProductDetailView: View {
                         .fontWeight(.semibold)
                         .foregroundStyle(AppConstants.Colors.accent)
 
-                    if product.isSoldOut {
+                    if product.isUnavailableOnMenu {
                         Text("Currently sold out")
                             .font(.subheadline)
                             .foregroundStyle(.red)

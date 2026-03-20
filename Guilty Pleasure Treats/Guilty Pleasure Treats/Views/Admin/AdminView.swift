@@ -302,6 +302,26 @@ struct AdminProductsView: View {
                     .foregroundStyle(AppConstants.Colors.accent)
                 }
             }
+            .overlay(alignment: .top) {
+                if let msg = viewModel.errorMessage ?? viewModel.productLoadWarning {
+                    ErrorMessageBanner(message: msg) { viewModel.dismissProductBanner() }
+                        .padding()
+                }
+            }
+            /// `List` + `.overlay(alignment: .bottom)` often centers the toast; `safeAreaInset` pins it to the bottom.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if let msg = viewModel.successMessage {
+                    Text(msg)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.green)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 16)
+                        .background(Color.green.opacity(0.18))
+                }
+            }
             .sheet(isPresented: $showAddProduct) {
                 AddProductView(viewModel: viewModel)
                     .macOSAdminSheetSizeLarge()
@@ -309,21 +329,6 @@ struct AdminProductsView: View {
             .sheet(item: $viewModel.editingProduct) { product in
                 EditProductView(product: product, viewModel: viewModel)
                     .macOSAdminSheetSizeLarge()
-            }
-            .overlay(alignment: .top) {
-                if let msg = viewModel.errorMessage ?? viewModel.productLoadWarning {
-                    ErrorMessageBanner(message: msg) { viewModel.dismissProductBanner() }
-                        .padding()
-                }
-                if let msg = viewModel.successMessage {
-                    Text(msg)
-                        .font(.caption)
-                        .foregroundStyle(.green)
-                        .padding(8)
-                        .background(Color.green.opacity(0.15))
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .padding()
-                }
             }
         }
     }
@@ -556,60 +561,101 @@ struct AdminProductRow: View {
         product.id?.hasPrefix("sample-") ?? false
     }
 
+    /// When stock is tracked, availability follows quantity — hide the manual flag toggle so it never contradicts "Sold Out" from inventory.
+    private var usesInventoryForAvailability: Bool {
+        product.stockQuantity != nil
+    }
+
     var body: some View {
-        Button(action: onEdit) {
-            HStack(alignment: .top, spacing: 12) {
-                ProductImageView(urlString: product.imageURL, placeholderName: "cupcake.and.candles.fill")
-                    .frame(width: 56, height: 56)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(product.name)
-                            .font(.headline)
-                        if isSampleProduct {
-                            Text("Sample")
+        HStack(alignment: .top, spacing: 12) {
+            Button(action: onEdit) {
+                HStack(alignment: .top, spacing: 12) {
+                    ProductImageView(urlString: product.imageURL, placeholderName: "cupcake.and.candles.fill")
+                        .frame(width: 56, height: 56)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Text(product.name)
+                                .font(.headline)
+                                .foregroundStyle(.primary)
+                            if isSampleProduct {
+                                Text("Sample")
+                                    .font(.caption2)
+                                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(AppConstants.Colors.textSecondary.opacity(0.2))
+                                    .clipShape(Capsule())
+                            }
+                        }
+                        Text(product.price.currencyFormatted)
+                            .font(.subheadline)
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                        if let q = product.stockQuantity {
+                            Text("Stock: \(q)")
                                 .font(.caption2)
-                                .foregroundStyle(AppConstants.Colors.textSecondary)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(AppConstants.Colors.textSecondary.opacity(0.2))
-                                .clipShape(Capsule())
+                                .foregroundStyle(product.isLowStock ? .orange : AppConstants.Colors.textSecondary)
                         }
                     }
-                    Text(product.price.currencyFormatted)
-                        .font(.subheadline)
-                        .foregroundStyle(AppConstants.Colors.textSecondary)
-                    if let q = product.stockQuantity {
-                        Text("Stock: \(q)")
-                            .font(.caption2)
-                            .foregroundStyle(product.isLowStock ? .orange : AppConstants.Colors.textSecondary)
-                    }
                 }
-                Spacer()
-                if product.isSoldOut && !isSampleProduct {
-                    Text("Sold Out")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-                if product.isLowStock && !product.isSoldOut && !isSampleProduct {
-                    Text("Low")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                }
+            }
+            .buttonStyle(.plain)
+
+            Spacer(minLength: 8)
+
+            VStack(alignment: .trailing, spacing: 8) {
                 if isSampleProduct {
                     Text("Add real products above")
                         .font(.caption2)
                         .foregroundStyle(AppConstants.Colors.textSecondary)
+                        .multilineTextAlignment(.trailing)
                 } else {
-                    Button("Edit", action: onEdit)
-                        .foregroundStyle(AppConstants.Colors.accent)
-                    Button(product.isSoldOut ? "Available" : "Sold Out", action: onToggleSoldOut)
-                        .font(.caption)
+                    Group {
+                        if usesInventoryForAvailability {
+                            if product.isSoldOutByInventory {
+                                Text("Sold Out")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.orange)
+                            } else if product.showsAdminLowStockBadge {
+                                Text("Low stock")
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
+                            }
+                        } else if product.isSoldOut {
+                            Text("Sold Out")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                    .frame(minHeight: 18, alignment: .trailing)
+
+                    HStack(spacing: 12) {
+                        Button("Edit", action: onEdit)
+                            .foregroundStyle(AppConstants.Colors.accent)
+                            .fixedSize()
+                        if !usesInventoryForAvailability {
+                            Button(product.isSoldOut ? "Mark available" : "Mark sold out", action: onToggleSoldOut)
+                                .font(.caption)
+                                .foregroundStyle(AppConstants.Colors.accent)
+                                .fixedSize()
+                        }
+                    }
+                    .buttonStyle(.borderless)
                 }
             }
         }
-        .buttonStyle(.plain)
         .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        #if os(macOS)
+        .contextMenu {
+            Button("Edit", action: onEdit)
+            if !usesInventoryForAvailability {
+                Button(product.isSoldOut ? "Mark available" : "Mark sold out", action: onToggleSoldOut)
+            }
+        }
+        #endif
     }
 }
 
@@ -913,6 +959,9 @@ struct EditProductView: View {
                             updated.isVegetarian = isVegetarian
                             updated.stockQuantity = Int(stockText.trimmingCharacters(in: .whitespaces))
                             updated.lowStockThreshold = Int(lowStockText.trimmingCharacters(in: .whitespaces))
+                            if let q = updated.stockQuantity, q > 0 {
+                                updated.isSoldOut = false
+                            }
                             let didSave = await viewModel.updateProduct(updated, newImage: selectedImage)
                             if didSave {
                                 dismiss()
@@ -1881,7 +1930,7 @@ struct AdminCustomersView: View {
                 #endif
                 Section("Saved customers") {
                     ForEach(viewModel.savedCustomers) { c in
-                        HStack {
+                        HStack(alignment: .center, spacing: 12) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(c.name)
                                     .font(.headline)
@@ -1902,11 +1951,43 @@ struct AdminCustomersView: View {
                                         .foregroundStyle(AppConstants.Colors.textSecondary)
                                 }
                             }
-                            Spacer()
-                            Button("Edit", action: { editingSavedCustomer = c })
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            Spacer(minLength: 8)
+                            HStack(spacing: 16) {
+                                Button("Edit") {
+                                    editingSavedCustomer = c
+                                }
                                 .foregroundStyle(AppConstants.Colors.accent)
-                            Button("Delete", role: .destructive, action: { savedCustomerToDelete = c })
+                                .fixedSize()
+                                Button("Delete", role: .destructive) {
+                                    savedCustomerToDelete = c
+                                }
+                                .fixedSize()
+                            }
+                            // List rows treat buttons as row chrome; without this, clicks/taps often hit the wrong control (e.g. Edit opens instead of delete confirm).
+                            .buttonStyle(.borderless)
                         }
+                        .contentShape(Rectangle())
+                        #if os(macOS)
+                        .contextMenu {
+                            Button("Edit") {
+                                editingSavedCustomer = c
+                            }
+                            Divider()
+                            Button("Delete…", role: .destructive) {
+                                savedCustomerToDelete = c
+                            }
+                        }
+                        #endif
+                        #if os(iOS)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                savedCustomerToDelete = c
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                        #endif
                     }
                 }
                 Section("From orders") {
@@ -2449,7 +2530,7 @@ struct AdminPromotionsView: View {
                     .buttonStyle(.plain)
                 }
                 #endif
-                ForEach(viewModel.promotions, id: \.id) { p in
+                ForEach(viewModel.promotions, id: \.listingId) { p in
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(p.code)
@@ -2510,6 +2591,13 @@ struct AddPromotionView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if let err = viewModel.errorMessage, !err.isEmpty {
+                    Section {
+                        Text(err)
+                            .font(.subheadline)
+                            .foregroundStyle(.red)
+                    }
+                }
                 Section {
                     TextField("Code", text: $code)
                         .multilineTextAlignment(.leading)
@@ -2544,14 +2632,15 @@ struct AddPromotionView: View {
             .macOSCompactFormContent()
             .macOSGroupedFormStyle()
             .navigationTitle("New Promotion")
+            .onAppear { viewModel.clearMessages() }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         let val = Double(valueText) ?? 0
                         Task {
-                            await viewModel.addPromotion(Promotion(code: code, discountType: discountType, value: val, isActive: isActive))
-                            dismiss()
+                            let ok = await viewModel.addPromotion(Promotion(code: code, discountType: discountType, value: val, isActive: isActive))
+                            if ok { dismiss() }
                         }
                     }
                     .disabled(code.isEmpty || valueText.isEmpty)
@@ -2584,6 +2673,13 @@ struct EditPromotionView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if let err = viewModel.errorMessage, !err.isEmpty {
+                    Section {
+                        Text(err)
+                            .font(.subheadline)
+                            .foregroundStyle(.red)
+                    }
+                }
                 Section {
                     TextField("Code", text: $code)
                         .multilineTextAlignment(.leading)
@@ -2618,20 +2714,20 @@ struct EditPromotionView: View {
             .macOSCompactFormContent()
             .macOSGroupedFormStyle()
             .navigationTitle("Edit Promotion")
+            .onAppear { viewModel.clearMessages() }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        guard promotion.id != nil else { return }
-                        let val = Double(valueText) ?? promotion.value
+                        let val = Double(valueText.replacingOccurrences(of: ",", with: "")) ?? promotion.value
                         var p = promotion
-                        p.code = code
+                        p.code = code.trimmingCharacters(in: .whitespacesAndNewlines)
                         p.discountType = discountType
                         p.value = val
                         p.isActive = isActive
                         Task {
-                            await viewModel.updatePromotion(p)
-                            dismiss()
+                            let ok = await viewModel.updatePromotion(p)
+                            if ok { dismiss() }
                         }
                     }
                     .disabled(code.isEmpty || valueText.isEmpty)
@@ -4697,7 +4793,7 @@ struct AdminInventoryRow: View {
                     }
                 }
                 Spacer()
-                if product.isLowStock && !(product.isSoldOut) {
+                if product.showsAdminLowStockBadge {
                     Text("Low stock")
                         .font(.caption)
                         .foregroundStyle(.white)
@@ -4706,7 +4802,7 @@ struct AdminInventoryRow: View {
                         .background(Color.orange)
                         .clipShape(Capsule())
                 }
-                if product.isSoldOut {
+                if product.isSoldOutByInventory {
                     Text("Sold out")
                         .font(.caption)
                         .foregroundStyle(.red)
@@ -4889,7 +4985,10 @@ struct EditInventorySheet: View {
             let t = Int(lowStockText.trimmingCharacters(in: .whitespaces))
             updated.stockQuantity = q
             updated.lowStockThreshold = t
-            if markSoldOutWhenZero, let qq = q, qq <= 0 {
+            if let qq = q, qq > 0 {
+                // Restocking must clear sold-out; otherwise UI shows "Sold out" with stock > 0.
+                updated.isSoldOut = false
+            } else if markSoldOutWhenZero, let qq = q, qq <= 0 {
                 updated.isSoldOut = true
             }
         } else {

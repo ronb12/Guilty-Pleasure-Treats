@@ -141,6 +141,7 @@ final class VercelService {
         if !query.isEmpty { comp.queryItems = query }
         var req = URLRequest(url: comp.url!)
         req.httpMethod = "GET"
+        req.cachePolicy = .reloadIgnoringLocalCacheData
         let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
         guard (200...299).contains(http.statusCode) else {
@@ -150,15 +151,21 @@ final class VercelService {
         do {
             return try decoder.decode([Product].self, from: data)
         } catch {
+            #if DEBUG
+            print("[VercelService] fetchProducts decode error: \(error)")
+            if let s = String(data: data, encoding: .utf8) {
+                print("[VercelService] fetchProducts body prefix: \(s.prefix(500))")
+            }
+            #endif
             throw VercelAPIError(message: "Invalid product data from server. Please try again.", statusCode: http.statusCode)
         }
     }
 
     func fetchProduct(id: String) async throws -> Product? {
-        guard let base = baseURL else { throw VercelNotConfiguredError() }
-        let url = base.appendingPathComponent("api/products/\(id)")
+        guard let url = apiIDURL(resource: "products", id: id) else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
         req.httpMethod = "GET"
+        req.cachePolicy = .reloadIgnoringLocalCacheData
         let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { return nil }
         if http.statusCode == 404 { return nil }
@@ -210,7 +217,7 @@ final class VercelService {
         guard let rawId = product.id?.trimmingCharacters(in: .whitespacesAndNewlines), !rawId.isEmpty else {
             throw VercelAPIError(message: "Missing product id.", statusCode: nil, requestId: nil, debugCopyPayload: nil)
         }
-        guard authToken != nil else { throw VercelNotConfiguredError() }
+        guard let token = authToken else { throw VercelNotConfiguredError() }
         guard let url = apiIDURL(resource: "products", id: rawId) else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
         req.httpMethod = "PATCH"
@@ -236,7 +243,7 @@ final class VercelService {
     }
 
     func deleteProduct(id: String) async throws {
-        guard authToken != nil else { throw VercelNotConfiguredError() }
+        guard let token = authToken else { throw VercelNotConfiguredError() }
         guard let url = apiIDURL(resource: "products", id: id) else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
         req.httpMethod = "DELETE"
@@ -655,19 +662,27 @@ final class VercelService {
     }
 
     func updatePromotion(_ promotion: Promotion) async throws {
-        guard let id = promotion.id, let token = authToken else { return }
-        guard let url = apiIDURL(resource: "promotions", id: id) else { throw VercelNotConfiguredError() }
+        guard let rawId = promotion.id?.trimmingCharacters(in: .whitespacesAndNewlines), !rawId.isEmpty else {
+            throw VercelAPIError(message: "Promotion is missing an id. Pull to refresh the list and try again.", statusCode: nil)
+        }
+        guard let token = authToken else { throw VercelNotConfiguredError() }
+        guard let url = apiIDURL(resource: "promotions", id: rawId) else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
         req.httpMethod = "PATCH"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        var body: [String: Any] = ["code": promotion.code, "discountType": promotion.discountType, "value": promotion.value, "isActive": promotion.isActive]
+        var body: [String: Any] = [
+            "code": promotion.code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
+            "discountType": promotion.discountType,
+            "value": promotion.value,
+            "isActive": promotion.isActive,
+        ]
         if let d = promotion.validFrom { body["validFrom"] = ISO8601DateFormatter().string(from: d) }
         if let d = promotion.validTo { body["validTo"] = ISO8601DateFormatter().string(from: d) }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (_, res) = try await session.data(for: req)
+        let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
-        try validateResponse(http, data: Data())
+        try validateResponse(http, data: data)
     }
 
     func deletePromotion(id: String) async throws {
@@ -835,7 +850,10 @@ final class VercelService {
     func fetchProductCategories() async throws -> [ProductCategoryItem] {
         guard let base = baseURL else { throw VercelNotConfiguredError() }
         let url = base.appendingPathComponent("api/product-categories")
-        let (data, res) = try await session.data(from: url)
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.cachePolicy = .reloadIgnoringLocalCacheData
+        let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
         guard (200...299).contains(http.statusCode) else {
             let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["error"] ?? "Request failed"

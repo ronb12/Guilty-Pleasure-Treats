@@ -79,13 +79,18 @@ export default async function handler(req, res) {
     const imageURL = body.imageURL ?? null;
     const category = String(body.category ?? '').trim();
     const isFeatured = bodyBool(body.isFeatured);
-    const isSoldOut = bodyBool(body.isSoldOut);
+    let isSoldOut = bodyBool(body.isSoldOut);
     const isVegetarian = bodyBool(body.isVegetarian);
     const stockQuantity = body.stockQuantity != null ? Number(body.stockQuantity) : null;
     const lowStockThreshold = body.lowStockThreshold != null ? Number(body.lowStockThreshold) : null;
     const cost = body.cost != null && body.cost !== '' ? Number(body.cost) : null;
 
     if (!name) return res.status(400).json({ error: 'Name is required' });
+
+    // Positive stock means the item is available; clears stale is_sold_out after inventory-only edits.
+    if (stockQuantity != null && !Number.isNaN(stockQuantity) && stockQuantity > 0) {
+      isSoldOut = false;
+    }
 
     const isAvailable = !isSoldOut;
 

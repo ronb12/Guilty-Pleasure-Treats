@@ -59,7 +59,7 @@ struct ProductCard: View {
                         .fontWeight(.semibold)
                         .foregroundStyle(AppConstants.Colors.accent)
                     Spacer()
-                    if let onAddToCart = onAddToCart, !product.isSoldOut {
+                    if let onAddToCart = onAddToCart, !product.isUnavailableOnMenu {
                         Button(action: onAddToCart) {
                             Image(systemName: "plus.circle.fill")
                                 .font(.title2)
@@ -67,7 +67,7 @@ struct ProductCard: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    if product.isSoldOut {
+                    if product.isUnavailableOnMenu {
                         Text("Sold Out")
                             .font(.caption)
                             .fontWeight(.medium)

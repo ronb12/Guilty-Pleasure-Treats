@@ -62,19 +62,54 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
         id = (try? c.decode(String.self, forKey: .id)) ?? (try? c.decode(Int.self, forKey: .id)).map { String($0) }
         name = try c.decode(String.self, forKey: .name)
         productDescription = try c.decodeIfPresent(String.self, forKey: .productDescription) ?? ""
-        price = try c.decode(Double.self, forKey: .price)
-        cost = try c.decodeIfPresent(Double.self, forKey: .cost)
+        price = try Self.decodeFlexibleDouble(c, key: .price)
+        cost = Self.decodeFlexibleOptionalDouble(c, key: .cost)
         imageURL = try c.decodeIfPresent(String.self, forKey: .imageURL)
         category = try c.decode(String.self, forKey: .category)
         isFeatured = Self.decodeFlexibleBool(c, key: .isFeatured)
         isSoldOut = Self.decodeFlexibleBool(c, key: .isSoldOut)
         isVegetarian = Self.decodeFlexibleBool(c, key: .isVegetarian)
-        stockQuantity = try c.decodeIfPresent(Int.self, forKey: .stockQuantity)
-        lowStockThreshold = try c.decodeIfPresent(Int.self, forKey: .lowStockThreshold)
+        stockQuantity = Self.decodeFlexibleOptionalInt(c, key: .stockQuantity)
+        lowStockThreshold = Self.decodeFlexibleOptionalInt(c, key: .lowStockThreshold)
         createdAt = Product.parseISO8601(try c.decodeIfPresent(String.self, forKey: .createdAt))
         updatedAt = Product.parseISO8601(try c.decodeIfPresent(String.self, forKey: .updatedAt))
     }
     
+    /// JSON number (int/float) or numeric string → `Double` (avoids decode failures from APIs that send `price: 1`).
+    private static func decodeFlexibleDouble(_ c: KeyedDecodingContainer<CodingKeys>, key: CodingKeys) throws -> Double {
+        if let d = try? c.decode(Double.self, forKey: key) { return d }
+        if let i = try? c.decode(Int.self, forKey: key) { return Double(i) }
+        if let s = try? c.decode(String.self, forKey: key),
+           let v = Double(s.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            return v
+        }
+        throw DecodingError.dataCorruptedError(forKey: key, in: c, debugDescription: "Expected numeric price")
+    }
+
+    private static func decodeFlexibleOptionalDouble(_ c: KeyedDecodingContainer<CodingKeys>, key: CodingKeys) -> Double? {
+        guard c.contains(key) else { return nil }
+        if (try? c.decodeNil(forKey: key)) == true { return nil }
+        if let d = try? c.decode(Double.self, forKey: key) { return d }
+        if let i = try? c.decode(Int.self, forKey: key) { return Double(i) }
+        if let s = try? c.decode(String.self, forKey: key) {
+            let t = s.trimmingCharacters(in: .whitespacesAndNewlines)
+            if t.isEmpty { return nil }
+            return Double(t)
+        }
+        return nil
+    }
+
+    private static func decodeFlexibleOptionalInt(_ c: KeyedDecodingContainer<CodingKeys>, key: CodingKeys) -> Int? {
+        guard c.contains(key) else { return nil }
+        if (try? c.decodeNil(forKey: key)) == true { return nil }
+        if let i = try? c.decode(Int.self, forKey: key) { return i }
+        if let d = try? c.decode(Double.self, forKey: key) { return Int(d) }
+        if let s = try? c.decode(String.self, forKey: key) {
+            return Int(s.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return nil
+    }
+
     /// Bool, 0/1, or string "true"/"false"/"t"/"f" (avoids bad API payloads marking items sold out).
     private static func decodeFlexibleBool(_ c: KeyedDecodingContainer<CodingKeys>, key: CodingKeys) -> Bool {
         if let b = try? c.decode(Bool.self, forKey: key) { return b }
@@ -135,7 +170,25 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
         guard let q = stockQuantity, let t = lowStockThreshold else { return false }
         return q <= t
     }
-    
+
+    /// When inventory is tracked, sold out means quantity ≤ 0. When not tracked, uses manual `isSoldOut` (no counts).
+    var isSoldOutByInventory: Bool {
+        if let q = stockQuantity { return q <= 0 }
+        return isSoldOut
+    }
+
+    /// Admin "Low" badge: low threshold, but not when out of stock (that shows as sold out instead).
+    var showsAdminLowStockBadge: Bool {
+        if let q = stockQuantity, q <= 0 { return false }
+        return isLowStock
+    }
+
+    /// Customer menu / catalog: hide when manual sold out, or tracked stock is depleted.
+    var isUnavailableOnMenu: Bool {
+        if let q = stockQuantity, q <= 0 { return true }
+        return isSoldOut
+    }
+
     var categoryEnum: ProductCategory? {
         ProductCategory(rawValue: category)
     }

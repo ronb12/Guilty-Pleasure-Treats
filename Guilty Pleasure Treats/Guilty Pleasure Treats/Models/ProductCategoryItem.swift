@@ -32,7 +32,13 @@ struct ProductCategoryItem: Identifiable, Codable, Equatable, Hashable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(String.self, forKey: .id)
+        if let s = try? c.decode(String.self, forKey: .id) {
+            id = s
+        } else if let i = try? c.decode(Int.self, forKey: .id) {
+            id = String(i)
+        } else {
+            throw DecodingError.dataCorruptedError(forKey: .id, in: c, debugDescription: "Expected string or int id")
+        }
         name = try c.decode(String.self, forKey: .name)
         displayOrder = try c.decodeIfPresent(Int.self, forKey: .displayOrder) ?? 0
         createdAt = try c.decodeIfPresent(String.self, forKey: .createdAt)
