@@ -136,6 +136,8 @@ async function main() {
         available_from DATE
       )
     `;
+    // Existing DBs created before is_vegetarian existed — CREATE TABLE IF NOT EXISTS does not add columns.
+    await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegetarian BOOLEAN NOT NULL DEFAULT false`;
     await sql`CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at DESC)`;
     console.log('products OK');

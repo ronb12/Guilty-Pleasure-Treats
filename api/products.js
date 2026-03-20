@@ -54,13 +54,25 @@ export default async function handler(req, res) {
     const stockQuantity = body.stockQuantity != null ? Number(body.stockQuantity) : null;
     const lowStockThreshold = body.lowStockThreshold != null ? Number(body.lowStockThreshold) : null;
     const cost = body.cost != null && body.cost !== '' ? Number(body.cost) : null;
-    const rows = await sql`
-      INSERT INTO products (name, description, price, cost, image_url, category, is_featured, is_sold_out, is_vegetarian, stock_quantity, low_stock_threshold)
-      VALUES (${name}, ${description}, ${price}, ${cost}, ${imageURL}, ${category}, ${isFeatured}, ${isSoldOut}, ${isVegetarian}, ${stockQuantity}, ${lowStockThreshold})
-      RETURNING *
-    `;
-    const row = rows[0];
-    return res.status(201).json(rowToProduct(row));
+    try {
+      const rows = await sql`
+        INSERT INTO products (name, description, price, cost, image_url, category, is_featured, is_sold_out, is_vegetarian, stock_quantity, low_stock_threshold)
+        VALUES (${name}, ${description}, ${price}, ${cost}, ${imageURL}, ${category}, ${isFeatured}, ${isSoldOut}, ${isVegetarian}, ${stockQuantity}, ${lowStockThreshold})
+        RETURNING *
+      `;
+      const row = rows[0];
+      return res.status(201).json(rowToProduct(row));
+    } catch (err) {
+      if (err?.code === '42703') {
+        return res.status(500).json({
+          error: 'Database schema out of date',
+          details: err.message,
+          hint: 'On Neon, run: ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegetarian BOOLEAN NOT NULL DEFAULT false; or node scripts/run-missing-tables.js',
+        });
+      }
+      console.error('products POST', err);
+      return res.status(500).json({ error: 'Failed to create product', details: err.message });
+    }
   }
 
   if (req.method !== 'GET') {
