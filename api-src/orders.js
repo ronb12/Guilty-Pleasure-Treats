@@ -8,6 +8,7 @@ import { setCors, handleOptions } from '../api/lib/cors.js';
 import { computeOrderTotals, orderTotalsToDollars, normalizeFulfillmentType, toCents } from './lib/orderTotals.js';
 import { checkRateLimit } from './lib/rateLimit.js';
 import { evaluatePromotion } from './lib/promoServer.js';
+import { ensureOrdersOptionalColumns } from './lib/ordersSchema.js';
 
 function rowToOrder(row) {
   if (!row) return null;
@@ -62,6 +63,7 @@ export default async function handler(req, res) {
 
     if (!hasDb() || !sql) return res.status(200).json([]);
     try {
+      await ensureOrdersOptionalColumns(sql);
       let rows;
       if (isAdmin && !userIdFilter) {
         rows = await sql`
@@ -114,7 +116,7 @@ export default async function handler(req, res) {
       return res.status(200).json((rows || []).map(rowToOrder));
     } catch (err) {
       if (err?.code === '42P01') return res.status(200).json([]);
-      console.error('[orders] GET', err);
+      console.error('[orders] GET', err?.code, err?.message, err);
       return res.status(500).json({ error: 'Failed to fetch orders' });
     }
   }
@@ -167,6 +169,7 @@ export default async function handler(req, res) {
     }));
 
     try {
+      await ensureOrdersOptionalColumns(sql);
       // Validate/normalize fulfillment early (so we can validate delivery address too).
       const normalizedFulfillmentType = normalizeFulfillmentType(fulfillmentType);
       const deliveryAddressStr = deliveryAddress == null ? '' : String(deliveryAddress).trim();

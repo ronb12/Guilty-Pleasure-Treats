@@ -114,7 +114,9 @@ async function main() {
       )
     `;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS loyalty_points_awarded INT`;
+    // Analytics / list API — GET /api/orders SELECTs these; missing columns cause 500 in admin.
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS promo_code TEXT`;
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tip_cents INT NOT NULL DEFAULT 0`;
     await sql`CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`;
