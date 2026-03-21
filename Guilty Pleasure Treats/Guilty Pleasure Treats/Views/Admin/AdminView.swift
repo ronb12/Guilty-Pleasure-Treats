@@ -5706,6 +5706,8 @@ struct AdminSettingsView: View {
     @State private var contactEmail = ""
     @State private var contactPhone = ""
     @State private var storeName = ""
+    @State private var stripePublishableKeyText = ""
+    @State private var stripeSecretKeyText = ""
 
     var body: some View {
         NavigationStack {
@@ -5734,6 +5736,8 @@ struct AdminSettingsView: View {
                     contactEmail = s.contactEmail ?? ""
                     contactPhone = s.contactPhone ?? ""
                     storeName = s.storeName ?? ""
+                    stripePublishableKeyText = s.stripePublishableKey ?? ""
+                    stripeSecretKeyText = ""
                 }
             }
             .toolbar {
@@ -5766,6 +5770,8 @@ struct AdminSettingsView: View {
         let leadTime = Int(minimumOrderLeadTimeText.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces))
         let deliveryFee = Double(deliveryFeeText.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces))
         let shippingFee = Double(shippingFeeText.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces))
+        let pkTrim = stripePublishableKeyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let secretTrim = stripeSecretKeyText.trimmingCharacters(in: .whitespacesAndNewlines)
         let settings = BusinessSettings(
             storeHours: storeHours.isEmpty ? nil : storeHours,
             deliveryRadiusMiles: radius,
@@ -5777,10 +5783,14 @@ struct AdminSettingsView: View {
             cashAppTag: viewModel.businessSettings?.cashAppTag,
             venmoUsername: viewModel.businessSettings?.venmoUsername,
             deliveryFee: (deliveryFee != nil && deliveryFee! >= 0) ? deliveryFee : 0,
-            shippingFee: (shippingFee != nil && shippingFee! >= 0) ? shippingFee : 0
+            shippingFee: (shippingFee != nil && shippingFee! >= 0) ? shippingFee : 0,
+            stripePublishableKey: pkTrim.isEmpty ? nil : pkTrim,
+            stripeCheckoutEnabled: viewModel.businessSettings?.stripeCheckoutEnabled ?? false,
+            stripeSecretKeyConfigured: viewModel.businessSettings?.stripeSecretKeyConfigured ?? false
         )
         Task {
-            await viewModel.saveBusinessSettings(settings)
+            await viewModel.saveBusinessSettings(settings, newStripeSecretKey: secretTrim.isEmpty ? nil : secretTrim)
+            await MainActor.run { stripeSecretKeyText = "" }
         }
     }
 
@@ -5796,6 +5806,7 @@ struct AdminSettingsView: View {
                 settingsStoreCard
                 settingsDeliveryTaxCard
                 settingsContactCard
+                settingsStripeCard
 
                 PrimaryButton(
                     title: "Save",
@@ -5872,6 +5883,54 @@ struct AdminSettingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppConstants.Colors.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+    }
+
+    private var settingsStripeCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            settingsSectionLabel("Stripe checkout (live or test)")
+            Text(stripeKeyInstructions)
+                .font(.caption)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            settingsSecureField("Publishable key (pk_live_… or pk_test_…)", placeholder: "pk_live_…", text: $stripePublishableKeyText)
+            settingsSecureField("Secret key (sk_live_… or sk_test_…)", placeholder: viewModel.businessSettings?.stripeSecretKeyConfigured == true ? "••••••• (enter new key to replace)" : "sk_live_…", text: $stripeSecretKeyText)
+            if viewModel.businessSettings?.stripeSecretKeyConfigured == true {
+                Text("Secret key is saved on the server. Leave the secret field empty to keep it; enter a new key only to replace it.")
+                    .font(.caption2)
+                    .foregroundStyle(AppConstants.Colors.textSecondary)
+            }
+            Text("Optional: you can also set STRIPE_SECRET_KEY in the Vercel project environment instead of saving the secret here.")
+                .font(.caption2)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
+        }
+        .padding(AppConstants.Layout.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppConstants.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+    }
+
+    private var stripeKeyInstructions: String {
+        """
+        Where to find your keys:
+        1. Log in at dashboard.stripe.com
+        2. Turn off “Test mode” (toggle top right) for live keys, or leave Test mode on for test keys.
+        3. Go to Developers → API keys.
+        4. Copy “Publishable key” (pk_…) into Publishable key above.
+        5. Click “Reveal live key” (or “Reveal test key”) under “Secret key” and copy sk_… into Secret key above.
+
+        After you Save, customers can pay with a card in the app when both keys are set (or secret is in Vercel env + publishable key is saved here or in AppConstants).
+        """
+    }
+
+    private func settingsSecureField(_ label: String, placeholder: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
+            SecureField(placeholder, text: text)
+                .textFieldStyle(.roundedBorder)
+        }
     }
 
     private func settingsSectionLabel(_ text: String) -> some View {
@@ -5985,6 +6044,40 @@ struct AdminSettingsView: View {
                 Text("Contact information")
             } footer: {
                 Text("Shown to customers for support and order questions.")
+            }
+
+            Section {
+                Text(stripeKeyInstructions)
+                    .font(.caption)
+                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                    .listRowBackground(Color.clear)
+                LabeledContent("Publishable key") {
+                    SecureField("pk_live_… or pk_test_…", text: $stripePublishableKeyText)
+                        #if os(iOS)
+                        .multilineTextAlignment(.trailing)
+                        #endif
+                }
+                LabeledContent("Secret key") {
+                    SecureField(
+                        viewModel.businessSettings?.stripeSecretKeyConfigured == true ? "Enter new sk_… to replace" : "sk_live_… or sk_test_…",
+                        text: $stripeSecretKeyText
+                    )
+                    #if os(iOS)
+                    .multilineTextAlignment(.trailing)
+                    #endif
+                }
+                if viewModel.businessSettings?.stripeSecretKeyConfigured == true {
+                    Text("Secret key is saved. Leave blank to keep it.")
+                        .font(.caption2)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                }
+                Text("Optional: set STRIPE_SECRET_KEY in Vercel instead of saving the secret here.")
+                    .font(.caption2)
+                    .foregroundStyle(AppConstants.Colors.textSecondary)
+            } header: {
+                Text("Stripe checkout")
+            } footer: {
+                Text("Keys are from Stripe Dashboard → Developers → API keys. Use live keys for real charges; test keys for testing.")
             }
 
             Section {

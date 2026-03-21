@@ -21,9 +21,20 @@ struct CheckoutView: View {
     @StateObject private var viewModel = CheckoutViewModel()
     @ObservedObject private var cart = CartManager.shared
     @StateObject private var auth = AuthService.shared
-    /// Pay by link until in-app Stripe is set up; owner sends link from Admin.
-    private static let paymentMethod: PaymentMethod = .payByLink
     @State private var confirmedOrder: ConfirmedOrderItem?
+
+    /// In-app Stripe Payment Sheet when publishable key is available and the server can create PaymentIntents.
+    private var useInlineStripeCard: Bool {
+        let pkServer = cart.stripePublishableKeyFromServer?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pkApp = AppConstants.stripePublishableKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasPublishable = (pkServer != nil && !(pkServer?.isEmpty ?? true))
+            || (pkApp != nil && !(pkApp?.isEmpty ?? true))
+        return hasPublishable && cart.stripeCheckoutEnabledFromServer
+    }
+
+    private var checkoutPaymentMethod: PaymentMethod {
+        useInlineStripeCard ? .stripe : .payByLink
+    }
     
     var body: some View {
         ScrollView {
@@ -85,6 +96,7 @@ struct CheckoutView: View {
             Task {
                 if let settings = try? await VercelService.shared.fetchBusinessSettings() {
                     await MainActor.run {
+                        CartManager.shared.applyBusinessSettingsFromServer(settings)
                         if let hours = settings.minimumOrderLeadTimeHours, hours > 0 {
                             viewModel.minimumOrderLeadTimeHours = hours
                             if viewModel.scheduledDate < viewModel.minScheduledDate {
@@ -316,16 +328,29 @@ struct CheckoutView: View {
     private var paymentSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionLabel("Payment")
-            HStack {
-                Image(systemName: "link.circle.fill")
-                    .foregroundStyle(AppConstants.Colors.accent)
-                Text("Pay by link")
-                    .font(.subheadline)
-                    .foregroundStyle(AppConstants.Colors.textPrimary)
+            if useInlineStripeCard {
+                HStack {
+                    Image(systemName: "creditcard.fill")
+                        .foregroundStyle(AppConstants.Colors.accent)
+                    Text("Pay with card")
+                        .font(.subheadline)
+                        .foregroundStyle(AppConstants.Colors.textPrimary)
+                }
+                Text("After you place your order, you’ll pay securely in the app with Apple Pay or a card (Stripe).")
+                    .font(.caption)
+                    .foregroundStyle(AppConstants.Colors.textSecondary)
+            } else {
+                HStack {
+                    Image(systemName: "link.circle.fill")
+                        .foregroundStyle(AppConstants.Colors.accent)
+                    Text("Pay by link")
+                        .font(.subheadline)
+                        .foregroundStyle(AppConstants.Colors.textPrimary)
+                }
+                Text("Place your order now. The shop will send you a secure payment link by text or email to pay by card—or enable Stripe keys in Admin → Business Settings for in-app checkout.")
+                    .font(.caption)
+                    .foregroundStyle(AppConstants.Colors.textSecondary)
             }
-            Text("Place your order now. The shop will send you a secure payment link by text or email to pay by card.")
-                .font(.caption)
-                .foregroundStyle(AppConstants.Colors.textSecondary)
         }
         .padding()
         .background(AppConstants.Colors.cardBackground)
@@ -340,7 +365,7 @@ struct CheckoutView: View {
     }
     
     private func placeOrder() async {
-        let success = await viewModel.placeOrder(paymentMethod: Self.paymentMethod)
+        let success = await viewModel.placeOrder(paymentMethod: checkoutPaymentMethod)
         if success,
            let order = viewModel.lastCreatedOrder,
            let orderId = viewModel.lastCreatedOrderId {

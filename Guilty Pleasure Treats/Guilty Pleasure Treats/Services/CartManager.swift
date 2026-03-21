@@ -17,6 +17,10 @@ final class CartManager: ObservableObject {
     @Published var taxRate: Double = AppConstants.taxRate
     /// Shown on cart/checkout when business settings could not be loaded (tax may use defaults).
     @Published var businessSettingsWarning: String?
+    /// `pk_live_…` / `pk_test_…` from server business settings (admin-configured).
+    @Published private(set) var stripePublishableKeyFromServer: String?
+    /// True when the API reports the backend can create Stripe PaymentIntents.
+    @Published private(set) var stripeCheckoutEnabledFromServer: Bool = false
 
     var isEmpty: Bool { items.isEmpty }
     var itemCount: Int { items.reduce(0) { $0 + $1.quantity } }
@@ -29,6 +33,13 @@ final class CartManager: ObservableObject {
     func applyBusinessSettingsFromServer(_ settings: BusinessSettings) {
         taxRate = settings.taxRate
         businessSettingsWarning = nil
+        stripePublishableKeyFromServer = settings.stripePublishableKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+        stripeCheckoutEnabledFromServer = settings.stripeCheckoutEnabled
+        #if os(iOS)
+        if let k = stripePublishableKeyFromServer, !k.isEmpty {
+            StripeService.configure(publishableKey: k)
+        }
+        #endif
     }
 
     func markBusinessSettingsLoadFailed() {

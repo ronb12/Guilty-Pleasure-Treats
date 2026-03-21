@@ -480,6 +480,10 @@ final class VercelService {
         guard let j = j else { return nil }
         let leadTime = j["minimumOrderLeadTimeHours"]
         let leadTimeInt: Int? = (leadTime as? NSNumber)?.intValue ?? (leadTime as? Int)
+        let stripeCheckout = (j["stripeCheckoutEnabled"] as? Bool)
+            ?? ((j["stripeCheckoutEnabled"] as? NSNumber)?.boolValue)
+        let stripeSecretOk = (j["stripeSecretKeyConfigured"] as? Bool)
+            ?? ((j["stripeSecretKeyConfigured"] as? NSNumber)?.boolValue)
         return BusinessSettings(
             storeHours: j["storeHours"] as? String,
             deliveryRadiusMiles: j["deliveryRadiusMiles"] as? Double,
@@ -493,30 +497,38 @@ final class VercelService {
             deliveryFee: j["deliveryFee"] as? Double,
             shippingFee: j["shippingFee"] as? Double,
             settingsLastUpdatedAt: j["settingsLastUpdatedAt"] as? String,
-            settingsLastUpdatedByUserId: j["settingsLastUpdatedByUserId"] as? String
+            settingsLastUpdatedByUserId: j["settingsLastUpdatedByUserId"] as? String,
+            stripePublishableKey: j["stripePublishableKey"] as? String,
+            stripeCheckoutEnabled: stripeCheckout ?? false,
+            stripeSecretKeyConfigured: stripeSecretOk ?? false
         )
     }
 
-    func setBusinessSettings(_ settings: BusinessSettings) async throws {
+    func setBusinessSettings(_ settings: BusinessSettings, newStripeSecretKey: String? = nil) async throws {
         guard let base = baseURL else { throw VercelNotConfiguredError() }
+        guard let token = authToken else { throw VercelNotConfiguredError() }
         let url = base.appendingPathComponent("api/settings/business")
         var req = URLRequest(url: url)
         req.httpMethod = "PATCH"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        let body: [String: Any?] = [
-            "storeHours": settings.storeHours,
-            "deliveryRadiusMiles": settings.deliveryRadiusMiles,
-            "taxRate": settings.taxRate,
-            "minimumOrderLeadTimeHours": settings.minimumOrderLeadTimeHours,
-            "contactEmail": settings.contactEmail,
-            "contactPhone": settings.contactPhone,
-            "storeName": settings.storeName,
-            "cashAppTag": settings.cashAppTag,
-            "venmoUsername": settings.venmoUsername,
-            "deliveryFee": settings.deliveryFee,
-            "shippingFee": settings.shippingFee,
-        ]
-        req.httpBody = try JSONSerialization.data(withJSONObject: body.compactMapValues { $0 })
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        var body: [String: Any] = [:]
+        if let v = settings.storeHours { body["storeHours"] = v }
+        if let v = settings.deliveryRadiusMiles { body["deliveryRadiusMiles"] = v }
+        body["taxRate"] = settings.taxRate
+        if let v = settings.minimumOrderLeadTimeHours { body["minimumOrderLeadTimeHours"] = v }
+        if let v = settings.contactEmail { body["contactEmail"] = v }
+        if let v = settings.contactPhone { body["contactPhone"] = v }
+        if let v = settings.storeName { body["storeName"] = v }
+        if let v = settings.cashAppTag { body["cashAppTag"] = v }
+        if let v = settings.venmoUsername { body["venmoUsername"] = v }
+        if let v = settings.deliveryFee { body["deliveryFee"] = v }
+        if let v = settings.shippingFee { body["shippingFee"] = v }
+        body["stripePublishableKey"] = settings.stripePublishableKey ?? ""
+        if let sk = newStripeSecretKey?.trimmingCharacters(in: .whitespacesAndNewlines), !sk.isEmpty {
+            body["stripeSecretKey"] = sk
+        }
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (_, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
         try validateResponse(http, data: Data())

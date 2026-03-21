@@ -262,7 +262,7 @@ final class CheckoutViewModel: ObservableObject {
             
             switch paymentMethod {
             case .stripe, .applePay:
-                let amountCents = Int(order.total * 100)
+                let amountCents = Int((order.total * 100).rounded())
                 try await StripeService.shared.presentPaymentSheet(
                     amountCents: amountCents,
                     orderId: orderId,

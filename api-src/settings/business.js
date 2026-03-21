@@ -2,10 +2,13 @@
  * GET/PATCH /api/settings/business — full business settings (store, delivery, tax, fees).
  * GET: returns settings for app (including deliveryFee, shippingFee). Public GET for checkout; PATCH requires admin.
  * PATCH body: same shape; updates business_settings key 'main'.
+ * Stripe: stripePublishableKey (pk_live_… / pk_test_…) is returned on GET for the app.
+ * stripe_secret_key is stored in DB but never returned; use stripeSecretKeyConfigured to see if server can charge.
  */
-import { sql, hasDb } from '../lib/db.js';
+import { sql, hasDb } from '../../api/lib/db.js';
 import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
-import { setCors, handleOptions } from '../lib/cors.js';
+import { setCors, handleOptions } from '../../api/lib/cors.js';
+import { getStripeSecretKey } from '../../api/lib/stripeSecret.js';
 
 const DEFAULT_MAIN = {
   lead_time_hours: 24,
@@ -23,9 +26,14 @@ const DEFAULT_MAIN = {
   shipping_fee: null,
 };
 
-function toAppResponse(row) {
+async function buildAppResponse(row, sql) {
   const v = row?.value_json ? { ...DEFAULT_MAIN, ...row.value_json } : DEFAULT_MAIN;
   const taxRate = (v.tax_rate_percent != null ? Number(v.tax_rate_percent) / 100 : 0.08);
+  const pk =
+    v.stripe_publishable_key != null && String(v.stripe_publishable_key).trim() !== ''
+      ? String(v.stripe_publishable_key).trim()
+      : null;
+  const secretConfigured = !!(await getStripeSecretKey(sql));
   return {
     storeHours: v.store_hours ?? null,
     deliveryRadiusMiles: v.delivery_radius_miles != null ? Number(v.delivery_radius_miles) : null,
@@ -40,6 +48,11 @@ function toAppResponse(row) {
     shippingFee: v.shipping_fee != null ? Number(v.shipping_fee) : null,
     settingsLastUpdatedAt: v.settings_last_updated_at ?? null,
     settingsLastUpdatedByUserId: v.settings_last_updated_by_user_id ?? null,
+    stripePublishableKey: pk,
+    /** True if STRIPE_SECRET_KEY env or DB secret is set (PaymentIntents can be created). */
+    stripeCheckoutEnabled: secretConfigured,
+    /** True if a secret key is configured (env or DB); secret value is never returned. */
+    stripeSecretKeyConfigured: secretConfigured,
   };
 }
 
@@ -78,7 +91,7 @@ export default async function handler(req, res) {
   try {
     if ((req.method || '').toUpperCase() === 'GET') {
       const [row] = await sql`SELECT value_json FROM business_settings WHERE key = 'main' LIMIT 1`;
-      return res.status(200).json(toAppResponse(row));
+      return res.status(200).json(await buildAppResponse(row, sql));
     }
 
     const patchToken = getTokenFromRequest(req);
@@ -103,7 +116,7 @@ export default async function handler(req, res) {
       ON CONFLICT (key) DO UPDATE SET value_json = ${JSON.stringify(next)}::jsonb, updated_at = NOW()
     `;
     const [updated] = await sql`SELECT value_json FROM business_settings WHERE key = 'main' LIMIT 1`;
-    return res.status(200).json(toAppResponse(updated));
+    return res.status(200).json(await buildAppResponse(updated, sql));
   } catch (e) {
     console.error('[settings/business]', e);
     return res.status(500).json({ error: 'Server error' });

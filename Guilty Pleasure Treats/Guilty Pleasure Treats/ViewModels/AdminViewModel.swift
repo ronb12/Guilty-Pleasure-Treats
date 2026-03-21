@@ -1033,9 +1033,9 @@ final class AdminViewModel: ObservableObject {
         }
     }
     
-    func saveBusinessSettings(_ settings: BusinessSettings) async {
+    func saveBusinessSettings(_ settings: BusinessSettings, newStripeSecretKey: String? = nil) async {
         do {
-            try await api.setBusinessSettings(settings)
+            try await api.setBusinessSettings(settings, newStripeSecretKey: newStripeSecretKey)
             await loadBusinessSettings()
             successMessage = "Settings saved."
         } catch {
