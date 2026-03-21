@@ -40,6 +40,8 @@ function rowToOrder(row) {
     estimatedReadyTime: row.estimated_ready_time ? new Date(row.estimated_ready_time).toISOString() : null,
     customCakeOrderIds: Array.isArray(row.custom_cake_order_ids) ? row.custom_cake_order_ids : null,
     aiCakeDesignIds: Array.isArray(row.ai_cake_design_ids) ? row.ai_cake_design_ids : null,
+    promoCode: row.promo_code != null && String(row.promo_code).trim() !== '' ? String(row.promo_code).trim() : null,
+    tipCents: row.tip_cents != null ? Number(row.tip_cents) : 0,
   };
 }
 
@@ -66,7 +68,7 @@ export default async function handler(req, res) {
           SELECT id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
                  subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
                  stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
-                 custom_cake_order_ids, ai_cake_design_ids
+                 custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents
           FROM orders
           ORDER BY created_at DESC NULLS LAST
           LIMIT 500
@@ -102,7 +104,7 @@ export default async function handler(req, res) {
           SELECT id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
                  subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
                  stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
-                 custom_cake_order_ids, ai_cake_design_ids
+                 custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents
           FROM orders
           WHERE user_id::text = ${String(uid)}
           ORDER BY created_at DESC NULLS LAST
@@ -307,7 +309,7 @@ export default async function handler(req, res) {
           SELECT id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
                  subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
                  stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
-                 custom_cake_order_ids, ai_cake_design_ids
+                 custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents
           FROM orders WHERE id = ${orderId} LIMIT 1
         `;
         return r;
@@ -354,16 +356,19 @@ export default async function handler(req, res) {
         }
       }
 
+      const tipCentsVal = totals?.tipCentsInferred ?? 0;
+      const promoCodeVal = promoCode && promoCode.length > 0 ? promoCode : null;
+
       const [row] = await sql`
         INSERT INTO orders (user_id, customer_name, customer_phone, customer_email, delivery_address, items,
           subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status, stripe_payment_intent_id,
-          estimated_ready_time, custom_cake_order_ids, ai_cake_design_ids)
+          estimated_ready_time, custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents)
         VALUES (${userId}, ${customerName}, ${customerPhone}, ${customerEmail ?? null}, ${deliveryAddressClean}, ${JSON.stringify(itemsJson)},
           ${computed.subtotal}, ${computed.tax}, ${computed.total}, ${normalizedFulfillmentType}, ${scheduledPickupDate ? new Date(scheduledPickupDate) : null}, ${status}, ${stripePaymentIntentId ?? null},
-          ${estimatedReadyTime ? new Date(estimatedReadyTime) : null}, ${customCakeOrderIds}, ${aiCakeDesignIds})
+          ${estimatedReadyTime ? new Date(estimatedReadyTime) : null}, ${customCakeOrderIds}, ${aiCakeDesignIds}, ${promoCodeVal}, ${tipCentsVal})
         RETURNING id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
           subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status, stripe_payment_intent_id,
-          manual_paid_at, created_at, updated_at, estimated_ready_time, custom_cake_order_ids, ai_cake_design_ids
+          manual_paid_at, created_at, updated_at, estimated_ready_time, custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents
       `;
       const order = rowToOrder(row);
       if (idemKey) {

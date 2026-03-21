@@ -219,6 +219,54 @@ final class AdminViewModel: ObservableObject {
             .sorted { $0.count > $1.count }
     }
 
+    /// Status funnel: count by status for the period (completed + cancelled for full funnel).
+    func statusFunnel(for period: AnalyticsPeriod) -> [(status: String, count: Int)] {
+        let list = period.filter(orders, calendar: .current)
+        let grouped = Dictionary(grouping: list) { $0.status }
+        return OrderStatus.allCases.map { status in
+            (status: status.rawValue, count: grouped[status.rawValue]?.count ?? 0)
+        }.filter { $0.count > 0 }.sorted { $0.count > $1.count }
+    }
+
+    /// New vs returning: guest orders, signed-in orders, and repeat customers (signed-in with >1 order) in period.
+    func newVsReturning(for period: AnalyticsPeriod) -> (guestOrders: Int, signedInOrders: Int, repeatCustomerOrders: Int) {
+        let list = completedOrders(in: period)
+        var guest = 0
+        var signedIn = 0
+        var repeatOrders = 0
+        let byUser = Dictionary(grouping: list) { $0.userId ?? "" }
+        for (uid, userOrders) in byUser {
+            if uid.isEmpty {
+                guest += userOrders.count
+            } else {
+                signedIn += userOrders.count
+                if userOrders.count > 1 { repeatOrders += userOrders.count }
+            }
+        }
+        return (guest, signedIn, repeatOrders)
+    }
+
+    /// Promo redemptions in period: (code, count) sorted by count.
+    func promoRedemptions(for period: AnalyticsPeriod) -> [(code: String, count: Int)] {
+        let list = completedOrders(in: period).compactMap { o in (o.promoCode ?? "").trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let grouped = Dictionary(grouping: list) { $0.uppercased() }
+        return grouped.map { (code: $0.key, count: $0.value.count) }.sorted { $0.count > $1.count }
+    }
+
+    /// Total tips in period (cents).
+    func totalTipsCents(for period: AnalyticsPeriod) -> Int {
+        completedOrders(in: period).reduce(0) { $0 + ($1.tipCents ?? 0) }
+    }
+
+    /// Custom / AI cake attach rate: orders with custom cake IDs or AI design IDs.
+    func customAICakeAttach(for period: AnalyticsPeriod) -> (withCustom: Int, withAI: Int, total: Int) {
+        let list = completedOrders(in: period)
+        let withCustom = list.filter { ($0.customCakeOrderIds ?? []).isEmpty == false }.count
+        let withAI = list.filter { ($0.aiCakeDesignIds ?? []).isEmpty == false }.count
+        return (withCustom, withAI, list.count)
+    }
+
     /// Top items by quantity sold in the period. (name, quantity, revenue)
     func bestSellers(for period: AnalyticsPeriod, limit: Int = 10) -> [(name: String, quantity: Int, revenue: Double)] {
         let list = completedOrders(in: period)
@@ -255,6 +303,11 @@ final class AdminViewModel: ObservableObject {
         let byDay = ordersByDay(for: period).prefix(31)
         let mix = fulfillmentMix(for: period)
         let sellers = bestSellers(for: period, limit: 15)
+        let funnel = statusFunnel(for: period)
+        let nvr = newVsReturning(for: period)
+        let promos = promoRedemptions(for: period)
+        let tipsCents = totalTipsCents(for: period)
+        let cakeAttach = customAICakeAttach(for: period)
         let currencyFormatter = NumberFormatter()
         currencyFormatter.numberStyle = .currency
         currencyFormatter.locale = Locale.current
@@ -277,6 +330,14 @@ final class AdminViewModel: ObservableObject {
         var sellerRows = ""
         for (idx, item) in sellers.enumerated() {
             sellerRows += "<tr><td>\(idx + 1)</td><td>\(esc(item.name))</td><td>\(item.quantity)</td><td>\(fmt(item.revenue))</td></tr>"
+        }
+        var funnelRows = ""
+        for item in funnel {
+            funnelRows += "<tr><td>\(esc(item.status))</td><td>\(item.count)</td></tr>"
+        }
+        var promoRows = ""
+        for item in promos {
+            promoRows += "<tr><td>\(esc(item.code))</td><td>\(item.count)</td></tr>"
         }
         let trendLine: String
         if let comp = revenueComparison(for: period), comp.previous > 0 {
@@ -326,6 +387,20 @@ final class AdminViewModel: ObservableObject {
         <h2>Best sellers</h2>
         <table><thead><tr><th>#</th><th>Item</th><th>Qty</th><th>Revenue</th></tr></thead><tbody>\(sellerRows)</tbody></table>
         </div>
+        <div class="section">
+        <h2>Status funnel</h2>
+        <table><thead><tr><th>Status</th><th>Count</th></tr></thead><tbody>\(funnelRows)</tbody></table>
+        </div>
+        <div class="section">
+        <h2>Customer mix</h2>
+        <p>Guest: \(nvr.guestOrders) · Signed-in: \(nvr.signedInOrders) · Repeat (2+ orders): \(nvr.repeatCustomerOrders)</p>
+        </div>
+        <div class="section">
+        <h2>Promo redemptions</h2>
+        <table><thead><tr><th>Code</th><th>Orders</th></tr></thead><tbody>\(promoRows)</tbody></table>
+        </div>
+        <p><strong>Tips collected:</strong> \(fmt(Double(tipsCents) / 100.0))</p>
+        <p><strong>Custom/AI cakes:</strong> \(cakeAttach.withCustom) orders with custom cake · \(cakeAttach.withAI) with AI design (of \(cakeAttach.total) total)</p>
         </body>
         </html>
         """
