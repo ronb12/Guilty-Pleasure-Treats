@@ -3,6 +3,7 @@
  */
 import { sql, hasDb } from '../../lib/db.js';
 import { setCors, handleOptions } from '../../lib/cors.js';
+import { ensurePromotionsOptionalColumns } from '../../lib/promotionsSchema.js';
 
 function rowToPromotion(row) {
   if (!row) return null;
@@ -35,6 +36,7 @@ export default async function handler(req, res) {
   if (!code) return res.status(400).json({ error: 'code is required' });
   if (!hasDb() || !sql) return res.status(503).json({ error: 'Service unavailable' });
   try {
+    await ensurePromotionsOptionalColumns(sql);
     const rows = await sql`
       SELECT id, code, discount_type, value, valid_from, valid_to, is_active, created_at,
              min_subtotal, min_total_quantity, first_order_only

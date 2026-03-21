@@ -3,8 +3,9 @@
  * POST /api/promotions — add promotion (admin). Body: code, discountType, value, validFrom?, validTo?, isActive.
  */
 import { sql, hasDb } from '../lib/db.js';
-import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
+import { getTokenFromRequest, getSession } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
+import { ensurePromotionsOptionalColumns } from '../lib/promotionsSchema.js';
 
 function rowToPromotion(row) {
   if (!row) return null;
@@ -34,6 +35,7 @@ export default async function handler(req, res) {
   if ((req.method || '').toUpperCase() === 'GET') {
     if (!hasDb() || !sql) return res.status(200).json([]);
     try {
+      await ensurePromotionsOptionalColumns(sql);
       const rows = await sql`
         SELECT id, code, discount_type, value, valid_from, valid_to, is_active, created_at,
                min_subtotal, min_total_quantity, first_order_only
@@ -70,6 +72,7 @@ export default async function handler(req, res) {
     if (!code) return res.status(400).json({ error: 'code is required' });
 
     try {
+      await ensurePromotionsOptionalColumns(sql);
       const [row] = await sql`
         INSERT INTO promotions (code, discount_type, value, valid_from, valid_to, is_active, min_subtotal, min_total_quantity, first_order_only)
         VALUES (${code}, ${discountType}, ${value},
@@ -82,6 +85,12 @@ export default async function handler(req, res) {
     } catch (err) {
       if (err?.code === '42P01') return res.status(503).json({ error: 'Promotions table not set up. Run schema to create it.' });
       if (err?.code === '23505') return res.status(409).json({ error: 'A promotion with this code already exists' });
+      if (err?.code === '42703') {
+        console.error('[promotions] POST missing column — run scripts/run-missing-tables.js or Neon SQL', err?.message);
+        return res.status(503).json({
+          error: 'Promotions table is missing columns (min_subtotal / first_order_only / etc.). Run DB migration or redeploy.',
+        });
+      }
       console.error('[promotions] POST', err);
       return res.status(500).json({ error: 'Failed to add promotion' });
     }

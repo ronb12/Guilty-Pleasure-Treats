@@ -6,6 +6,7 @@
 import { sql, hasDb } from '../lib/db.js';
 import { getTokenFromRequest, getSession } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
+import { ensurePromotionsOptionalColumns } from '../lib/promotionsSchema.js';
 
 /** Apply PATCH fields; throws on DB errors. Caller ensures row exists or handles 404. */
 async function applyPromotionPatch(sql, id, fields) {
@@ -87,6 +88,7 @@ export default async function handler(req, res) {
 
   if ((req.method || '').toUpperCase() === 'GET') {
     try {
+      await ensurePromotionsOptionalColumns(sql);
       const [row] = await sql`
         SELECT id, code, discount_type, value, valid_from, valid_to, is_active, created_at,
                min_subtotal, min_total_quantity, first_order_only
@@ -151,6 +153,7 @@ export default async function handler(req, res) {
     };
 
     try {
+      await ensurePromotionsOptionalColumns(sql);
       const [existing] = await sql`SELECT id FROM promotions WHERE id = ${id}::uuid`;
       if (!existing) return res.status(404).json({ error: 'Promotion not found' });
 
@@ -160,15 +163,16 @@ export default async function handler(req, res) {
       if (err?.statusCode === 400) return res.status(400).json({ error: err.message || 'Bad request' });
       if (err?.code === '22P02') return res.status(400).json({ error: 'Invalid promotion id' });
       if (err?.code === '23505') return res.status(409).json({ error: 'A promotion with this code already exists' });
-      if (err?.code === '42703' && String(err.message || '').includes('updated_at')) {
+      if (err?.code === '42703') {
         try {
-          await sql`ALTER TABLE promotions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
-          console.warn('[promotions/id] Self-heal: added promotions.updated_at');
+          await ensurePromotionsOptionalColumns(sql);
+          console.warn('[promotions/id] Self-heal after 42703:', err?.message);
         } catch (migrateErr) {
-          console.error('[promotions/id] PATCH missing updated_at — migration failed', migrateErr);
-          return res.status(503).json({ error: 'Database schema out of date (updated_at). Run scripts/sql/fix-promotions-updated-at.sql in Neon.' });
+          console.error('[promotions/id] PATCH schema migration failed', migrateErr);
+          return res.status(503).json({ error: 'Database schema out of date. Run scripts/sql/fix-promotions-updated-at.sql in Neon.' });
         }
         try {
+          await ensurePromotionsOptionalColumns(sql);
           const [existing2] = await sql`SELECT id FROM promotions WHERE id = ${id}::uuid`;
           if (!existing2) return res.status(404).json({ error: 'Promotion not found' });
           const json = await applyPromotionPatch(sql, id, patchFields);
@@ -176,7 +180,7 @@ export default async function handler(req, res) {
         } catch (err2) {
           if (err2?.code === '22P02') return res.status(400).json({ error: 'Invalid promotion id' });
           if (err2?.code === '23505') return res.status(409).json({ error: 'A promotion with this code already exists' });
-          console.error('[promotions/id] PATCH retry after updated_at', err2?.code, err2?.message, err2);
+          console.error('[promotions/id] PATCH retry after schema heal', err2?.code, err2?.message, err2);
           return res.status(500).json({ error: 'Failed to update promotion' });
         }
       }

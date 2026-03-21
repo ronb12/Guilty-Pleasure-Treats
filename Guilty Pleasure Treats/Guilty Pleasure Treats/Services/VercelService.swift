@@ -649,15 +649,16 @@ final class VercelService {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let iso = ISO8601DateFormatter()
         var body: [String: Any] = [
             "code": promotion.code,
             "discountType": promotion.discountType,
             "value": promotion.value,
-            "validFrom": promotion.validFrom.map { ISO8601DateFormatter().string(from: $0) } as Any,
-            "validTo": promotion.validTo.map { ISO8601DateFormatter().string(from: $0) } as Any,
             "isActive": promotion.isActive,
             "firstOrderOnly": promotion.firstOrderOnly,
         ]
+        if let from = promotion.validFrom { body["validFrom"] = iso.string(from: from) }
+        if let to = promotion.validTo { body["validTo"] = iso.string(from: to) }
         if let m = promotion.minSubtotal, m > 0 { body["minSubtotal"] = m }
         if let q = promotion.minTotalQuantity, q > 0 { body["minTotalQuantity"] = q }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
