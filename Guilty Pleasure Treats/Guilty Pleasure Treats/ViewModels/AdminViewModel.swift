@@ -64,6 +64,31 @@ struct AdminCustomer: Identifiable {
     let orderCount: Int
     let totalSpent: Double
     let orders: [Order]
+    /// Loyalty points (from first order's userPoints, if available). Nil for guest customers.
+    let points: Int?
+    
+    /// True if customer has enough points for free cookie (50+).
+    var canRedeemCookie: Bool {
+        guard let p = points else { return false }
+        return p >= 50
+    }
+    
+    /// True if customer has enough points for free cupcake (100+).
+    var canRedeemCupcake: Bool {
+        guard let p = points else { return false }
+        return p >= 100
+    }
+    
+    /// Returns reward eligibility text, e.g. "50 pts (Free cookie)" or "100 pts (Free cupcake)".
+    var rewardEligibilityText: String? {
+        guard let p = points else { return nil }
+        if p >= 100 {
+            return "\(p) pts (Free cupcake)"
+        } else if p >= 50 {
+            return "\(p) pts (Free cookie)"
+        }
+        return "\(p) pts"
+    }
 }
 
 @MainActor
@@ -133,15 +158,23 @@ final class AdminViewModel: ObservableObject {
         return grouped.map { key, orderList in
             let o = orderList.first!
             let total = orderList.filter { $0.statusEnum != .cancelled }.reduce(0.0) { $0 + $1.total }
+            // Get points from first order that has userPoints (for signed-in customers)
+            let points = orderList.compactMap { $0.userPoints }.first
             return AdminCustomer(
                 key: key,
                 displayName: o.customerName,
                 phone: o.customerPhone,
                 orderCount: orderList.count,
                 totalSpent: total,
-                orders: orderList.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+                orders: orderList.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) },
+                points: points
             )
         }.sorted { $0.orderCount > $1.orderCount }
+    }
+    
+    /// Customers eligible for rewards (50+ points for cookie, 100+ for cupcake).
+    var customersEligibleForRewards: [AdminCustomer] {
+        customers.filter { $0.canRedeemCookie }
     }
     
     var totalRevenue: Double {

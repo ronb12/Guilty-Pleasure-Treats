@@ -62,6 +62,8 @@ struct Order: Identifiable, Codable, Equatable {
     var promoCode: String? = nil
     /// Tip amount in cents (from cart at checkout). Omitted in older API responses.
     var tipCents: Int? = nil
+    /// User loyalty points (from users table, admin requests only). Omitted in older API responses.
+    var userPoints: Int? = nil
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -86,6 +88,7 @@ struct Order: Identifiable, Codable, Equatable {
         case aiCakeDesignIds
         case promoCode
         case tipCents
+        case userPoints
     }
     
     /// True if order was paid via Stripe or marked paid manually.

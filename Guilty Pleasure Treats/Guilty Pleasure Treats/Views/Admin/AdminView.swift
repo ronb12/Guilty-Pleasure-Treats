@@ -1990,6 +1990,40 @@ struct AdminCustomersView: View {
                         #endif
                     }
                 }
+                if !viewModel.customersEligibleForRewards.isEmpty {
+                    Section("Eligible for rewards") {
+                        ForEach(viewModel.customersEligibleForRewards) { customer in
+                            Button {
+                                selectedCustomer = customer
+                            } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(customer.displayName)
+                                            .font(.headline)
+                                            .foregroundStyle(AppConstants.Colors.textPrimary)
+                                        Text(customer.phone)
+                                            .font(.caption)
+                                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                                        if let rewardText = customer.rewardEligibilityText {
+                                            Text(rewardText)
+                                                .font(.caption)
+                                                .foregroundStyle(.green)
+                                                .fontWeight(.medium)
+                                        }
+                                    }
+                                    Spacer()
+                                    Text("\(customer.orderCount) orders")
+                                        .font(.caption)
+                                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                                    Text(customer.totalSpent.currencyFormatted)
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(AppConstants.Colors.accent)
+                                }
+                            }
+                        }
+                    }
+                }
                 Section("From orders") {
                     ForEach(viewModel.customers) { customer in
                         Button {
@@ -2003,6 +2037,11 @@ struct AdminCustomersView: View {
                                     Text(customer.phone)
                                         .font(.caption)
                                         .foregroundStyle(AppConstants.Colors.textSecondary)
+                                    if let points = customer.points {
+                                        Text("\(points) points")
+                                            .font(.caption2)
+                                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                                    }
                                 }
                                 Spacer()
                                 Text("\(customer.orderCount) orders")
@@ -2093,7 +2132,34 @@ struct CustomerDetailSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(customer.orders) { order in
+                if let points = customer.points {
+                    Section {
+                        HStack {
+                            Text("Loyalty Points")
+                                .font(.subheadline)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
+                            Spacer()
+                            Text("\(points)")
+                                .font(.headline)
+                                .foregroundStyle(AppConstants.Colors.accent)
+                        }
+                        if customer.canRedeemCupcake {
+                            Label("Eligible for free cupcake (100 pts)", systemImage: "gift.fill")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        } else if customer.canRedeemCookie {
+                            Label("Eligible for free cookie (50 pts)", systemImage: "gift.fill")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        } else if points > 0 {
+                            Text("\(50 - points) more points for free cookie")
+                                .font(.caption2)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
+                        }
+                    }
+                }
+                Section("Orders") {
+                    ForEach(customer.orders) { order in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(order.createdAt?.shortDateString ?? "—")
                             .font(.caption)

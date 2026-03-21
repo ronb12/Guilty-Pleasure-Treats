@@ -43,6 +43,7 @@ function rowToOrder(row) {
     aiCakeDesignIds: Array.isArray(row.ai_cake_design_ids) ? row.ai_cake_design_ids : null,
     promoCode: row.promo_code != null && String(row.promo_code).trim() !== '' ? String(row.promo_code).trim() : null,
     tipCents: row.tip_cents != null ? Number(row.tip_cents) : 0,
+    userPoints: row.user_points != null ? Number(row.user_points) : null,
   };
 }
 
@@ -72,23 +73,27 @@ export default async function handler(req, res) {
       try {
         if (isAdminAll) {
           rows = await sql`
-          SELECT id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
-                 subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
-                 stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
-                 custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents
-          FROM orders
-          ORDER BY created_at DESC NULLS LAST
+          SELECT o.id, o.user_id, o.customer_name, o.customer_phone, o.customer_email, o.delivery_address, o.items,
+                 o.subtotal, o.tax, o.total, o.fulfillment_type, o.scheduled_pickup_date, o.status,
+                 o.stripe_payment_intent_id, o.manual_paid_at, o.created_at, o.updated_at, o.estimated_ready_time,
+                 o.custom_cake_order_ids, o.ai_cake_design_ids, o.promo_code, o.tip_cents,
+                 COALESCE(u.points, 0)::int AS user_points
+          FROM orders o
+          LEFT JOIN users u ON o.user_id = u.id
+          ORDER BY o.created_at DESC NULLS LAST
           LIMIT 500
         `;
         } else {
           rows = await sql`
-          SELECT id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
-                 subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
-                 stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
-                 custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents
-          FROM orders
-          WHERE user_id::text = ${String(uid)}
-          ORDER BY created_at DESC NULLS LAST
+          SELECT o.id, o.user_id, o.customer_name, o.customer_phone, o.customer_email, o.delivery_address, o.items,
+                 o.subtotal, o.tax, o.total, o.fulfillment_type, o.scheduled_pickup_date, o.status,
+                 o.stripe_payment_intent_id, o.manual_paid_at, o.created_at, o.updated_at, o.estimated_ready_time,
+                 o.custom_cake_order_ids, o.ai_cake_design_ids, o.promo_code, o.tip_cents,
+                 COALESCE(u.points, 0)::int AS user_points
+          FROM orders o
+          LEFT JOIN users u ON o.user_id = u.id
+          WHERE o.user_id::text = ${String(uid)}
+          ORDER BY o.created_at DESC NULLS LAST
           LIMIT 200
         `;
         }
@@ -97,23 +102,27 @@ export default async function handler(req, res) {
         console.warn('[orders] GET missing optional columns (42703), using legacy SELECT');
         if (isAdminAll) {
           rows = await sql`
-          SELECT id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
-                 subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
-                 stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
-                 custom_cake_order_ids, ai_cake_design_ids
-          FROM orders
-          ORDER BY created_at DESC NULLS LAST
+          SELECT o.id, o.user_id, o.customer_name, o.customer_phone, o.customer_email, o.delivery_address, o.items,
+                 o.subtotal, o.tax, o.total, o.fulfillment_type, o.scheduled_pickup_date, o.status,
+                 o.stripe_payment_intent_id, o.manual_paid_at, o.created_at, o.updated_at, o.estimated_ready_time,
+                 o.custom_cake_order_ids, o.ai_cake_design_ids,
+                 COALESCE(u.points, 0)::int AS user_points
+          FROM orders o
+          LEFT JOIN users u ON o.user_id = u.id
+          ORDER BY o.created_at DESC NULLS LAST
           LIMIT 500
         `;
         } else {
           rows = await sql`
-          SELECT id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
-                 subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
-                 stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
-                 custom_cake_order_ids, ai_cake_design_ids
-          FROM orders
-          WHERE user_id::text = ${String(uid)}
-          ORDER BY created_at DESC NULLS LAST
+          SELECT o.id, o.user_id, o.customer_name, o.customer_phone, o.customer_email, o.delivery_address, o.items,
+                 o.subtotal, o.tax, o.total, o.fulfillment_type, o.scheduled_pickup_date, o.status,
+                 o.stripe_payment_intent_id, o.manual_paid_at, o.created_at, o.updated_at, o.estimated_ready_time,
+                 o.custom_cake_order_ids, o.ai_cake_design_ids,
+                 COALESCE(u.points, 0)::int AS user_points
+          FROM orders o
+          LEFT JOIN users u ON o.user_id = u.id
+          WHERE o.user_id::text = ${String(uid)}
+          ORDER BY o.created_at DESC NULLS LAST
           LIMIT 200
         `;
         }
