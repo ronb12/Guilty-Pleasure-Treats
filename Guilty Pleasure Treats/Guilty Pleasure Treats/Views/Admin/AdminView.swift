@@ -238,11 +238,15 @@ struct AdminView: View {
             selectedTab = 2
         case .openAdminInventory:
             selectedTab = 13
+        case .openAdminReviews:
+            selectedTab = 7
         case .openOrder(orderId: _):
             break
         case .openEvents:
             break
         case .openContactReplies:
+            break
+        case .openRewards:
             break
         }
         notificationService.clearPendingPushAction()

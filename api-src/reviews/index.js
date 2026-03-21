@@ -96,6 +96,22 @@ export default async function handler(req, res) {
         VALUES (${rating}, ${text || null}, ${orderId}, ${auth.userId})
         RETURNING id, rating, text, product_id, order_id, user_id, created_at
       `;
+      try {
+        const { isApnsConfigured, notifyNewReview } = await import('../../api/lib/apns.js');
+        if (isApnsConfigured()) {
+          const adminRows = await sql`
+            SELECT device_token FROM push_tokens
+            WHERE is_admin = true AND device_token IS NOT NULL AND TRIM(device_token) != ''
+          `;
+          const tokens = (adminRows || []).map((r) => r.device_token).filter(Boolean);
+          if (tokens.length) {
+            const reviewId = row?.id?.toString?.() ?? String(row.id);
+            notifyNewReview(tokens, reviewId, orderId, rating);
+          }
+        }
+      } catch (pushErr) {
+        console.warn('[reviews] push', pushErr?.message ?? pushErr);
+      }
       return res.status(201).json(rowToReview(row));
     } catch (err) {
       if (err?.code === '23505') return res.status(409).json({ error: 'You already reviewed this order' });

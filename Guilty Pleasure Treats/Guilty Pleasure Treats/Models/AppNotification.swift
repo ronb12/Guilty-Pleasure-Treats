@@ -16,6 +16,11 @@ enum AppNotificationType: String, Codable {
     case newEvent = "new_event"
     /// Push from server when the store sends a message (`notifyAdminMessage` → `type: admin_message`).
     case storeMessage = "admin_message"
+    /// Admin replied on a contact thread (`notifyContactThreadReply` → `type: contact_reply`).
+    case contactReply = "contact_reply"
+    case loyaltyPoints = "loyalty_points"
+    case newCustomCake = "new_custom_cake"
+    case newReview = "new_review"
 }
 
 struct AppNotification: Identifiable, Codable, Equatable {
@@ -59,6 +64,10 @@ struct AppNotification: Identifiable, Codable, Equatable {
         case .lowInventory: return "exclamationmark.triangle"
         case .newEvent: return "calendar.badge.plus"
         case .storeMessage: return "bubble.left.and.bubble.right"
+        case .contactReply: return "bubble.left.and.bubble.right.fill"
+        case .loyaltyPoints: return "gift.fill"
+        case .newCustomCake: return "birthday.cake"
+        case .newReview: return "star.fill"
         }
     }
 }

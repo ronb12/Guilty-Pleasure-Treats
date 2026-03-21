@@ -25,6 +25,10 @@ enum PendingPushAction: Equatable {
     case openEvents
     /// Customer: Account tab → Messages from store (`admin_message` push).
     case openContactReplies
+    /// Customer: Rewards tab (`loyalty_points` push).
+    case openRewards
+    /// Admin: Reviews tab (`new_review` push).
+    case openAdminReviews
 }
 
 final class NotificationService: NSObject, ObservableObject {
@@ -96,6 +100,14 @@ final class NotificationService: NSObject, ObservableObject {
             notifType = .newEvent
         } else if type == "admin_message" {
             notifType = .storeMessage
+        } else if type == "contact_reply" {
+            notifType = .contactReply
+        } else if type == "loyalty_points" {
+            notifType = .loyaltyPoints
+        } else if type == "new_custom_cake" {
+            notifType = .newCustomCake
+        } else if type == "new_review" {
+            notifType = .newReview
         } else {
             notifType = .newOrder
         }
@@ -294,6 +306,22 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         } else if type == "admin_message" {
             DispatchQueue.main.async { [weak self] in
                 self?.pendingPushAction = .openContactReplies
+            }
+        } else if type == "contact_reply" {
+            DispatchQueue.main.async { [weak self] in
+                self?.pendingPushAction = .openContactReplies
+            }
+        } else if type == "loyalty_points" {
+            DispatchQueue.main.async { [weak self] in
+                self?.pendingPushAction = .openRewards
+            }
+        } else if type == "new_custom_cake" {
+            DispatchQueue.main.async { [weak self] in
+                self?.pendingPushAction = .openAdminOrder(orderId: nil)
+            }
+        } else if type == "new_review" {
+            DispatchQueue.main.async { [weak self] in
+                self?.pendingPushAction = .openAdminReviews
             }
         }
         completionHandler()

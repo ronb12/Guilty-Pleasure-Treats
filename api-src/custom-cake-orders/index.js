@@ -136,7 +136,25 @@ export default async function handler(req, res) {
           RETURNING id, user_id, order_id, size, flavor, frosting, message, design_image_url, price, created_at
         `;
       }
-      return res.status(201).json({ id: row?.id?.toString?.() ?? row?.id });
+      const idStr = row?.id?.toString?.() ?? row?.id;
+      try {
+        const { isApnsConfigured, notifyNewCustomCakeRequest } = await import('../../api/lib/apns.js');
+        if (isApnsConfigured()) {
+          const adminRows = await sql`
+            SELECT device_token FROM push_tokens
+            WHERE is_admin = true AND device_token IS NOT NULL AND TRIM(device_token) != ''
+          `;
+          const tokens = (adminRows || []).map((r) => r.device_token).filter(Boolean);
+          if (tokens.length) {
+            const summary = [size, flavor, frosting].filter(Boolean).join(' · ') || 'Custom cake';
+            notifyNewCustomCakeRequest(tokens, idStr ? String(idStr) : '', summary);
+          }
+        }
+      } catch (pushErr) {
+        console.warn('[custom-cake-orders] push', pushErr?.message ?? pushErr);
+      }
+
+      return res.status(201).json({ id: idStr });
     } catch (err) {
       if (err?.code === '42P01') return res.status(503).json({ error: 'Service unavailable' });
       console.error('[custom-cake-orders] POST', err);

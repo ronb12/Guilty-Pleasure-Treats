@@ -71,11 +71,13 @@ struct NotificationCenterView: View {
         notificationService.markInAppNotificationRead(id: notification.id)
         dismiss()
         switch notification.type {
-        case .newOrder, .newMessage, .lowInventory:
+        case .newOrder, .newMessage, .lowInventory, .newCustomCake, .newReview:
             notificationService.setPendingPushAction(notificationTypeToAction(notification))
-        case .storeMessage:
+        case .storeMessage, .contactReply:
             tabRouter.selectedTab = 5
             notificationService.requestNavigateToContactReplies()
+        case .loyaltyPoints:
+            notificationService.setPendingPushAction(.openRewards)
         case .newEvent:
             notificationService.setPendingPushAction(.openEvents)
             tabRouter.selectedTab = 0
@@ -100,8 +102,14 @@ struct NotificationCenterView: View {
             return .openOrder(orderId: n.orderId)
         case .newEvent:
             return .openEvents
-        case .storeMessage:
+        case .storeMessage, .contactReply:
             return .openContactReplies
+        case .loyaltyPoints:
+            return .openRewards
+        case .newCustomCake:
+            return .openAdminOrder(orderId: nil)
+        case .newReview:
+            return .openAdminReviews
         }
     }
 }

@@ -38,10 +38,11 @@ async function handler(req, res) {
     if (pickup_time !== undefined) await sql`UPDATE orders SET pickup_time = ${pickup_time ? new Date(pickup_time) : null} WHERE id = ${orderId}`;
     if (ready_by !== undefined) await sql`UPDATE orders SET ready_by = ${ready_by ? new Date(ready_by) : null} WHERE id = ${orderId}`;
 
+    let loyaltyAward = null;
     if (status && String(status).trim().toLowerCase() === 'completed') {
       try {
         const { attemptAwardLoyaltyForCompletedOrder } = await import('../../api/lib/awardLoyaltyOnOrderCompleted.js');
-        await attemptAwardLoyaltyForCompletedOrder(sql, orderId);
+        loyaltyAward = await attemptAwardLoyaltyForCompletedOrder(sql, orderId);
       } catch (loyaltyErr) {
         console.error('[orders/update-status] loyalty award', loyaltyErr);
       }
@@ -61,6 +62,26 @@ async function handler(req, res) {
         }
       } catch (e) {
         console.warn('[orders/update-status] push', e?.message ?? e);
+      }
+    }
+
+    if (loyaltyAward?.userId && Number(loyaltyAward.pointsAdded) > 0) {
+      try {
+        const { isApnsConfigured, notifyLoyaltyPointsEarned } = await import('../../api/lib/apns.js');
+        if (isApnsConfigured()) {
+          const uid = String(loyaltyAward.userId);
+          const tokenRows = await sql`
+            SELECT device_token FROM push_tokens
+            WHERE (user_id)::text = ${uid}
+              AND device_token IS NOT NULL AND TRIM(device_token) != ''
+          `;
+          const tokens = (tokenRows || []).map((r) => r.device_token).filter(Boolean);
+          if (tokens.length) {
+            await notifyLoyaltyPointsEarned(tokens, orderId, loyaltyAward.pointsAdded);
+          }
+        }
+      } catch (e) {
+        console.warn('[orders/update-status] loyalty push', e?.message ?? e);
       }
     }
 

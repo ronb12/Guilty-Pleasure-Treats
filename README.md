@@ -29,7 +29,7 @@ Set these in the Vercel project (or `.env.local` for `vercel dev`) as needed:
 | `STRIPE_SECRET_KEY` | Optional override; secret can also be stored via **Admin → Business Settings** in the app |
 | Others | JWT/auth, Apple Sign In, Blob upload, etc., per your deployment |
 
-**Apple Push (APNs):** Server pushes (new orders, low inventory, order status, etc.) send only when **all** of these are set in Vercel: `APNS_KEY_P8` (full `.p8` key file contents), `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`. Use `APNS_SANDBOX=true` for development builds against Apple’s sandbox. If any required value is missing, pushes are skipped; `GET /api/health` reports `apnsConfigured: false`.
+**Apple Push (APNs):** Server pushes (orders, order status, loyalty points on completion, contact and thread replies, store messages, events, low inventory, custom cake requests, new reviews, etc.) send only when **all** of these are set in Vercel: `APNS_KEY_P8` (full `.p8` key file contents), `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`. Use `APNS_SANDBOX=true` for development builds against Apple’s sandbox. If any required value is missing, pushes are skipped; `GET /api/health` reports `apnsConfigured: false`.
 
 Never commit real secrets; configure them in Vercel or local env files that are gitignored.
 

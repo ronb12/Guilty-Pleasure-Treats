@@ -198,6 +198,125 @@ export async function notifyNewEvent(deviceTokens, eventId, title, subtitle) {
 }
 
 /**
+ * Customer push when admin replies on a contact thread (contact_message_replies).
+ */
+export async function notifyContactThreadReply(deviceTokens, contactMessageId, previewBody) {
+  if (!Array.isArray(deviceTokens) || deviceTokens.length === 0) return;
+  const client = cachedClient ?? getClient();
+  if (!client) return;
+  cachedClient = client;
+  const title = 'Reply from the store';
+  const raw = previewBody ? String(previewBody).trim() : '';
+  const body = raw.length > 100 ? `${raw.slice(0, 97)}...` : (raw || 'Open Messages to read the reply.');
+  const data = { type: 'contact_reply', messageId: contactMessageId || '' };
+  const notifications = deviceTokens.map((token) =>
+    new Notification(token, {
+      alert: { title, body },
+      sound: 'default',
+      data,
+    })
+  );
+  try {
+    await client.sendMany(notifications);
+  } catch (err) {
+    console.error('APNs sendMany contact reply', err?.reason ?? err);
+  }
+}
+
+/**
+ * Admin push when a customer saves a new custom cake request.
+ */
+export async function notifyNewCustomCakeRequest(deviceTokens, customCakeOrderId, summary) {
+  if (!Array.isArray(deviceTokens) || deviceTokens.length === 0) return;
+  const client = cachedClient ?? getClient();
+  if (!client) return;
+  cachedClient = client;
+  const title = 'New custom cake request';
+  const body = summary ? String(summary).slice(0, 120) : 'A customer submitted a custom cake design.';
+  const data = {
+    type: 'new_custom_cake',
+    customCakeOrderId: customCakeOrderId || '',
+  };
+  const notifications = deviceTokens.map((token) =>
+    new Notification(token, {
+      alert: { title, body },
+      sound: 'default',
+      data,
+    })
+  );
+  try {
+    await client.sendMany(notifications);
+  } catch (err) {
+    console.error('APNs sendMany custom cake', err?.reason ?? err);
+  }
+}
+
+/**
+ * Customer push when loyalty points are awarded on order completion.
+ */
+export async function notifyLoyaltyPointsEarned(deviceTokens, orderId, pointsAdded) {
+  if (!Array.isArray(deviceTokens) || deviceTokens.length === 0) return;
+  const client = cachedClient ?? getClient();
+  if (!client) return;
+  cachedClient = client;
+  const pts = Number(pointsAdded);
+  const title = 'Rewards';
+  const body = Number.isFinite(pts) && pts > 0
+    ? `You earned ${pts} point${pts === 1 ? '' : 's'}! Tap to view Rewards.`
+    : 'You earned rewards points. Tap to view Rewards.';
+  const data = {
+    type: 'loyalty_points',
+    orderId: orderId || '',
+    points: String(Number.isFinite(pts) ? pts : 0),
+  };
+  const notifications = deviceTokens.map((token) =>
+    new Notification(token, {
+      alert: { title, body },
+      sound: 'default',
+      data,
+    })
+  );
+  try {
+    await client.sendMany(notifications);
+  } catch (err) {
+    console.error('APNs sendMany loyalty', err?.reason ?? err);
+  }
+}
+
+/**
+ * Admin push when a customer submits an order review.
+ */
+export async function notifyNewReview(deviceTokens, reviewId, orderId, rating) {
+  if (!Array.isArray(deviceTokens) || deviceTokens.length === 0) return;
+  const client = cachedClient ?? getClient();
+  if (!client) return;
+  cachedClient = client;
+  const r = Number(rating);
+  const n = Number.isFinite(r) ? Math.min(5, Math.max(1, Math.round(r))) : null;
+  const title = 'New review';
+  const starPart = n != null ? `${n} star${n === 1 ? '' : 's'}` : 'New rating';
+  const body = `Order ${orderDisplayCode(orderId)} · ${starPart}. Tap to view Reviews.`;
+  const data = {
+    type: 'new_review',
+    reviewId: reviewId || '',
+    orderId: orderId || '',
+    rating: n != null ? String(n) : '',
+  };
+  const notifications = deviceTokens.map((token) =>
+    new Notification(token, {
+      alert: { title, body },
+      sound: 'default',
+      data,
+    })
+  );
+  try {
+    await client.sendMany(notifications);
+  } catch (err) {
+    console.error('APNs sendMany new review', err?.reason ?? err);
+  }
+}
+
+/**
  * Admin push when tracked stock crosses into "low" (matches app: stock ≤ threshold and stock &gt; 0).
  */
 export async function notifyLowInventory(deviceTokens, productId, productName, stockQuantity, threshold) {
