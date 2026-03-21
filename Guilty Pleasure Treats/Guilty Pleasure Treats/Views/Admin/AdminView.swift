@@ -2160,14 +2160,15 @@ struct CustomerDetailSheet: View {
                 }
                 Section("Orders") {
                     ForEach(customer.orders) { order in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(order.createdAt?.shortDateString ?? "—")
-                            .font(.caption)
-                        Text(order.status)
-                            .font(.caption)
-                            .foregroundStyle(AppConstants.Colors.accent)
-                        Text("\(order.items.count) items · \(order.total.currencyFormatted)")
-                            .font(.subheadline)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(order.createdAt?.shortDateString ?? "—")
+                                .font(.caption)
+                            Text(order.status)
+                                .font(.caption)
+                                .foregroundStyle(AppConstants.Colors.accent)
+                            Text("\(order.items.count) items · \(order.total.currencyFormatted)")
+                                .font(.subheadline)
+                        }
                     }
                 }
             }

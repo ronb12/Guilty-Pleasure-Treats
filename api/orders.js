@@ -79,7 +79,7 @@ export default async function handler(req, res) {
                  o.custom_cake_order_ids, o.ai_cake_design_ids, o.promo_code, o.tip_cents,
                  COALESCE(u.points, 0)::int AS user_points
           FROM orders o
-          LEFT JOIN users u ON o.user_id = u.id
+          LEFT JOIN users u ON o.user_id::text = u.id::text
           ORDER BY o.created_at DESC NULLS LAST
           LIMIT 500
         `;
@@ -91,7 +91,7 @@ export default async function handler(req, res) {
                  o.custom_cake_order_ids, o.ai_cake_design_ids, o.promo_code, o.tip_cents,
                  COALESCE(u.points, 0)::int AS user_points
           FROM orders o
-          LEFT JOIN users u ON o.user_id = u.id
+          LEFT JOIN users u ON o.user_id::text = u.id::text
           WHERE o.user_id::text = ${String(uid)}
           ORDER BY o.created_at DESC NULLS LAST
           LIMIT 200
@@ -108,7 +108,7 @@ export default async function handler(req, res) {
                  o.custom_cake_order_ids, o.ai_cake_design_ids,
                  COALESCE(u.points, 0)::int AS user_points
           FROM orders o
-          LEFT JOIN users u ON o.user_id = u.id
+          LEFT JOIN users u ON o.user_id::text = u.id::text
           ORDER BY o.created_at DESC NULLS LAST
           LIMIT 500
         `;
@@ -120,7 +120,7 @@ export default async function handler(req, res) {
                  o.custom_cake_order_ids, o.ai_cake_design_ids,
                  COALESCE(u.points, 0)::int AS user_points
           FROM orders o
-          LEFT JOIN users u ON o.user_id = u.id
+          LEFT JOIN users u ON o.user_id::text = u.id::text
           WHERE o.user_id::text = ${String(uid)}
           ORDER BY o.created_at DESC NULLS LAST
           LIMIT 200
