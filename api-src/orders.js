@@ -62,11 +62,16 @@ export default async function handler(req, res) {
     const userIdFilter = (req.query?.userId ?? '').toString().trim() || null;
 
     if (!hasDb() || !sql) return res.status(200).json([]);
+    const uid = isAdmin ? userIdFilter : session.userId;
+    const isAdminAll = isAdmin && !userIdFilter;
+    if (!isAdminAll && !uid) return res.status(200).json([]);
+
     try {
       await ensureOrdersOptionalColumns(sql);
       let rows;
-      if (isAdmin && !userIdFilter) {
-        rows = await sql`
+      try {
+        if (isAdminAll) {
+          rows = await sql`
           SELECT id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
                  subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
                  stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
@@ -75,6 +80,45 @@ export default async function handler(req, res) {
           ORDER BY created_at DESC NULLS LAST
           LIMIT 500
         `;
+        } else {
+          rows = await sql`
+          SELECT id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
+                 subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
+                 stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
+                 custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents
+          FROM orders
+          WHERE user_id::text = ${String(uid)}
+          ORDER BY created_at DESC NULLS LAST
+          LIMIT 200
+        `;
+        }
+      } catch (selectErr) {
+        if (selectErr?.code !== '42703') throw selectErr;
+        console.warn('[orders] GET missing optional columns (42703), using legacy SELECT');
+        if (isAdminAll) {
+          rows = await sql`
+          SELECT id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
+                 subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
+                 stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
+                 custom_cake_order_ids, ai_cake_design_ids
+          FROM orders
+          ORDER BY created_at DESC NULLS LAST
+          LIMIT 500
+        `;
+        } else {
+          rows = await sql`
+          SELECT id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
+                 subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
+                 stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
+                 custom_cake_order_ids, ai_cake_design_ids
+          FROM orders
+          WHERE user_id::text = ${String(uid)}
+          ORDER BY created_at DESC NULLS LAST
+          LIMIT 200
+        `;
+        }
+      }
+      if (isAdminAll) {
         const statusQ = String(req.query?.status ?? '').trim();
         const fulfillmentQ = String(req.query?.fulfillmentType ?? req.query?.fulfillment_type ?? '').trim();
         const searchQ = String(req.query?.search ?? req.query?.q ?? '').trim().toLowerCase();
@@ -99,19 +143,6 @@ export default async function handler(req, res) {
           }
           return true;
         });
-      } else {
-        const uid = isAdmin ? userIdFilter : session.userId;
-        if (!uid) return res.status(200).json([]);
-        rows = await sql`
-          SELECT id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
-                 subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
-                 stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
-                 custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents
-          FROM orders
-          WHERE user_id::text = ${String(uid)}
-          ORDER BY created_at DESC NULLS LAST
-          LIMIT 200
-        `;
       }
       return res.status(200).json((rows || []).map(rowToOrder));
     } catch (err) {
