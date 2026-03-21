@@ -2,7 +2,8 @@
 /**
  * Create all tables that the app and APIs expect in Neon.
  * Run once when setting up a new DB or when you see "relation does not exist" errors.
- * Usage: node --env-file=.env.neon scripts/run-missing-tables.js
+ * Usage: node --env-file=.env.neon scripts/run-missing-tables.js  (Node 20+)
+ *        See docs/NEON_TABLES.md
  *
  * If PATCH /api/promotions/:id returns 503 and logs say promotions.updated_at missing,
  * run scripts/sql/fix-promotions-updated-at.sql in the Neon SQL Editor, or re-run this script.
@@ -396,7 +397,33 @@ async function main() {
     }
     console.log('business_settings OK');
 
+    // order_idempotency (POST /api/orders Idempotency-Key)
+    await sql`
+      CREATE TABLE IF NOT EXISTS order_idempotency (
+        idempotency_key TEXT PRIMARY KEY,
+        order_id UUID,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_order_idempotency_created_at ON order_idempotency(created_at DESC)`;
+    console.log('order_idempotency OK');
+
     console.log('\nAll missing tables are ready.');
+
+    const verify = await sql`
+      SELECT tablename FROM pg_tables
+      WHERE schemaname = 'public'
+        AND tablename IN (
+          'users', 'sessions', 'password_reset_tokens', 'orders', 'products',
+          'custom_cake_orders', 'ai_cake_designs', 'admin_messages', 'contact_messages',
+          'contact_message_replies', 'cake_gallery', 'product_categories', 'customers',
+          'push_tokens', 'events', 'reviews', 'promotions', 'business_settings',
+          'order_idempotency'
+        )
+      ORDER BY tablename
+    `;
+    const got = (verify || []).map((r) => r.tablename);
+    console.log(`Verified ${got.length}/18 core tables in public schema: ${got.join(', ')}`);
   } catch (err) {
     console.error('Error:', err.message);
     process.exit(1);
