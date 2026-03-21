@@ -6,6 +6,7 @@
 import { sql, hasDb } from '../lib/db.js';
 import { getTokenFromRequest, getSession } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
+import { notifyAdminsWhenStockBecomesLow } from '../../api/lib/notifyAdminLowStock.js';
 import { pgBool, bodyBool, soldOutFromRow } from '../pgBool.js';
 
 function rowToProduct(row) {
@@ -87,6 +88,16 @@ export default async function handler(req, res) {
 
     if (!name) return res.status(400).json({ error: 'Name is required' });
 
+    let previousRow = null;
+    try {
+      const prevRows = await sql`
+        SELECT id, name, stock_quantity, low_stock_threshold FROM products WHERE id = ${id}::uuid LIMIT 1
+      `;
+      previousRow = prevRows?.[0] ?? null;
+    } catch (_) {
+      /* ignore; PATCH will 404 if missing */
+    }
+
     // Positive stock means the item is available; clears stale is_sold_out after inventory-only edits.
     if (stockQuantity != null && !Number.isNaN(stockQuantity) && stockQuantity > 0) {
       isSoldOut = false;
@@ -116,6 +127,7 @@ export default async function handler(req, res) {
     try {
       const [row] = await patchProduct();
       if (!row) return res.status(404).json({ error: 'Product not found' });
+      void notifyAdminsWhenStockBecomesLow(sql, previousRow, row);
       return res.status(200).json(rowToProduct(row));
     } catch (err) {
       if (err?.code === '22P02') return res.status(400).json({ error: 'Invalid product id' });
@@ -133,6 +145,7 @@ export default async function handler(req, res) {
           }
           const [row] = await patchProduct();
           if (!row) return res.status(404).json({ error: 'Product not found' });
+          void notifyAdminsWhenStockBecomesLow(sql, previousRow, row);
           return res.status(200).json(rowToProduct(row));
         } catch (err2) {
           console.error('[products/id] PATCH after column migrate', err2);

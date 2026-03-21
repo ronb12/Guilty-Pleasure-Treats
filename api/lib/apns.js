@@ -5,6 +5,15 @@
  */
 import { ApnsClient, Notification } from 'apns2';
 
+/** True when Vercel has all required APNs auth env vars (pushes will not send until this is true). */
+export function isApnsConfigured() {
+  const keyP8 = process.env.APNS_KEY_P8;
+  const keyId = process.env.APNS_KEY_ID;
+  const teamId = process.env.APNS_TEAM_ID;
+  const bundleId = process.env.APNS_BUNDLE_ID;
+  return !!(keyP8 && keyId && teamId && bundleId);
+}
+
 function getClient() {
   const keyP8 = process.env.APNS_KEY_P8;
   const keyId = process.env.APNS_KEY_ID;
@@ -47,7 +56,11 @@ export function orderDisplayCode(orderId) {
 export async function sendPushNotification(deviceToken, title, body, data = {}) {
   const client = cachedClient ?? getClient();
   if (!client) {
-    console.warn('APNs not configured (APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID)');
+    if (!isApnsConfigured()) {
+      console.warn(
+        '[APNs] Push skipped: set APNS_KEY_P8, APNS_KEY_ID, APNS_TEAM_ID, APNS_BUNDLE_ID on Vercel (optional: APNS_SANDBOX=true for dev). See GET /api/health → apnsConfigured.'
+      );
+    }
     return false;
   }
   cachedClient = client;
@@ -181,5 +194,32 @@ export async function notifyNewEvent(deviceTokens, eventId, title, subtitle) {
     await client.sendMany(notifications);
   } catch (err) {
     console.error('APNs sendMany new event', err?.reason ?? err);
+  }
+}
+
+/**
+ * Admin push when tracked stock crosses into "low" (matches app: stock ≤ threshold and stock &gt; 0).
+ */
+export async function notifyLowInventory(deviceTokens, productId, productName, stockQuantity, threshold) {
+  if (!Array.isArray(deviceTokens) || deviceTokens.length === 0) return;
+  const client = cachedClient ?? getClient();
+  if (!client) return;
+  cachedClient = client;
+  const title = 'Low inventory';
+  const name = productName ? String(productName).slice(0, 60) : 'A product';
+  const body = `${name}: ${stockQuantity} in stock (alert at ≤ ${threshold}). Tap to view Inventory.`;
+  const data = { type: 'low_inventory', productId: productId || '' };
+  const notifications = deviceTokens.map(
+    (token) =>
+      new Notification(token, {
+        alert: { title, body },
+        sound: 'default',
+        data,
+      })
+  );
+  try {
+    await client.sendMany(notifications);
+  } catch (err) {
+    console.error('APNs sendMany low inventory', err?.reason ?? err);
   }
 }

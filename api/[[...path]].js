@@ -270,13 +270,21 @@ export default async function handler(req, res) {
     req.body = {};
   }
 
-  // Inline health so we never fail on import (no db/neon loaded)
+  // Inline health so we never fail on import (no db/neon/apns2 loaded)
   if (key === 'health') {
     res.setHeader('Content-Type', 'application/json');
+    const apnsConfigured = !!(
+      process.env.APNS_KEY_P8 &&
+      process.env.APNS_KEY_ID &&
+      process.env.APNS_TEAM_ID &&
+      process.env.APNS_BUNDLE_ID
+    );
     res.status(200).json({
       ok: true,
       service: 'Guilty Pleasure Treats API',
       database: !!(process.env.POSTGRES_URL || process.env.DATABASE_URL),
+      apnsConfigured,
+      apnsSandbox: process.env.APNS_SANDBOX === 'true',
       timestamp: new Date().toISOString(),
     });
     return;

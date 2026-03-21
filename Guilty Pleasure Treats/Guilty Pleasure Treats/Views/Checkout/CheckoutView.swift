@@ -24,12 +24,17 @@ struct CheckoutView: View {
     @State private var confirmedOrder: ConfirmedOrderItem?
 
     /// In-app Stripe Payment Sheet when publishable key is available and the server can create PaymentIntents.
+    /// macOS uses pay-by-link only (Stripe Payment Sheet is UIKit-based on iOS).
     private var useInlineStripeCard: Bool {
+        #if os(macOS)
+        return false
+        #else
         let pkServer = cart.stripePublishableKeyFromServer?.trimmingCharacters(in: .whitespacesAndNewlines)
         let pkApp = AppConstants.stripePublishableKey?.trimmingCharacters(in: .whitespacesAndNewlines)
         let hasPublishable = (pkServer != nil && !(pkServer?.isEmpty ?? true))
             || (pkApp != nil && !(pkApp?.isEmpty ?? true))
         return hasPublishable && cart.stripeCheckoutEnabledFromServer
+        #endif
     }
 
     private var checkoutPaymentMethod: PaymentMethod {
@@ -347,9 +352,19 @@ struct CheckoutView: View {
                         .font(.subheadline)
                         .foregroundStyle(AppConstants.Colors.textPrimary)
                 }
+                #if os(macOS)
+                Text(
+                    cart.stripeCheckoutEnabledFromServer
+                        ? "On Mac, card payment is completed through a secure link. Place your order and the shop will send you a payment link by text or email."
+                        : "Place your order now. The shop will send you a secure payment link by text or email to pay by card—or enable Stripe in Admin → Business Settings."
+                )
+                .font(.caption)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
+                #else
                 Text("Place your order now. The shop will send you a secure payment link by text or email to pay by card—or enable Stripe keys in Admin → Business Settings for in-app checkout.")
                     .font(.caption)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
+                #endif
             }
         }
         .padding()

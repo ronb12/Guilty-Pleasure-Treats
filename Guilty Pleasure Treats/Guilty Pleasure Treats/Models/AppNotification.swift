@@ -14,6 +14,8 @@ enum AppNotificationType: String, Codable {
     case orderStatus = "order_status"
     case lowInventory = "low_inventory"
     case newEvent = "new_event"
+    /// Push from server when the store sends a message (`notifyAdminMessage` → `type: admin_message`).
+    case storeMessage = "admin_message"
 }
 
 struct AppNotification: Identifiable, Codable, Equatable {
@@ -56,6 +58,7 @@ struct AppNotification: Identifiable, Codable, Equatable {
         case .orderStatus: return "doc.text"
         case .lowInventory: return "exclamationmark.triangle"
         case .newEvent: return "calendar.badge.plus"
+        case .storeMessage: return "bubble.left.and.bubble.right"
         }
     }
 }

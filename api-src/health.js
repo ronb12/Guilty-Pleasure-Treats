@@ -1,8 +1,17 @@
 /**
  * Health check for Vercel / load balancers.
  * GET /api/health
- * Does not import db.js so it always loads; use POSTGRES_URL for database flag.
+ * Does not import db.js or apns2 so it always loads; env-only flags for DB and APNs.
  */
+function apnsConfiguredFromEnv() {
+  return !!(
+    process.env.APNS_KEY_P8 &&
+    process.env.APNS_KEY_ID &&
+    process.env.APNS_TEAM_ID &&
+    process.env.APNS_BUNDLE_ID
+  );
+}
+
 export default function handler(req, res) {
   const hasDb = !!(process.env.POSTGRES_URL || process.env.DATABASE_URL);
   res.setHeader('Content-Type', 'application/json');
@@ -10,6 +19,8 @@ export default function handler(req, res) {
     ok: true,
     service: 'Guilty Pleasure Treats API',
     database: hasDb,
+    apnsConfigured: apnsConfiguredFromEnv(),
+    apnsSandbox: process.env.APNS_SANDBOX === 'true',
     timestamp: new Date().toISOString(),
   });
 }

@@ -8,8 +8,10 @@
 import Combine
 import Foundation
 import UserNotifications
-#if !os(macOS)
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
 #endif
 
 /// Action to perform when user taps a push (e.g. open Admin → Messages).
@@ -21,6 +23,8 @@ enum PendingPushAction: Equatable {
     case openOrder(orderId: String?)
     /// Customer: open Home tab so events section is visible.
     case openEvents
+    /// Customer: Account tab → Messages from store (`admin_message` push).
+    case openContactReplies
 }
 
 final class NotificationService: NSObject, ObservableObject {
@@ -31,6 +35,9 @@ final class NotificationService: NSObject, ObservableObject {
 
     /// When set, Orders tab should open this order (customer order-status push). Cleared after opening.
     @Published private(set) var pendingOrderIdToOpen: String?
+
+    /// Bumped to tell `ProfileView` to navigate to Contact Replies (customer `admin_message` push).
+    @Published private(set) var contactRepliesDeepLinkToken: UInt64 = 0
 
     /// Device token from APNs (hex string). Set by AppDelegate when remote notifications register.
     private(set) var deviceToken: String?
@@ -77,7 +84,7 @@ final class NotificationService: NSObject, ObservableObject {
     /// Add from push payload (title, body, type, orderId, messageId, eventId).
     func addInAppNotificationFromPush(title: String, body: String, type: String?, orderId: String?, messageId: String?, eventId: String? = nil) {
         let notifType: AppNotificationType
-        if type == "new_order" || (orderId != nil && type != "order_status" && type != "new_message" && type != "new_event") {
+        if type == "new_order" {
             notifType = .newOrder
         } else if type == "new_message" {
             notifType = .newMessage
@@ -87,6 +94,8 @@ final class NotificationService: NSObject, ObservableObject {
             notifType = .lowInventory
         } else if type == "new_event" {
             notifType = .newEvent
+        } else if type == "admin_message" {
+            notifType = .storeMessage
         } else {
             notifType = .newOrder
         }
@@ -166,10 +175,11 @@ final class NotificationService: NSObject, ObservableObject {
     func requestPermissionAndRegister() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
             DispatchQueue.main.async {
-                #if !os(macOS)
-                if granted {
-                    UIApplication.shared.registerForRemoteNotifications()
-                }
+                guard granted else { return }
+                #if os(iOS)
+                UIApplication.shared.registerForRemoteNotifications()
+                #elseif os(macOS)
+                NSApplication.shared.registerForRemoteNotifications()
                 #endif
             }
         }
@@ -182,8 +192,8 @@ final class NotificationService: NSObject, ObservableObject {
         content.title = "Guilty Pleasure Treats"
         content.body = "Your order status: \(status)"
         content.sound = .default
-        content.userInfo = ["orderId": orderId]
-        
+        content.userInfo = ["type": "order_status", "orderId": orderId]
+
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         let request = UNNotificationRequest(identifier: "order-\(orderId)", content: content, trigger: trigger)
         UNUserNotificationCenter.current().add(request)
@@ -226,7 +236,15 @@ extension NotificationService: UNUserNotificationCenterDelegate {
             messageId: messageId,
             eventId: eventId
         )
+        #if os(macOS)
+        if #available(macOS 11.0, *) {
+            completionHandler([.banner, .sound, .badge])
+        } else {
+            completionHandler([.sound, .badge])
+        }
+        #else
         completionHandler([.banner, .sound, .badge])
+        #endif
     }
 
     func userNotificationCenter(
@@ -254,13 +272,10 @@ extension NotificationService: UNUserNotificationCenterDelegate {
             DispatchQueue.main.async { [weak self] in
                 self?.pendingPushAction = .openAdminMessages(messageId: messageId?.isEmpty == true ? nil : messageId)
             }
-        } else if type == "new_order" || orderId != nil {
+        } else if type == "new_order" {
             DispatchQueue.main.async { [weak self] in
-                self?.pendingPushAction = .openAdminOrder(orderId: orderId?.isEmpty == true ? nil : orderId)
-            }
-        } else if type == "low_inventory" {
-            DispatchQueue.main.async { [weak self] in
-                self?.pendingPushAction = .openAdminInventory
+                let oid = orderId?.isEmpty == true ? nil : orderId
+                self?.pendingPushAction = .openAdminOrder(orderId: oid)
             }
         } else if type == "order_status" {
             DispatchQueue.main.async { [weak self] in
@@ -268,9 +283,17 @@ extension NotificationService: UNUserNotificationCenterDelegate {
                 self?.pendingPushAction = .openOrder(orderId: oid)
                 self?.pendingOrderIdToOpen = oid
             }
+        } else if type == "low_inventory" {
+            DispatchQueue.main.async { [weak self] in
+                self?.pendingPushAction = .openAdminInventory
+            }
         } else if type == "new_event" {
             DispatchQueue.main.async { [weak self] in
                 self?.pendingPushAction = .openEvents
+            }
+        } else if type == "admin_message" {
+            DispatchQueue.main.async { [weak self] in
+                self?.pendingPushAction = .openContactReplies
             }
         }
         completionHandler()
@@ -294,5 +317,10 @@ extension NotificationService: UNUserNotificationCenterDelegate {
     /// Set when opening Orders from notification center so the order detail is shown.
     func setPendingOrderIdToOpen(_ orderId: String?) {
         pendingOrderIdToOpen = orderId
+    }
+
+    /// Customer: deep link to Account → Messages from store.
+    func requestNavigateToContactReplies() {
+        contactRepliesDeepLinkToken &+= 1
     }
 }

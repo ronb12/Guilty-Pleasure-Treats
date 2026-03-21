@@ -8,6 +8,9 @@
 import SwiftUI
 #if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+import UniformTypeIdentifiers
 #endif
 
 struct ExportOrdersView: View {
@@ -40,7 +43,15 @@ struct ExportOrdersView: View {
 
             if vm.ordersExportData != nil {
                 Section {
+                    #if os(iOS)
                     Button("Share / Save CSV") { showShareSheet = true }
+                    #elseif os(macOS)
+                    Button("Save CSV…") {
+                        if let d = vm.ordersExportData {
+                            MacCSVSavePanel.presentSave(data: d)
+                        }
+                    }
+                    #endif
                     Button("Clear", role: .destructive) { vm.clearOrdersExport() }
                 }
             }
@@ -60,8 +71,17 @@ struct ExportOrdersView: View {
         isExporting = true
         Task {
             await vm.exportOrdersCSV(from: fromDate, to: toDate)
-            isExporting = false
-            if vm.ordersExportData != nil { showShareSheet = true }
+            await MainActor.run {
+                isExporting = false
+                guard vm.ordersExportData != nil else { return }
+                #if os(iOS)
+                showShareSheet = true
+                #elseif os(macOS)
+                if let d = vm.ordersExportData {
+                    MacCSVSavePanel.presentSave(data: d)
+                }
+                #endif
+            }
         }
     }
 }
@@ -81,5 +101,27 @@ struct ShareSheet: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+#endif
+
+#if os(macOS)
+/// Presents `NSSavePanel` for CSV export (sandbox-safe with user-selected destination).
+enum MacCSVSavePanel {
+    static func presentSave(data: Data, suggestedFilename: String = "orders-export.csv") {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.commaSeparatedText]
+        panel.nameFieldStringValue = suggestedFilename
+        panel.canCreateDirectories = true
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                try data.write(to: url, options: .atomic)
+            } catch {
+                #if DEBUG
+                print("[Export] write failed:", error)
+                #endif
+            }
+        }
+    }
 }
 #endif

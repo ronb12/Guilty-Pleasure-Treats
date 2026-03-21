@@ -424,6 +424,21 @@ export default async function handler(req, res) {
           if (e?.code !== '42P01') console.warn('[orders] idempotency update', e?.message ?? e);
         }
       }
+
+      try {
+        const { notifyNewOrder } = await import('../api/lib/apns.js');
+        const adminRows = await sql`
+          SELECT device_token FROM push_tokens
+          WHERE is_admin = true AND device_token IS NOT NULL AND TRIM(device_token) != ''
+        `;
+        const tokens = (adminRows || []).map((r) => r.device_token).filter(Boolean);
+        if (tokens.length) {
+          notifyNewOrder(tokens, order.id, customerName, computed.total);
+        }
+      } catch (pushErr) {
+        console.warn('[orders] push notify new order', pushErr?.message ?? pushErr);
+      }
+
       return res.status(201).json({ id: order.id, subtotal: order.subtotal, tax: order.tax, total: order.total });
     } catch (err) {
       if (err?.code === '42P01') return res.status(503).json({ error: 'Service unavailable' });

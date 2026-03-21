@@ -95,7 +95,7 @@ final class StripeService: ObservableObject {
     }
 }
 #else
-/// Stub for macOS: checkout/payments are not supported; use iPhone or iPad app.
+/// macOS: Stripe Payment Sheet is not used; checkout uses pay-by-link. This stub remains so any stray `.stripe` path fails clearly.
 final class StripeService: ObservableObject {
     static let shared = StripeService()
     private init() {}
@@ -106,7 +106,9 @@ final class StripeService: ObservableObject {
         customerName: String,
         customerEmail: String?
     ) async throws {
-        throw StripeError.backendError("Checkout is not available on Mac. Please use the iPhone or iPad app.")
+        throw StripeError.backendError(
+            "In-app card checkout isn’t available on Mac. Use pay-by-link (place your order and pay when the shop sends the link)."
+        )
     }
 }
 #endif

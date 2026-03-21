@@ -1,6 +1,7 @@
 import { sql, hasDb } from '../api/lib/db.js';
 import { setCors, handleOptions } from '../api/lib/cors.js';
 import { getTokenFromRequest, getSession } from '../api/lib/auth.js';
+import { notifyAdminsWhenStockBecomesLow } from '../api/lib/notifyAdminLowStock.js';
 import { pgBool, bodyBool, soldOutFromRow } from './pgBool.js';
 
 /** When DATABASE_URL is unset (local/static hosting), return an empty list — production uses Neon. */
@@ -60,6 +61,7 @@ export default async function handler(req, res) {
     try {
       const rows = await insertProduct();
       const row = rows[0];
+      void notifyAdminsWhenStockBecomesLow(sql, null, row);
       return res.status(201).json(rowToProduct(row));
     } catch (err) {
       const missingVeg =
@@ -76,6 +78,7 @@ export default async function handler(req, res) {
           }
           const rows = await insertProduct();
           const row = rows[0];
+          void notifyAdminsWhenStockBecomesLow(sql, null, row);
           return res.status(201).json(rowToProduct(row));
         } catch (err2) {
           console.error('products POST after column migrate', err2);

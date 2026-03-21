@@ -44,6 +44,10 @@ struct RootView: View {
             case .openEvents:
                 tabRouter.selectedTab = 0
                 notificationService.clearPendingPushAction()
+            case .openContactReplies:
+                tabRouter.selectedTab = 5
+                notificationService.requestNavigateToContactReplies()
+                notificationService.clearPendingPushAction()
             default:
                 showAdmin = true
             }

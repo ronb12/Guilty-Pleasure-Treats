@@ -9,8 +9,10 @@ import SwiftUI
 
 struct ProfileView: View {
     @StateObject private var auth = AuthService.shared
+    @ObservedObject private var notificationService = NotificationService.shared
     @State private var showLogin = false
     @State private var showAdmin = false
+    @State private var navigateToContactReplies = false
 
     var body: some View {
         Group {
@@ -63,6 +65,13 @@ struct ProfileView: View {
                 .frame(minWidth: 720, maxWidth: 880, minHeight: 600, maxHeight: 800)
         }
         #endif
+        .navigationDestination(isPresented: $navigateToContactReplies) {
+            ContactRepliesView()
+        }
+        .onChange(of: notificationService.contactRepliesDeepLinkToken) { _, _ in
+            guard case .signedIn = auth.authState else { return }
+            navigateToContactReplies = true
+        }
     }
     
     private var signedOutView: some View {

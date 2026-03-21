@@ -17,7 +17,7 @@ Bakery ordering stack: **SwiftUI app** (iOS / iPadOS; Mac build is limited for p
 - **Entry:** `api/[[...path]].js` maps `/api/*` to modules under `api-src/` (dynamic `import()`), which keeps the Hobby **serverless function** count low.
 - **Before deploy:** `npm run vercel:sync` copies `api-src/` → `api/` (preserving `api/lib/`), then **removes** `api/stripe/create-checkout-session.js` and `api/stripe/create-payment-intent.js` so those URLs are **only** handled by the catch-all (standalone files under `api/stripe/` would otherwise override the route).
 - **Standalone Stripe refund:** `api/stripe/refund.js` remains a separate function (not in the catch-all map).
-- **Health check:** `GET /api/health`
+- **Health check:** `GET /api/health` — JSON includes `database`, `apnsConfigured`, and `apnsSandbox` (env-only; no APNs client loaded).
 
 ### Environment variables (Vercel / local)
 
@@ -27,7 +27,9 @@ Set these in the Vercel project (or `.env.local` for `vercel dev`) as needed:
 |----------|------|
 | `POSTGRES_URL` or `DATABASE_URL` | Neon Postgres connection string |
 | `STRIPE_SECRET_KEY` | Optional override; secret can also be stored via **Admin → Business Settings** in the app |
-| Others | JWT/auth, Apple Sign In, push (APNs), Blob upload, etc., per your deployment |
+| Others | JWT/auth, Apple Sign In, Blob upload, etc., per your deployment |
+
+**Apple Push (APNs):** Server pushes (new orders, low inventory, order status, etc.) send only when **all** of these are set in Vercel: `APNS_KEY_P8` (full `.p8` key file contents), `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`. Use `APNS_SANDBOX=true` for development builds against Apple’s sandbox. If any required value is missing, pushes are skipped; `GET /api/health` reports `apnsConfigured: false`.
 
 Never commit real secrets; configure them in Vercel or local env files that are gitignored.
 

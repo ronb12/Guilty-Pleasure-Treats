@@ -242,6 +242,8 @@ struct AdminView: View {
             break
         case .openEvents:
             break
+        case .openContactReplies:
+            break
         }
         notificationService.clearPendingPushAction()
     }

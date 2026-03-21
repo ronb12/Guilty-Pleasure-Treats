@@ -10,7 +10,9 @@ import Combine
 
 @main
 struct Guilty_Pleasure_TreatsApp: App {
-    #if !os(macOS)
+    #if os(macOS)
+    @NSApplicationDelegateAdaptor(MacAppDelegate.self) private var macAppDelegate
+    #else
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     #endif
 

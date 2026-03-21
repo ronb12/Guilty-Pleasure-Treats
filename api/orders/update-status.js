@@ -13,7 +13,7 @@ async function handler(req, res) {
   if (req.method === 'OPTIONS') return withCors(req, res, () => res.status(204).end());
   if (req.method !== 'PATCH' && req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const auth = getAuth(req);
+  const auth = await getAuth(req);
   if (!auth?.userId) return res.status(401).json({ error: 'Unauthorized' });
 
   let body;
@@ -49,11 +49,15 @@ async function handler(req, res) {
 
     if (status && order.user_id) {
       try {
-        const tokenRows = await sql`SELECT device_token FROM push_tokens WHERE user_id = ${order.user_id} LIMIT 1`;
-        const deviceToken = tokenRows?.[0]?.device_token;
-        if (deviceToken) {
+        const tokenRows = await sql`
+          SELECT device_token FROM push_tokens
+          WHERE user_id = ${order.user_id} AND device_token IS NOT NULL AND TRIM(device_token) != ''
+        `;
+        if (tokenRows?.length) {
           const { notifyOrderStatusUpdate } = await import('../../api/lib/apns.js');
-          await notifyOrderStatusUpdate(deviceToken, orderId, status);
+          for (const row of tokenRows) {
+            if (row.device_token) await notifyOrderStatusUpdate(row.device_token, orderId, status);
+          }
         }
       } catch (e) {
         console.warn('[orders/update-status] push', e?.message ?? e);
