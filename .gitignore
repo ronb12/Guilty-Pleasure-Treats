@@ -1,3 +1,6 @@
+# Dependencies (install with npm install)
+node_modules/
+
 # Xcode user state (window layout, etc.)
 xcuserdata/
 *.xcuserstate
