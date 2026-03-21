@@ -5794,6 +5794,19 @@ struct AdminSettingsView: View {
         }
     }
 
+    private var stripeKeyInstructions: String {
+        """
+        Where to find your keys:
+        1. Log in at dashboard.stripe.com
+        2. Turn off “Test mode” (toggle top right) for live keys, or leave Test mode on for test keys.
+        3. Go to Developers → API keys.
+        4. Copy “Publishable key” (pk_…) into Publishable key above.
+        5. Click “Reveal live key” (or “Reveal test key”) under “Secret key” and copy sk_… into Secret key above.
+
+        After you Save, customers can pay with a card in the app when both keys are set (or secret is in Vercel env + publishable key is saved here or in AppConstants).
+        """
+    }
+
     #if os(macOS)
     private var settingsContentMacOS: some View {
         ScrollView {
@@ -5907,19 +5920,6 @@ struct AdminSettingsView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppConstants.Colors.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
-    }
-
-    private var stripeKeyInstructions: String {
-        """
-        Where to find your keys:
-        1. Log in at dashboard.stripe.com
-        2. Turn off “Test mode” (toggle top right) for live keys, or leave Test mode on for test keys.
-        3. Go to Developers → API keys.
-        4. Copy “Publishable key” (pk_…) into Publishable key above.
-        5. Click “Reveal live key” (or “Reveal test key”) under “Secret key” and copy sk_… into Secret key above.
-
-        After you Save, customers can pay with a card in the app when both keys are set (or secret is in Vercel env + publishable key is saved here or in AppConstants).
-        """
     }
 
     private func settingsSecureField(_ label: String, placeholder: String, text: Binding<String>) -> some View {

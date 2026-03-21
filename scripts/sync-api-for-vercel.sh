@@ -6,8 +6,17 @@
 set -e
 cd "$(dirname "$0")/.."
 
+# Vercel creates one Serverless Function per file under api/. These two are already
+# served by api/[[...path]].js (dynamic import from api-src). Leaving copies in
+# api/stripe/ makes the standalone file win the route — an empty file causes
+# "No exports found". Keep only api-src + catch-all for these routes.
+strip_stripe_route_duplicates() {
+  rm -f api/stripe/create-checkout-session.js api/stripe/create-payment-intent.js
+}
+
 sync_with_rsync() {
-  rsync -a --exclude='lib' --no-mmap api-src/ api/ 2>/dev/null
+    rsync -a --exclude='lib' --no-mmap api-src/ api/ 2>/dev/null
+    strip_stripe_route_duplicates
 }
 
 sync_with_cp() {
@@ -20,6 +29,7 @@ sync_with_cp() {
     [ -f "$dest" ] && rm -f "$dest"
     cp -R "$f" api/
   done
+  strip_stripe_route_duplicates
 }
 
 if sync_with_rsync; then

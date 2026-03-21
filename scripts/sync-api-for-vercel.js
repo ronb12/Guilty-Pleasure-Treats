@@ -115,6 +115,12 @@ async function main() {
     await copyRecursive(srcPath, destPath, null);
   }
 
+  for (const rel of ['stripe/create-checkout-session.js', 'stripe/create-payment-intent.js']) {
+    try {
+      fs.unlinkSync(path.join(apiDir, rel));
+    } catch (_) {}
+  }
+
   console.log('Synced api-src -> api for Vercel (api/lib unchanged).');
 }
 
