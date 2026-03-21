@@ -7,6 +7,55 @@ import { sql, hasDb } from '../lib/db.js';
 import { getTokenFromRequest, getSession } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
 
+/** Apply PATCH fields; throws on DB errors. Caller ensures row exists or handles 404. */
+async function applyPromotionPatch(sql, id, fields) {
+  const {
+    code,
+    discountType,
+    value,
+    isActive,
+    validFrom,
+    validTo,
+    minSubIn,
+    minQtyIn,
+    firstOrderIn,
+  } = fields;
+
+  if (code != null) {
+    if (!code) {
+      const e = new Error('Code cannot be empty');
+      e.statusCode = 400;
+      throw e;
+    }
+    await sql`UPDATE promotions SET code = ${code}, updated_at = NOW() WHERE id = ${id}::uuid`;
+  }
+  if (discountType != null) await sql`UPDATE promotions SET discount_type = ${discountType}, updated_at = NOW() WHERE id = ${id}::uuid`;
+  if (value != null) await sql`UPDATE promotions SET value = ${value}, updated_at = NOW() WHERE id = ${id}::uuid`;
+  if (isActive !== null) await sql`UPDATE promotions SET is_active = ${isActive}, updated_at = NOW() WHERE id = ${id}::uuid`;
+  if (validFrom !== undefined) await sql`UPDATE promotions SET valid_from = ${validFrom ? new Date(validFrom) : null}, updated_at = NOW() WHERE id = ${id}::uuid`;
+  if (validTo !== undefined) await sql`UPDATE promotions SET valid_to = ${validTo ? new Date(validTo) : null}, updated_at = NOW() WHERE id = ${id}::uuid`;
+  if (minSubIn !== undefined) {
+    const n = minSubIn == null ? null : Number(minSubIn);
+    const dbVal = n != null && Number.isFinite(n) && n > 0 ? n : null;
+    await sql`UPDATE promotions SET min_subtotal = ${dbVal}, updated_at = NOW() WHERE id = ${id}::uuid`;
+  }
+  if (minQtyIn !== undefined) {
+    const n = minQtyIn == null ? null : Math.trunc(Number(minQtyIn));
+    const dbVal = n != null && Number.isFinite(n) && n > 0 ? n : null;
+    await sql`UPDATE promotions SET min_total_quantity = ${dbVal}, updated_at = NOW() WHERE id = ${id}::uuid`;
+  }
+  if (firstOrderIn !== undefined) {
+    await sql`UPDATE promotions SET first_order_only = ${Boolean(firstOrderIn)}, updated_at = NOW() WHERE id = ${id}::uuid`;
+  }
+
+  const [row] = await sql`
+    SELECT id, code, discount_type, value, valid_from, valid_to, is_active, created_at,
+           min_subtotal, min_total_quantity, first_order_only
+    FROM promotions WHERE id = ${id}::uuid
+  `;
+  return rowToPromotion(row) ?? { id };
+}
+
 function rowToPromotion(row) {
   if (!row) return null;
   return {
@@ -89,45 +138,47 @@ export default async function handler(req, res) {
       ? (body.firstOrderOnly ?? body.first_order_only)
       : undefined;
 
+    const patchFields = {
+      code,
+      discountType,
+      value,
+      isActive,
+      validFrom,
+      validTo,
+      minSubIn,
+      minQtyIn,
+      firstOrderIn,
+    };
+
     try {
       const [existing] = await sql`SELECT id FROM promotions WHERE id = ${id}::uuid`;
       if (!existing) return res.status(404).json({ error: 'Promotion not found' });
 
-      if (code != null) {
-        if (!code) return res.status(400).json({ error: 'Code cannot be empty' });
-        await sql`UPDATE promotions SET code = ${code}, updated_at = NOW() WHERE id = ${id}::uuid`;
-      }
-      if (discountType != null) await sql`UPDATE promotions SET discount_type = ${discountType}, updated_at = NOW() WHERE id = ${id}::uuid`;
-      if (value != null) await sql`UPDATE promotions SET value = ${value}, updated_at = NOW() WHERE id = ${id}::uuid`;
-      if (isActive !== null) await sql`UPDATE promotions SET is_active = ${isActive}, updated_at = NOW() WHERE id = ${id}::uuid`;
-      if (validFrom !== undefined) await sql`UPDATE promotions SET valid_from = ${validFrom ? new Date(validFrom) : null}, updated_at = NOW() WHERE id = ${id}::uuid`;
-      if (validTo !== undefined) await sql`UPDATE promotions SET valid_to = ${validTo ? new Date(validTo) : null}, updated_at = NOW() WHERE id = ${id}::uuid`;
-      if (minSubIn !== undefined) {
-        const n = minSubIn == null ? null : Number(minSubIn);
-        const dbVal = n != null && Number.isFinite(n) && n > 0 ? n : null;
-        await sql`UPDATE promotions SET min_subtotal = ${dbVal}, updated_at = NOW() WHERE id = ${id}::uuid`;
-      }
-      if (minQtyIn !== undefined) {
-        const n = minQtyIn == null ? null : Math.trunc(Number(minQtyIn));
-        const dbVal = n != null && Number.isFinite(n) && n > 0 ? n : null;
-        await sql`UPDATE promotions SET min_total_quantity = ${dbVal}, updated_at = NOW() WHERE id = ${id}::uuid`;
-      }
-      if (firstOrderIn !== undefined) {
-        await sql`UPDATE promotions SET first_order_only = ${Boolean(firstOrderIn)}, updated_at = NOW() WHERE id = ${id}::uuid`;
-      }
-
-      const [row] = await sql`
-        SELECT id, code, discount_type, value, valid_from, valid_to, is_active, created_at,
-               min_subtotal, min_total_quantity, first_order_only
-        FROM promotions WHERE id = ${id}::uuid
-      `;
-      return res.status(200).json(rowToPromotion(row) ?? { id });
+      const json = await applyPromotionPatch(sql, id, patchFields);
+      return res.status(200).json(json);
     } catch (err) {
+      if (err?.statusCode === 400) return res.status(400).json({ error: err.message || 'Bad request' });
       if (err?.code === '22P02') return res.status(400).json({ error: 'Invalid promotion id' });
       if (err?.code === '23505') return res.status(409).json({ error: 'A promotion with this code already exists' });
       if (err?.code === '42703' && String(err.message || '').includes('updated_at')) {
-        console.error('[promotions/id] PATCH missing updated_at column — run schema migration', err);
-        return res.status(503).json({ error: 'Database schema out of date (updated_at). Run migrations.' });
+        try {
+          await sql`ALTER TABLE promotions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
+          console.warn('[promotions/id] Self-heal: added promotions.updated_at');
+        } catch (migrateErr) {
+          console.error('[promotions/id] PATCH missing updated_at — migration failed', migrateErr);
+          return res.status(503).json({ error: 'Database schema out of date (updated_at). Run scripts/sql/fix-promotions-updated-at.sql in Neon.' });
+        }
+        try {
+          const [existing2] = await sql`SELECT id FROM promotions WHERE id = ${id}::uuid`;
+          if (!existing2) return res.status(404).json({ error: 'Promotion not found' });
+          const json = await applyPromotionPatch(sql, id, patchFields);
+          return res.status(200).json(json);
+        } catch (err2) {
+          if (err2?.code === '22P02') return res.status(400).json({ error: 'Invalid promotion id' });
+          if (err2?.code === '23505') return res.status(409).json({ error: 'A promotion with this code already exists' });
+          console.error('[promotions/id] PATCH retry after updated_at', err2?.code, err2?.message, err2);
+          return res.status(500).json({ error: 'Failed to update promotion' });
+        }
       }
       if (err?.code === '42P01') return res.status(503).json({ error: 'Service unavailable' });
       console.error('[promotions/id] PATCH', err?.code, err?.message, err);

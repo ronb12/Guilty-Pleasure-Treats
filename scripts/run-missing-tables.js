@@ -3,6 +3,9 @@
  * Create all tables that the app and APIs expect in Neon.
  * Run once when setting up a new DB or when you see "relation does not exist" errors.
  * Usage: node --env-file=.env.neon scripts/run-missing-tables.js
+ *
+ * If PATCH /api/promotions/:id returns 503 and logs say promotions.updated_at missing,
+ * run scripts/sql/fix-promotions-updated-at.sql in the Neon SQL Editor, or re-run this script.
  */
 import { neon } from '@neondatabase/serverless';
 
@@ -361,9 +364,10 @@ async function main() {
         first_order_only BOOLEAN NOT NULL DEFAULT false
       )
     `;
+    // Older Neon DBs: table existed before updated_at — PATCH /api/promotions/:id fails with 42703 until this runs.
+    await sql`ALTER TABLE promotions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
     await sql`CREATE INDEX IF NOT EXISTS idx_promotions_code ON promotions(code)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_promotions_created_at ON promotions(created_at DESC)`;
-    await sql`ALTER TABLE promotions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
     await sql`ALTER TABLE promotions ADD COLUMN IF NOT EXISTS min_subtotal DECIMAL(10,2)`;
     await sql`ALTER TABLE promotions ADD COLUMN IF NOT EXISTS min_total_quantity INTEGER`;
     await sql`ALTER TABLE promotions ADD COLUMN IF NOT EXISTS first_order_only BOOLEAN NOT NULL DEFAULT false`;
