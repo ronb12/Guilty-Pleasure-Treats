@@ -3198,6 +3198,7 @@ struct AdminAnalyticsView: View {
                     trendSection
                     revenueByDaySection
                     fulfillmentSection
+                    analyticsInsightsHeader
                     statusFunnelSection
                     customerMixSection
                     promoRedemptionsSection
@@ -3226,9 +3227,25 @@ struct AdminAnalyticsView: View {
                 await viewModel.loadAnalyticsSummary()
             }
             .task {
+                // Orders drive all period metrics; summary is only total customer count.
+                await viewModel.loadOrders()
                 await viewModel.loadAnalyticsSummary()
             }
         }
+    }
+
+    /// Makes new analytics blocks easy to spot (scroll below fulfillment / revenue by day).
+    private var analyticsInsightsHeader: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("More insights")
+                .font(.title3)
+                .fontWeight(.semibold)
+                .foregroundStyle(AppConstants.Colors.textPrimary)
+            Text("Status mix, guest vs signed-in, promos, tips, and custom/AI cakes for the selected period.")
+                .font(.caption)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func presentPrintReport() {
@@ -3251,7 +3268,7 @@ struct AdminAnalyticsView: View {
                 }
                 .foregroundStyle(AppConstants.Colors.accent)
             }
-            Text("Summary for \(selectedPeriod.rawValue): revenue, order count, average order value, revenue by day, fulfillment mix, and best sellers.")
+            Text("Summary for \(selectedPeriod.rawValue): revenue, orders, fulfillment, status funnel, customer mix, promos, tips, custom/AI cakes, and best sellers.")
                 .font(.caption)
                 .foregroundStyle(AppConstants.Colors.textSecondary)
             HStack(spacing: 12) {
@@ -3428,158 +3445,169 @@ struct AdminAnalyticsView: View {
 
     private var statusFunnelSection: some View {
         let funnel = viewModel.statusFunnel(for: selectedPeriod)
-        return Group {
-            if !funnel.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Status funnel")
-                        .font(.headline)
-                        .foregroundStyle(AppConstants.Colors.textPrimary)
-                    VStack(spacing: 8) {
-                        ForEach(Array(funnel.enumerated()), id: \.offset) { _, item in
-                            HStack {
-                                Text(item.status)
-                                    .font(.subheadline)
-                                    .foregroundStyle(AppConstants.Colors.textPrimary)
-                                Spacer()
-                                Text("\(item.count)")
-                                    .font(.caption)
-                                    .foregroundStyle(AppConstants.Colors.textSecondary)
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Status funnel")
+                .font(.headline)
+                .foregroundStyle(AppConstants.Colors.textPrimary)
+            if funnel.isEmpty {
+                Text("No orders in this period.")
+                    .font(.subheadline)
+                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(Array(funnel.enumerated()), id: \.offset) { _, item in
+                        HStack {
+                            Text(item.status)
+                                .font(.subheadline)
+                                .foregroundStyle(AppConstants.Colors.textPrimary)
+                            Spacer()
+                            Text("\(item.count)")
+                                .font(.caption)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
                     }
-                    .background(AppConstants.Colors.cardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
                 }
             }
         }
+        .padding(AppConstants.Layout.cardPadding)
+        .background(AppConstants.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
     }
 
     private var customerMixSection: some View {
         let nvr = viewModel.newVsReturning(for: selectedPeriod)
-        return Group {
-            if nvr.guestOrders > 0 || nvr.signedInOrders > 0 {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Customer mix")
-                        .font(.headline)
-                        .foregroundStyle(AppConstants.Colors.textPrimary)
-                    HStack(spacing: 16) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(nvr.guestOrders)")
-                                .font(.subheadline.weight(.semibold))
-                            Text("Guest")
-                                .font(.caption)
-                                .foregroundStyle(AppConstants.Colors.textSecondary)
-                        }
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(nvr.signedInOrders)")
-                                .font(.subheadline.weight(.semibold))
-                            Text("Signed-in")
-                                .font(.caption)
-                                .foregroundStyle(AppConstants.Colors.textSecondary)
-                        }
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(nvr.repeatCustomerOrders)")
-                                .font(.subheadline.weight(.semibold))
-                            Text("Repeat (2+ orders)")
-                                .font(.caption)
-                                .foregroundStyle(AppConstants.Colors.textSecondary)
-                        }
-                    }
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(AppConstants.Colors.cardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Customer mix")
+                .font(.headline)
+                .foregroundStyle(AppConstants.Colors.textPrimary)
+            Text("Completed orders only (not cancelled).")
+                .font(.caption2)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
+            HStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(nvr.guestOrders)")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Guest checkout")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(nvr.signedInOrders)")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Signed-in")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("\(nvr.repeatCustomerOrders)")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Repeat (2+ in period)")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
                 }
             }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(AppConstants.Layout.cardPadding)
+        .background(AppConstants.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
     }
 
     private var promoRedemptionsSection: some View {
         let promos = viewModel.promoRedemptions(for: selectedPeriod)
-        return Group {
-            if !promos.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Promo redemptions")
-                        .font(.headline)
-                        .foregroundStyle(AppConstants.Colors.textPrimary)
-                    VStack(spacing: 8) {
-                        ForEach(Array(promos.enumerated()), id: \.offset) { _, item in
-                            HStack {
-                                Text(item.code)
-                                    .font(.subheadline)
-                                    .foregroundStyle(AppConstants.Colors.textPrimary)
-                                Spacer()
-                                Text("\(item.count) orders")
-                                    .font(.caption)
-                                    .foregroundStyle(AppConstants.Colors.textSecondary)
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Promo redemptions")
+                .font(.headline)
+                .foregroundStyle(AppConstants.Colors.textPrimary)
+            if promos.isEmpty {
+                Text("No promo codes on completed orders this period (or orders not loaded yet).")
+                    .font(.subheadline)
+                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(Array(promos.enumerated()), id: \.offset) { _, item in
+                        HStack {
+                            Text(item.code)
+                                .font(.subheadline)
+                                .foregroundStyle(AppConstants.Colors.textPrimary)
+                            Spacer()
+                            Text("\(item.count) orders")
+                                .font(.caption)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
                     }
-                    .background(AppConstants.Colors.cardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
                 }
             }
         }
+        .padding(AppConstants.Layout.cardPadding)
+        .background(AppConstants.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
     }
 
     private var tipsSection: some View {
         let tipsCents = viewModel.totalTipsCents(for: selectedPeriod)
-        return Group {
-            if tipsCents > 0 {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Tips collected")
-                        .font(.headline)
-                        .foregroundStyle(AppConstants.Colors.textPrimary)
-                    Text((Double(tipsCents) / 100.0).currencyFormatted)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(AppConstants.Colors.textPrimary)
-                        .padding(16)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(AppConstants.Colors.cardBackground)
-                        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
-                }
-            }
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Tips collected")
+                .font(.headline)
+                .foregroundStyle(AppConstants.Colors.textPrimary)
+            Text((Double(tipsCents) / 100.0).currencyFormatted)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppConstants.Colors.textPrimary)
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .padding(AppConstants.Layout.cardPadding)
+        .background(AppConstants.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
     }
 
     private var customAICakeSection: some View {
         let attach = viewModel.customAICakeAttach(for: selectedPeriod)
-        return Group {
-            if attach.total > 0 && (attach.withCustom > 0 || attach.withAI > 0) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Custom & AI cakes")
-                        .font(.headline)
-                        .foregroundStyle(AppConstants.Colors.textPrimary)
-                    HStack(spacing: 16) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(attach.withCustom)")
-                                .font(.subheadline.weight(.semibold))
-                            Text("Custom cake")
-                                .font(.caption)
-                                .foregroundStyle(AppConstants.Colors.textSecondary)
-                        }
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(attach.withAI)")
-                                .font(.subheadline.weight(.semibold))
-                            Text("AI design")
-                                .font(.caption)
-                                .foregroundStyle(AppConstants.Colors.textSecondary)
-                        }
-                        Text("of \(attach.total) orders")
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("Custom & AI cakes")
+                .font(.headline)
+                .foregroundStyle(AppConstants.Colors.textPrimary)
+            if attach.total == 0 {
+                Text("No completed orders in this period.")
+                    .font(.subheadline)
+                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                    .padding(16)
+            } else {
+                HStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(attach.withCustom)")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Custom cake")
                             .font(.caption)
                             .foregroundStyle(AppConstants.Colors.textSecondary)
                     }
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(AppConstants.Colors.cardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("\(attach.withAI)")
+                            .font(.subheadline.weight(.semibold))
+                        Text("AI design")
+                            .font(.caption)
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                    }
+                    Text("of \(attach.total) completed orders")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
                 }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .padding(AppConstants.Layout.cardPadding)
+        .background(AppConstants.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
     }
 
     private var bestSellersSection: some View {
