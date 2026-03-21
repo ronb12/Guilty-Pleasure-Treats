@@ -9,6 +9,7 @@ import { computeOrderTotals, orderTotalsToDollars, normalizeFulfillmentType, toC
 import { checkRateLimit } from './lib/rateLimit.js';
 import { evaluatePromotion } from './lib/promoServer.js';
 import { ensureOrdersOptionalColumns } from './lib/ordersSchema.js';
+import { parcelTrackingFieldsFromRow } from '../api/lib/parcelTrackingUrls.js';
 
 function rowToOrder(row) {
   if (!row) return null;
@@ -44,6 +45,7 @@ function rowToOrder(row) {
     promoCode: row.promo_code != null && String(row.promo_code).trim() !== '' ? String(row.promo_code).trim() : null,
     tipCents: row.tip_cents != null ? Number(row.tip_cents) : 0,
     userPoints: row.user_points != null ? Number(row.user_points) : null,
+    ...parcelTrackingFieldsFromRow(row),
   };
 }
 
@@ -77,6 +79,7 @@ export default async function handler(req, res) {
                  o.subtotal, o.tax, o.total, o.fulfillment_type, o.scheduled_pickup_date, o.status,
                  o.stripe_payment_intent_id, o.manual_paid_at, o.created_at, o.updated_at, o.estimated_ready_time,
                  o.custom_cake_order_ids, o.ai_cake_design_ids, o.promo_code, o.tip_cents,
+                 o.tracking_carrier, o.tracking_number, o.tracking_status_detail, o.tracking_updated_at,
                  COALESCE(u.points, 0)::int AS user_points
           FROM orders o
           LEFT JOIN users u ON o.user_id::text = u.id::text
@@ -89,6 +92,7 @@ export default async function handler(req, res) {
                  o.subtotal, o.tax, o.total, o.fulfillment_type, o.scheduled_pickup_date, o.status,
                  o.stripe_payment_intent_id, o.manual_paid_at, o.created_at, o.updated_at, o.estimated_ready_time,
                  o.custom_cake_order_ids, o.ai_cake_design_ids, o.promo_code, o.tip_cents,
+                 o.tracking_carrier, o.tracking_number, o.tracking_status_detail, o.tracking_updated_at,
                  COALESCE(u.points, 0)::int AS user_points
           FROM orders o
           LEFT JOIN users u ON o.user_id::text = u.id::text
@@ -163,6 +167,11 @@ export default async function handler(req, res) {
 
   if ((req.method || '').toUpperCase() === 'POST') {
     if (!hasDb() || !sql) return res.status(503).json({ error: 'Service unavailable' });
+    try {
+      await ensureOrdersOptionalColumns(sql);
+    } catch (e) {
+      console.warn('[orders] POST ensureOrdersOptionalColumns', e?.message ?? e);
+    }
     const body = req.body || {};
     const requestId = req.headers?.['x-vercel-request-id']
       ?? req.headers?.['x-vercel-id']
@@ -352,7 +361,8 @@ export default async function handler(req, res) {
           SELECT id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
                  subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
                  stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
-                 custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents
+                 custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents,
+                 tracking_carrier, tracking_number, tracking_status_detail, tracking_updated_at
           FROM orders WHERE id = ${orderId} LIMIT 1
         `;
         return r;
@@ -411,7 +421,8 @@ export default async function handler(req, res) {
           ${estimatedReadyTime ? new Date(estimatedReadyTime) : null}, ${customCakeOrderIds}, ${aiCakeDesignIds}, ${promoCodeVal}, ${tipCentsVal})
         RETURNING id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
           subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status, stripe_payment_intent_id,
-          manual_paid_at, created_at, updated_at, estimated_ready_time, custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents
+          manual_paid_at, created_at, updated_at, estimated_ready_time, custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents,
+          tracking_carrier, tracking_number, tracking_status_detail, tracking_updated_at
       `;
       const order = rowToOrder(row);
       if (idemKey) {

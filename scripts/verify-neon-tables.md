@@ -6,7 +6,7 @@ From the project root. **Option A – Neon CLI** (see [docs/NEON_CLI_CONNECT.md]
 
 ```bash
 npx neonctl auth                    # one-time login
-export POSTGRES_URL=$(npx neonctl connection-string)
+export POSTGRES_URL=$(npx neonctl connection-string --role-name neondb_owner)
 node scripts/run-missing-tables.js
 ```
 

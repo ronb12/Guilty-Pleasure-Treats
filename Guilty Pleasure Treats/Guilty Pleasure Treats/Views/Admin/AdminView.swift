@@ -291,6 +291,19 @@ struct AdminProductsView: View {
     var body: some View {
         NavigationStack {
             List {
+                #if os(macOS)
+                /// Toolbar “Add” is often not visible here (nested `NavigationStack` in the admin sheet); match Categories tab.
+                Section {
+                    Button {
+                        showAddProduct = true
+                    } label: {
+                        Label("Add product", systemImage: "plus.circle.fill")
+                            .font(.body)
+                            .foregroundStyle(AppConstants.Colors.accent)
+                    }
+                    .buttonStyle(.plain)
+                }
+                #endif
                 ForEach(viewModel.products, id: \.id) { product in
                     AdminProductRow(
                         product: product,
@@ -300,6 +313,22 @@ struct AdminProductsView: View {
                 }
             }
             .navigationTitle("Products")
+            #if os(macOS)
+            .inlineNavigationTitle()
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Products")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Add") {
+                        showAddProduct = true
+                    }
+                    .foregroundStyle(AppConstants.Colors.accent)
+                }
+            }
+            #else
             .toolbar {
                 ToolbarItem(placement: toolbarTrailingPlacement) {
                     Button("Add") {
@@ -308,6 +337,7 @@ struct AdminProductsView: View {
                     .foregroundStyle(AppConstants.Colors.accent)
                 }
             }
+            #endif
             .overlay(alignment: .top) {
                 if let msg = viewModel.errorMessage ?? viewModel.productLoadWarning {
                     ErrorMessageBanner(message: msg) { viewModel.dismissProductBanner() }
@@ -1227,6 +1257,9 @@ struct AdminOrdersView: View {
                             },
                             onSendPaymentLink: { orderId in
                                 Task { await viewModel.createPaymentLink(for: orderId) }
+                            },
+                            onParcelTrackingChanged: {
+                                Task { await viewModel.loadOrders() }
                             }
                         )
                     } label: {
@@ -1270,7 +1303,10 @@ struct AdminOrdersView: View {
                     },
                     onSendPaymentLink: { orderId in
                         Task { await viewModel.createPaymentLink(for: orderId) }
-                }
+                    },
+                    onParcelTrackingChanged: {
+                        Task { await viewModel.loadOrders() }
+                    }
                 )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)

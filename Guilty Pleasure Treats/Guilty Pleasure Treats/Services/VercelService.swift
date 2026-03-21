@@ -324,6 +324,17 @@ final class VercelService {
         return try decoder.decode([Order].self, from: data)
     }
 
+    func fetchOrder(orderId: String) async throws -> Order {
+        guard let url = apiIDURL(resource: "orders", id: orderId) else { throw VercelNotConfiguredError() }
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        if let t = authToken { req.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization") }
+        let (data, res) = try await session.data(for: req)
+        guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
+        try validateResponse(http, data: data)
+        return try decoder.decode(Order.self, from: data)
+    }
+
     func fetchAllOrders(
         status: String? = nil,
         fulfillmentType: String? = nil,
@@ -372,12 +383,31 @@ final class VercelService {
         try await patchOrder(orderId: orderId, body: ["estimatedReadyTime": ISO8601DateFormatter().string(from: date)])
     }
 
+    /// Admin: set or clear parcel tracking (UPS / FedEx / USPS). Sends explicit JSON nulls to clear fields.
+    func updateOrderParcelTracking(
+        orderId: String,
+        trackingCarrier: String?,
+        trackingNumber: String?,
+        trackingStatusDetail: String?
+    ) async throws {
+        func jsonValue(_ s: String?) -> Any {
+            let t = s?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return t.isEmpty ? NSNull() : t
+        }
+        let body: [String: Any] = [
+            "trackingCarrier": jsonValue(trackingCarrier),
+            "trackingNumber": jsonValue(trackingNumber),
+            "trackingStatusDetail": jsonValue(trackingStatusDetail),
+        ]
+        try await patchOrder(orderId: orderId, body: body)
+    }
+
     private func patchOrder(orderId: String, body: [String: Any]) async throws {
-        guard let base = baseURL else { throw VercelNotConfiguredError() }
-        let url = base.appendingPathComponent("api/orders/\(orderId)")
+        guard let url = apiIDURL(resource: "orders", id: orderId) else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
         req.httpMethod = "PATCH"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let t = authToken { req.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization") }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Sync api-src into api for Vercel. Keeps api/lib intact.
-# 1. Try rsync with --no-mmap (avoids mmap timeout)
-# 2. If that fails, use cp loop (no rsync, no mmap)
+# 1. Try rsync (optional --no-mmap on Linux when supported; omitted on macOS rsync)
+# 2. If that fails, use cp loop (no rsync)
 # 3. If cp fails, fall back to Node script (stream + chunked fallback)
 set -e
 cd "$(dirname "$0")/.."
@@ -15,7 +15,12 @@ strip_stripe_route_duplicates() {
 }
 
 sync_with_rsync() {
-    rsync -a --exclude='lib' --no-mmap api-src/ api/ 2>/dev/null
+    # macOS rsync has no --no-mmap; try it only when supported so Linux can avoid mmap timeouts.
+    if rsync -a --exclude='lib' --no-mmap api-src/ api/ 2>/dev/null; then
+        :
+    else
+        rsync -a --exclude='lib' api-src/ api/
+    fi
     strip_stripe_route_duplicates
 }
 

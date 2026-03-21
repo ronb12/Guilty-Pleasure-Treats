@@ -64,6 +64,13 @@ struct Order: Identifiable, Codable, Equatable {
     var tipCents: Int? = nil
     /// User loyalty points (from users table, admin requests only). Omitted in older API responses.
     var userPoints: Int? = nil
+    /// Parcel carrier for shipped orders: `ups`, `fedex`, or `usps` (server-normalized).
+    var trackingCarrier: String? = nil
+    var trackingNumber: String? = nil
+    var trackingStatusDetail: String? = nil
+    var trackingUpdatedAt: Date? = nil
+    /// Public carrier track page URL when carrier and number are set (server-computed).
+    var trackingUrl: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -89,6 +96,11 @@ struct Order: Identifiable, Codable, Equatable {
         case promoCode
         case tipCents
         case userPoints
+        case trackingCarrier
+        case trackingNumber
+        case trackingStatusDetail
+        case trackingUpdatedAt
+        case trackingUrl
     }
     
     /// True if order was paid via Stripe or marked paid manually.

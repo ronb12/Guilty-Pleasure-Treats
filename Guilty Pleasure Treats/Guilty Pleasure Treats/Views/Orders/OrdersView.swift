@@ -42,7 +42,13 @@ struct OrdersView: View {
         }
         .sheet(item: $orderToOpenFromPush) { order in
             NavigationStack {
-                OrderDetailView(order: order, isAdmin: viewModel.isAdmin)
+                OrderDetailView(
+                    order: order,
+                    isAdmin: viewModel.isAdmin,
+                    onParcelTrackingChanged: {
+                        Task { await viewModel.loadOrders() }
+                    }
+                )
             }
             .presentationDetents([.large])
         }
@@ -77,6 +83,9 @@ struct OrdersView: View {
                         isAdmin: viewModel.isAdmin,
                         onUpdateStatus: { updatedOrder, newStatus in
                             Task { await viewModel.updateStatus(order: updatedOrder, status: newStatus) }
+                        },
+                        onParcelTrackingChanged: {
+                            Task { await viewModel.loadOrders() }
                         }
                     )) {
                         OrderRowView(order: order, isAdmin: viewModel.isAdmin) { updatedOrder, newStatus in

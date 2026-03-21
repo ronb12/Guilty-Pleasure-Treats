@@ -54,6 +54,7 @@ function modulePathFor(key) {
     customers: 'customers/index.js',
     'customers/id': 'customers/id.js',
     'push/register': 'push/register.js',
+    'webhooks/carrier-tracking': 'webhooks/carrier-tracking.js',
     'analytics/summary': 'analytics/summary.js',
     reviews: 'reviews/index.js',
     events: 'events/index.js',
@@ -234,6 +235,8 @@ function getPathKey(req) {
     }
   } else if (segs[0] === 'push' && segs[1] === 'register') {
     key = 'push/register';
+  } else if (segs[0] === 'webhooks' && segs[1] === 'carrier-tracking') {
+    key = 'webhooks/carrier-tracking';
   } else if (segs[0] === 'analytics' && segs[1] === 'summary') {
     key = 'analytics/summary';
   } else if (segs[0] === 'reviews') {

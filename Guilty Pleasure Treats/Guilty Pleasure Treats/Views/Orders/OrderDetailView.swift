@@ -26,9 +26,19 @@ struct OrderDetailView: View {
     var onUpdateStatus: ((Order, OrderStatus) -> Void)?
     var onMarkAsPaid: ((String) -> Void)?
     var onSendPaymentLink: ((String) -> Void)?
+    /// Called after admin saves parcel tracking so lists can refresh.
+    var onParcelTrackingChanged: (() -> Void)? = nil
 
+    @Environment(\.openURL) private var openURL
+    @State private var liveOrder: Order?
     @State private var showStatusPicker = false
     @State private var showCancelRequestSheet = false
+    @State private var showParcelEditor = false
+    @State private var parcelCarrierDraft = ""
+    @State private var parcelNumberDraft = ""
+    @State private var parcelStatusDraft = ""
+    @State private var parcelSaveError: String?
+    @State private var isSavingParcel = false
     @State private var existingOrderReview: Review?
     @State private var reviewRating: Int = 5
     @State private var reviewText: String = ""
@@ -37,15 +47,26 @@ struct OrderDetailView: View {
 
     private let api = VercelService.shared
 
+    private var displayOrder: Order { liveOrder ?? order }
+
     private var isSampleOrder: Bool {
         order.id?.hasPrefix("sample-") ?? false
     }
 
+    private var showParcelSection: Bool {
+        guard !isSampleOrder else { return false }
+        if isAdmin { return true }
+        let o = displayOrder
+        if let u = o.trackingUrl, !u.isEmpty { return true }
+        if let d = o.trackingStatusDetail, !d.isEmpty { return true }
+        return false
+    }
+
     /// Title shown in nav bar; identifies which order when there are many.
     private var orderTitle: String {
-        let name = order.customerName.trimmingCharacters(in: .whitespaces)
+        let name = displayOrder.customerName.trimmingCharacters(in: .whitespaces)
         if !name.isEmpty { return "Order · \(name)" }
-        if let id = order.id, !id.isEmpty {
+        if let id = displayOrder.id, !id.isEmpty {
             return "Order \(OrderReference.displayCode(from: id))"
         }
         return "Order details"
@@ -57,9 +78,12 @@ struct OrderDetailView: View {
                 headerCard
                 orderStatusBar
                 fulfillmentCard
+                if showParcelSection {
+                    parcelTrackingCard
+                }
                 itemsCard
                 totalsCard
-                if !isAdmin, !isSampleOrder, order.statusEnum == .completed {
+                if !isAdmin, !isSampleOrder, displayOrder.statusEnum == .completed {
                     orderReviewCard
                 }
                 if isAdmin, !isSampleOrder {
@@ -76,7 +100,7 @@ struct OrderDetailView: View {
         .confirmationDialog("Update status", isPresented: $showStatusPicker) {
             ForEach(OrderStatus.allCases, id: \.self) { status in
                 Button(status.rawValue) {
-                    onUpdateStatus?(order, status)
+                    onUpdateStatus?(displayOrder, status)
                 }
             }
             Button("Cancel", role: .cancel) {}
@@ -85,14 +109,104 @@ struct OrderDetailView: View {
         }
         .sheet(isPresented: $showCancelRequestSheet) {
             ContactView(
-                initialSubject: order.id.map { "Cancel order \(OrderReference.displayCode(from: $0))" },
+                initialSubject: displayOrder.id.map { "Cancel order \(OrderReference.displayCode(from: $0))" },
                 initialMessage: "I would like to cancel this order. Please confirm."
             )
         }
+        .sheet(isPresented: $showParcelEditor) {
+            NavigationStack {
+                Form {
+                    Picker("Carrier", selection: $parcelCarrierDraft) {
+                        Text("None").tag("")
+                        Text("UPS").tag("ups")
+                        Text("FedEx").tag("fedex")
+                        Text("USPS").tag("usps")
+                    }
+                    TextField("Tracking number", text: $parcelNumberDraft)
+                        #if os(iOS)
+                        .textInputAutocapitalization(.never)
+                        #endif
+                    TextField("Carrier status (optional)", text: $parcelStatusDraft, axis: .vertical)
+                        .lineLimit(3...6)
+                    if let parcelSaveError {
+                        Section {
+                            Text(parcelSaveError)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                }
+                .navigationTitle("Parcel tracking")
+                #if os(iOS)
+                .navigationBarTitleDisplayMode(.inline)
+                #endif
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            showParcelEditor = false
+                            parcelSaveError = nil
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Save") {
+                            Task { await saveParcelTrackingEdits() }
+                        }
+                        .disabled(isSavingParcel)
+                    }
+                }
+            }
+            #if os(iOS)
+            .presentationDetents([.medium, .large])
+            #endif
+        }
         .task {
-            if !isAdmin, order.id != nil, order.statusEnum == .completed {
+            await refreshOrderFromServer()
+            if !isAdmin, displayOrder.id != nil, displayOrder.statusEnum == .completed {
                 await loadOrderReview()
             }
+        }
+    }
+
+    private func refreshOrderFromServer() async {
+        guard let oid = order.id, !isSampleOrder else { return }
+        if let fresh = try? await api.fetchOrder(orderId: oid) {
+            liveOrder = fresh
+        }
+    }
+
+    private func openParcelEditor() {
+        let o = displayOrder
+        parcelCarrierDraft = o.trackingCarrier?.lowercased() ?? ""
+        parcelNumberDraft = o.trackingNumber ?? ""
+        parcelStatusDraft = o.trackingStatusDetail ?? ""
+        parcelSaveError = nil
+        showParcelEditor = true
+    }
+
+    private func saveParcelTrackingEdits() async {
+        guard let oid = displayOrder.id else { return }
+        isSavingParcel = true
+        defer { isSavingParcel = false }
+        parcelSaveError = nil
+        let carrier = parcelCarrierDraft.isEmpty ? nil : parcelCarrierDraft
+        let number = parcelNumberDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? nil
+            : parcelNumberDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let detail = parcelStatusDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? nil
+            : parcelStatusDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            try await api.updateOrderParcelTracking(
+                orderId: oid,
+                trackingCarrier: carrier,
+                trackingNumber: number,
+                trackingStatusDetail: detail
+            )
+            await refreshOrderFromServer()
+            showParcelEditor = false
+            onParcelTrackingChanged?()
+        } catch {
+            parcelSaveError = FriendlyErrorMessage.message(for: error)
         }
     }
 
@@ -243,11 +357,11 @@ struct OrderDetailView: View {
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(order.id.map { OrderReference.displayCode(from: $0) } ?? "Sample order")
+                Text(displayOrder.id.map { OrderReference.displayCode(from: $0) } ?? "Sample order")
                     .font(.headline)
                     .foregroundStyle(AppConstants.Colors.textPrimary)
                 Spacer()
-                Text(order.status)
+                Text(displayOrder.status)
                     .font(.caption)
                     .fontWeight(.medium)
                     .foregroundStyle(statusColor)
@@ -256,42 +370,42 @@ struct OrderDetailView: View {
                     .background(statusColor.opacity(0.2))
                     .clipShape(Capsule())
             }
-            if let date = order.createdAt {
+            if let date = displayOrder.createdAt {
                 Text("Placed \(date.dateAndTimeString)")
                     .font(.subheadline)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
             }
             HStack {
-                Text(order.customerName)
+                Text(displayOrder.customerName)
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(AppConstants.Colors.textPrimary)
                 Spacer()
             }
-            if !order.customerPhone.isEmpty {
-                Text(order.customerPhone)
+            if !displayOrder.customerPhone.isEmpty {
+                Text(displayOrder.customerPhone)
                     .font(.caption)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
             }
-            if let email = order.customerEmail, !email.isEmpty {
+            if let email = displayOrder.customerEmail, !email.isEmpty {
                 Text(email)
                     .font(.caption)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
             }
-            if let addr = order.deliveryAddress, !addr.isEmpty {
+            if let addr = displayOrder.deliveryAddress, !addr.isEmpty {
                 Text(addr.replacingOccurrences(of: "\n", with: ", "))
                     .font(.caption)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
             }
             if isAdmin {
-                if order.statusEnum == .cancelled {
+                if displayOrder.statusEnum == .cancelled {
                     Text("Payment: N/A (order cancelled)")
                         .font(.caption)
                         .foregroundStyle(AppConstants.Colors.textSecondary)
                 } else {
-                    Text(order.isPaid ? "Payment: Paid" : "Payment: Pending")
+                    Text(displayOrder.isPaid ? "Payment: Paid" : "Payment: Pending")
                         .font(.caption)
-                        .foregroundStyle(order.isPaid ? .green : AppConstants.Colors.textSecondary)
+                        .foregroundStyle(displayOrder.isPaid ? .green : AppConstants.Colors.textSecondary)
                 }
             }
         }
@@ -313,18 +427,18 @@ struct OrderDetailView: View {
                     .fontWeight(.semibold)
                     .foregroundStyle(AppConstants.Colors.textPrimary)
             }
-            if !isAdmin, order.statusEnum != .cancelled {
+            if !isAdmin, displayOrder.statusEnum != .cancelled {
                 Text("See where your order is in the process.")
                     .font(.caption)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
             }
             if !isAdmin {
-                Text("Current status: \(order.status)")
+                Text("Current status: \(displayOrder.status)")
                     .font(.caption)
                     .fontWeight(.medium)
                     .foregroundStyle(statusColor)
             }
-            if order.statusEnum == .cancelled {
+            if displayOrder.statusEnum == .cancelled {
                 HStack(spacing: 8) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.red)
@@ -336,8 +450,8 @@ struct OrderDetailView: View {
             } else {
                 HStack(alignment: .top, spacing: 0) {
                     ForEach(Array(Self.trackOrderSteps.enumerated()), id: \.offset) { index, step in
-                        let isReached = step.reached(by: order.statusEnum)
-                        let isCurrent = step.isCurrent(order.statusEnum)
+                        let isReached = step.reached(by: displayOrder.statusEnum)
+                        let isCurrent = step.isCurrent(displayOrder.statusEnum)
                         HStack(spacing: 0) {
                             VStack(spacing: 4) {
                                 ZStack {
@@ -389,14 +503,14 @@ struct OrderDetailView: View {
                 .fontWeight(.semibold)
                 .foregroundStyle(AppConstants.Colors.textPrimary)
             HStack {
-                Text(order.fulfillmentType)
+                Text(displayOrder.fulfillmentType)
                     .font(.subheadline)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
                 Spacer()
             }
-            if let date = order.scheduledPickupDate {
+            if let date = displayOrder.scheduledPickupDate {
                 HStack {
-                    Text(order.fulfillmentEnum == .shipping ? "Ship date" : (order.fulfillmentEnum == .delivery ? "Delivery date" : "Pickup time"))
+                    Text(displayOrder.fulfillmentEnum == .shipping ? "Ship date" : (displayOrder.fulfillmentEnum == .delivery ? "Delivery date" : "Pickup time"))
                         .font(.caption)
                         .foregroundStyle(AppConstants.Colors.textSecondary)
                     Spacer()
@@ -405,7 +519,7 @@ struct OrderDetailView: View {
                         .foregroundStyle(AppConstants.Colors.textPrimary)
                 }
             }
-            if let ready = order.estimatedReadyTime {
+            if let ready = displayOrder.estimatedReadyTime {
                 HStack {
                     Text("Est. ready")
                         .font(.caption)
@@ -423,13 +537,64 @@ struct OrderDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
     }
 
+    private var parcelTrackingCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "shippingbox.fill")
+                    .font(.subheadline)
+                    .foregroundStyle(AppConstants.Colors.accent)
+                Text("Shipment")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(AppConstants.Colors.textPrimary)
+                Spacer()
+                if isAdmin {
+                    Button("Edit") { openParcelEditor() }
+                        .font(.subheadline)
+                        .foregroundStyle(AppConstants.Colors.accent)
+                }
+            }
+            if let detail = displayOrder.trackingStatusDetail, !detail.isEmpty {
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(AppConstants.Colors.textSecondary)
+            }
+            if let carrier = displayOrder.trackingCarrier, !carrier.isEmpty,
+               let num = displayOrder.trackingNumber, !num.isEmpty {
+                Text("\(carrier.uppercased()) · \(num)")
+                    .font(.caption)
+                    .foregroundStyle(AppConstants.Colors.textPrimary)
+            } else if isAdmin {
+                Text("Add carrier and tracking number to enable Track package.")
+                    .font(.caption)
+                    .foregroundStyle(AppConstants.Colors.textSecondary)
+            }
+            if let urlString = displayOrder.trackingUrl, let url = URL(string: urlString) {
+                Button {
+                    openURL(url)
+                } label: {
+                    Label("Track package", systemImage: "arrow.up.right.square")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(AppConstants.Colors.accent)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppConstants.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+    }
+
     private var itemsCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Items")
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundStyle(AppConstants.Colors.textPrimary)
-            ForEach(order.items) { item in
+            ForEach(displayOrder.items) { item in
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(alignment: .top) {
                         Text("\(item.quantity)× \(item.name)")
@@ -448,7 +613,7 @@ struct OrderDetailView: View {
                     }
                 }
                 .padding(.vertical, 4)
-                if item.id != order.items.last?.id {
+                if item.id != displayOrder.items.last?.id {
                     Divider()
                 }
             }
@@ -466,7 +631,7 @@ struct OrderDetailView: View {
                     .font(.subheadline)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
                 Spacer()
-                Text(order.subtotal.currencyFormatted)
+                Text(displayOrder.subtotal.currencyFormatted)
                     .font(.subheadline)
                     .foregroundStyle(AppConstants.Colors.textPrimary)
             }
@@ -475,7 +640,7 @@ struct OrderDetailView: View {
                     .font(.subheadline)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
                 Spacer()
-                Text(order.tax.currencyFormatted)
+                Text(displayOrder.tax.currencyFormatted)
                     .font(.subheadline)
                     .foregroundStyle(AppConstants.Colors.textPrimary)
             }
@@ -485,7 +650,7 @@ struct OrderDetailView: View {
                     .font(.headline)
                     .foregroundStyle(AppConstants.Colors.textPrimary)
                 Spacer()
-                Text(order.total.currencyFormatted)
+                Text(displayOrder.total.currencyFormatted)
                     .font(.headline)
                     .foregroundStyle(AppConstants.Colors.accent)
             }
@@ -510,7 +675,7 @@ struct OrderDetailView: View {
                         .font(.subheadline)
                         .foregroundStyle(AppConstants.Colors.accent)
                 }
-                if order.statusEnum != .cancelled, !order.isPaid, let orderId = order.id {
+                if displayOrder.statusEnum != .cancelled, !displayOrder.isPaid, let orderId = displayOrder.id {
                     if let markPaid = onMarkAsPaid {
                         Button("Mark as paid") {
                             markPaid(orderId)
@@ -535,7 +700,7 @@ struct OrderDetailView: View {
     }
 
     private var statusColor: Color {
-        switch order.statusEnum {
+        switch displayOrder.statusEnum {
         case .completed: return .green
         case .cancelled: return .red
         case .ready: return .blue
