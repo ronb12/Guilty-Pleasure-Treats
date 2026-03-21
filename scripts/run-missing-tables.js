@@ -410,6 +410,13 @@ async function main() {
 
     console.log('\nAll missing tables are ready.');
 
+    const coreTables = [
+      'users', 'sessions', 'password_reset_tokens', 'orders', 'products',
+      'custom_cake_orders', 'ai_cake_designs', 'admin_messages', 'contact_messages',
+      'contact_message_replies', 'cake_gallery', 'product_categories', 'customers',
+      'push_tokens', 'events', 'reviews', 'promotions', 'business_settings',
+      'order_idempotency',
+    ];
     const verify = await sql`
       SELECT tablename FROM pg_tables
       WHERE schemaname = 'public'
@@ -423,7 +430,9 @@ async function main() {
       ORDER BY tablename
     `;
     const got = (verify || []).map((r) => r.tablename);
-    console.log(`Verified ${got.length}/18 core tables in public schema: ${got.join(', ')}`);
+    const missing = coreTables.filter((t) => !got.includes(t));
+    if (missing.length) console.warn('Missing tables:', missing.join(', '));
+    console.log(`Verified ${got.length}/${coreTables.length} core tables: ${got.join(', ')}`);
   } catch (err) {
     console.error('Error:', err.message);
     process.exit(1);

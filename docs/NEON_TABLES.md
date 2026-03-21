@@ -19,7 +19,7 @@ The app expects PostgreSQL tables in your **Neon** project. Use the migration sc
    npm run neon:migrate
    ```
 
-   You should see `All missing tables are ready.` and a line like `Verified 18/18 core tables...`.
+   You should see `All missing tables are ready.` and a line like `Verified 19/19 core tables...`.
 
 ## Without Vercel CLI
 
@@ -35,7 +35,7 @@ The app expects PostgreSQL tables in your **Neon** project. Use the migration sc
 
 `scripts/run-missing-tables.js` runs `CREATE TABLE IF NOT EXISTS` and `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` for:
 
-`users`, `sessions`, `password_reset_tokens`, `orders`, `products`, `custom_cake_orders`, `ai_cake_designs`, `admin_messages`, `contact_messages`, `contact_message_replies`, `cake_gallery`, `product_categories`, `customers`, `push_tokens`, `events`, `reviews`, `promotions`, `business_settings`, `order_idempotency`.
+19 core tables: `users`, `sessions`, `password_reset_tokens`, `orders`, `products`, `custom_cake_orders`, `ai_cake_designs`, `admin_messages`, `contact_messages`, `contact_message_replies`, `cake_gallery`, `product_categories`, `customers`, `push_tokens`, `events`, `reviews`, `promotions`, `business_settings`, `order_idempotency`.
 
 Promotions extras (if an old DB): `updated_at`, `min_subtotal`, `min_total_quantity`, `first_order_only`.  
 Orders extras: `promo_code`, `loyalty_points_awarded`, etc.
