@@ -41,6 +41,20 @@ enum FriendlyErrorMessage {
         if let authErr = error as? AuthError, let desc = authErr.errorDescription, !desc.isEmpty {
             return desc
         }
+        // Stripe in-app payment (Payment Sheet, PaymentIntent)
+        if let stripe = error as? StripeError {
+            switch stripe {
+            case .invalidURL:
+                return "Payment couldn’t start. Please try again."
+            case .paymentCanceled:
+                return "Payment was canceled. If an order was started, contact the shop to pay—or try again."
+            case .backendError(let msg):
+                let trimmed = msg.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty { return "Payment couldn’t start. Please try again." }
+                if trimmed.count < 220 { return trimmed }
+                return String(trimmed.prefix(217)) + "…"
+            }
+        }
         if let api = error as? VercelAPIError, !api.message.isEmpty {
             var msg = api.message
             if let rid = api.requestId, !rid.isEmpty {

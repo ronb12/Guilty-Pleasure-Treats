@@ -2,7 +2,7 @@
 //  CheckoutView.swift
 //  Guilty Pleasure Treats
 //
-//  Checkout: name, phone, pickup/delivery, date/time, Stripe or Apple Pay.
+//  Checkout: name, phone, pickup/delivery, date/time, Stripe.
 //
 
 import SwiftUI
@@ -23,27 +23,22 @@ struct CheckoutView: View {
     @StateObject private var auth = AuthService.shared
     @State private var confirmedOrder: ConfirmedOrderItem?
 
-    /// In-app Stripe Payment Sheet when publishable key is available and the server can create PaymentIntents.
-    /// macOS uses pay-by-link only (Stripe Payment Sheet is UIKit-based on iOS).
-    /// Note: `stripeCheckoutEnabledFromServer` may still be false before settings finish loading; if the app bundles
-    /// `AppConstants.stripePublishableKey` and Vercel has `STRIPE_SECRET_KEY`, we still allow in-app checkout.
-    private var useInlineStripeCard: Bool {
+    /// iPhone/iPad: always use in-app Stripe after placing the order (Payment Sheet). Mac: pay-by-link only.
+    private var checkoutPaymentMethod: PaymentMethod {
         #if os(macOS)
-        return false
+        return .payByLink
         #else
-        let pkServer = cart.stripePublishableKeyFromServer?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let pkApp = AppConstants.stripePublishableKey?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let hasPublishable = (pkServer != nil && !(pkServer?.isEmpty ?? true))
-            || (pkApp != nil && !(pkApp?.isEmpty ?? true))
-        let serverSaysStripeOk = cart.stripeCheckoutEnabledFromServer
-        let appBundledPk = pkApp != nil && !(pkApp?.isEmpty ?? true)
-        let stripeReady = serverSaysStripeOk || appBundledPk
-        return hasPublishable && stripeReady
+        return .stripe
         #endif
     }
 
-    private var checkoutPaymentMethod: PaymentMethod {
-        useInlineStripeCard ? .stripe : .payByLink
+    /// Payment section copy: show Stripe card copy on iOS (checkout always attempts Stripe there).
+    private var paymentSectionShowsStripe: Bool {
+        #if os(macOS)
+        return false
+        #else
+        return true
+        #endif
     }
     
     var body: some View {
@@ -347,7 +342,7 @@ struct CheckoutView: View {
     private var paymentSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionLabel("Payment")
-            if useInlineStripeCard {
+            if paymentSectionShowsStripe {
                 HStack {
                     Image(systemName: "creditcard.fill")
                         .foregroundStyle(AppConstants.Colors.accent)
@@ -355,7 +350,7 @@ struct CheckoutView: View {
                         .font(.subheadline)
                         .foregroundStyle(AppConstants.Colors.textPrimary)
                 }
-                Text("Checkout is powered by Stripe. After you place your order, you’ll enter your card in the secure payment screen—Visa, Mastercard, Amex, Discover, and most debit cards. Apple Pay is available where supported. You do not need a PayPal account.")
+                Text("Checkout is powered by Stripe. After you place your order, you’ll enter your card in the secure payment screen—Visa, Mastercard, Amex, Discover, and most debit cards.")
                     .font(.caption)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)

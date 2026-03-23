@@ -2,7 +2,7 @@
 //  CheckoutViewModel.swift
 //  Guilty Pleasure Treats
 //
-//  Handles checkout: create order, Stripe/Apple Pay, confirmation.
+//  Handles checkout: create order, Stripe, confirmation.
 //
 
 import Foundation
@@ -293,6 +293,15 @@ final class CheckoutViewModel: ObservableObject {
             pendingIdempotencyKey = UUID().uuidString
         }
         let idemKey = pendingIdempotencyKey
+
+        #if !os(macOS)
+        if paymentMethod == .stripe || paymentMethod == .applePay {
+            guard StripeService.canStartCheckout() else {
+                errorMessage = "Card payments aren’t set up in this app build. Update the app or contact the shop."
+                return false
+            }
+        }
+        #endif
         
         do {
             let created = try await api.createOrder(order, idempotencyKey: idemKey)
@@ -302,7 +311,6 @@ final class CheckoutViewModel: ObservableObject {
             order.total = created.total
             let orderId = created.id
             lastPaymentMethod = paymentMethod
-            pendingIdempotencyKey = nil
             
             switch paymentMethod {
             case .stripe, .applePay:
@@ -318,6 +326,8 @@ final class CheckoutViewModel: ObservableObject {
                 break
             }
             
+            // Only clear after successful payment flow (or non-Stripe paths) so retries use the same idempotency key.
+            pendingIdempotencyKey = nil
             cart.clear()
             lastCreatedOrderId = orderId
             lastCreatedOrder = order
