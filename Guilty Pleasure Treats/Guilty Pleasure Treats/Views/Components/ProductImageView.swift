@@ -43,7 +43,7 @@ struct ProductImageView: View {
                         Image(systemName: safePlaceholderName)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                            .foregroundStyle(AppConstants.Colors.accent)
                     @unknown default:
                         EmptyView()
                     }
@@ -52,7 +52,7 @@ struct ProductImageView: View {
                 Image(systemName: safePlaceholderName)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                    .foregroundStyle(AppConstants.Colors.accent)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
