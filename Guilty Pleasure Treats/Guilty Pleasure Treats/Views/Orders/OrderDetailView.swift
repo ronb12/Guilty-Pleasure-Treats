@@ -605,6 +605,11 @@ struct OrderDetailView: View {
                             .font(.subheadline)
                             .foregroundStyle(AppConstants.Colors.textPrimary)
                     }
+                    if let s = item.sizeLabel, !s.isEmpty {
+                        Text(s)
+                            .font(.caption)
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                    }
                     if !item.specialInstructions.isEmpty {
                         Text(item.specialInstructions)
                             .font(.caption)

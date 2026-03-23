@@ -277,7 +277,7 @@ struct MenuView: View {
                     ProductCard(
                         product: product,
                         onTap: onTapProduct.map { handler in { handler(product) } },
-                        onAddToCart: { cart.add(product: product) },
+                        onAddToCart: product.hasSizeOptions ? nil : { cart.add(product: product) },
                         isFavorite: showFavoriteButton ? favorites.isFavorite(productId: product.id) : false,
                         onToggleFavorite: showFavoriteButton ? { favorites.toggle(productId: product.id) } : nil
                     )

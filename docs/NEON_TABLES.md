@@ -40,9 +40,11 @@ The app expects PostgreSQL tables in your **Neon** project. Use the migration sc
 Promotions extras (if an old DB): `updated_at`, `min_subtotal`, `min_total_quantity`, `first_order_only`.  
 Orders extras: `promo_code`, `loyalty_points_awarded`, etc.
 
+**Products — sizes:** `products.size_options` (`JSONB`, default `[]`) stores per-size labels and prices (e.g. Small / Large). Added by the script above; if your DB predates this, run `npm run neon:migrate` or paste `scripts/sql/add-products-size-options.sql` into the Neon SQL Editor.
+
 ## Optional: SQL only
 
-If you prefer the Neon **SQL Editor**, you can still run small fixes, e.g. `scripts/sql/fix-promotions-updated-at.sql`, but the Node script is the full source of truth.
+If you prefer the Neon **SQL Editor**, you can still run small fixes, e.g. `scripts/sql/fix-promotions-updated-at.sql` or `scripts/sql/add-products-size-options.sql`, but the Node script is the full source of truth.
 
 ## Troubleshooting
 

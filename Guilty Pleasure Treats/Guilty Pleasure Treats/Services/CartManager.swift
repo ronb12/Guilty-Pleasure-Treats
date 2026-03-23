@@ -53,11 +53,27 @@ final class CartManager: ObservableObject {
         tipAmount = max(0, amount)
     }
     
-    func add(product: Product, quantity: Int = 1, specialInstructions: String = "") {
-        if let index = items.firstIndex(where: { $0.product.id == product.id && $0.specialInstructions == specialInstructions }) {
+    func add(
+        product: Product,
+        quantity: Int = 1,
+        specialInstructions: String = "",
+        selectedSizeId: String? = nil,
+        selectedSizeLabel: String? = nil
+    ) {
+        if let index = items.firstIndex(where: {
+            $0.product.id == product.id
+                && $0.specialInstructions == specialInstructions
+                && $0.selectedSizeId == selectedSizeId
+        }) {
             items[index].quantity += quantity
         } else {
-            let item = CartItem(product: product, quantity: quantity, specialInstructions: specialInstructions)
+            let item = CartItem(
+                product: product,
+                quantity: quantity,
+                specialInstructions: specialInstructions,
+                selectedSizeId: selectedSizeId,
+                selectedSizeLabel: selectedSizeLabel
+            )
             items.append(item)
         }
     }
@@ -119,9 +135,10 @@ final class CartManager: ObservableObject {
                 id: item.id,
                 productId: item.product.id ?? "",
                 name: item.product.name,
-                price: item.product.price,
+                price: item.unitPrice,
                 quantity: item.quantity,
-                specialInstructions: item.specialInstructions
+                specialInstructions: item.specialInstructions,
+                sizeLabel: item.selectedSizeLabel
             )
         }
     }

@@ -7,6 +7,36 @@ import { pgBool, bodyBool, soldOutFromRow } from './pgBool.js';
 /** When DATABASE_URL is unset (local/static hosting), return an empty list — production uses Neon. */
 const emptyProductsList = [];
 
+/** Body: { sizeOptions: [{ id?, label, price }, ...] } — ids optional (slug from label). */
+function normalizeSizeOptions(body) {
+  const raw = body.sizeOptions ?? body.size_options;
+  if (raw == null) return [];
+  const arr = Array.isArray(raw) ? raw : [];
+  const out = [];
+  for (let i = 0; i < arr.length; i++) {
+    const o = arr[i] || {};
+    const label = String(o.label ?? '').trim();
+    const price = Number(o.price);
+    if (!label || !Number.isFinite(price) || price < 0) continue;
+    let id = String(o.id ?? '').trim();
+    if (!id) {
+      id = label
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') || `size-${i}`;
+    }
+    out.push({ id, label, price });
+  }
+  return out;
+}
+
+function rowSizeOptions(row) {
+  const v = row.size_options;
+  if (v == null) return null;
+  if (Array.isArray(v) && v.length) return v;
+  return null;
+}
+
 function rowToProduct(row) {
   if (!row) return null;
   return {
@@ -23,6 +53,7 @@ function rowToProduct(row) {
     isVegetarian: pgBool(row.is_vegetarian),
     stockQuantity: row.stock_quantity ?? null,
     lowStockThreshold: row.low_stock_threshold ?? null,
+    sizeOptions: rowSizeOptions(row),
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
     updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
   };
@@ -53,9 +84,15 @@ export default async function handler(req, res) {
     const cost = body.cost != null && body.cost !== '' ? Number(body.cost) : null;
     /** Keep in sync with is_sold_out: available for sale unless marked sold out. */
     const isAvailable = !isSoldOut;
+    const sizeOpts = normalizeSizeOptions(body);
+    const sizeJson = JSON.stringify(sizeOpts);
+    let priceForRow = Number(body.price) ?? 0;
+    if (sizeOpts.length > 0) {
+      priceForRow = Math.min(...sizeOpts.map((o) => o.price));
+    }
     const insertProduct = () => sql`
-      INSERT INTO products (name, description, price, cost, image_url, category, is_featured, is_sold_out, is_vegetarian, stock_quantity, low_stock_threshold, is_available)
-      VALUES (${name}, ${description}, ${price}, ${cost}, ${imageURL}, ${category}, ${isFeatured}, ${isSoldOut}, ${isVegetarian}, ${stockQuantity}, ${lowStockThreshold}, ${isAvailable})
+      INSERT INTO products (name, description, price, cost, image_url, category, is_featured, is_sold_out, is_vegetarian, stock_quantity, low_stock_threshold, is_available, size_options)
+      VALUES (${name}, ${description}, ${priceForRow}, ${cost}, ${imageURL}, ${category}, ${isFeatured}, ${isSoldOut}, ${isVegetarian}, ${stockQuantity}, ${lowStockThreshold}, ${isAvailable}, ${sizeJson}::jsonb)
       RETURNING *
     `;
     try {
@@ -64,12 +101,17 @@ export default async function handler(req, res) {
       void notifyAdminsWhenStockBecomesLow(sql, null, row);
       return res.status(201).json(rowToProduct(row));
     } catch (err) {
+      const missingSizeOpts =
+        err?.code === '42703' && String(err.message || '').includes('size_options');
       const missingVeg =
         err?.code === '42703' && String(err.message || '').includes('is_vegetarian');
       const missingAvail =
         err?.code === '42703' && String(err.message || '').includes('is_available');
-      if (missingVeg || missingAvail) {
+      if (missingSizeOpts || missingVeg || missingAvail) {
         try {
+          if (missingSizeOpts) {
+            await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS size_options JSONB DEFAULT '[]'::jsonb`;
+          }
           if (missingVeg) {
             await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegetarian BOOLEAN NOT NULL DEFAULT false`;
           }

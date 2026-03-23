@@ -17,7 +17,7 @@ Ensure `POSTGRES_URL` (or `DATABASE_URL`) is set, e.g. via `vercel env pull .env
 | **users** | Auth (login, admin), referenced by push_tokens and sessions |
 | **sessions** | Local session after email/password login |
 | **orders** | Checkout orders (pickup/delivery/shipping), admin list, analytics export |
-| **products** | Menu products, admin inventory |
+| **products** | Menu products, admin inventory; includes `size_options` (JSONB) for per-size pricing |
 | **custom_cake_orders** | Custom cake builder items, linked to orders via `order_id` |
 | **ai_cake_designs** | AI cake gallery designs/orders, linked to orders via `order_id` |
 | **admin_messages** | Admin → Messages “Send new message” / Sent list |

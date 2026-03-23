@@ -77,12 +77,19 @@ struct OrderConfirmationView: View {
                     Divider()
                     
                     ForEach(order.items) { item in
-                        HStack {
-                            Text("\(item.quantity)x \(item.name)")
-                            Spacer()
-                            Text(item.subtotal.currencyFormatted)
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack {
+                                Text("\(item.quantity)x \(item.name)")
+                                Spacer()
+                                Text(item.subtotal.currencyFormatted)
+                            }
+                            .font(.subheadline)
+                            if let s = item.sizeLabel, !s.isEmpty {
+                                Text(s)
+                                    .font(.caption2)
+                                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                            }
                         }
-                        .font(.subheadline)
                     }
                     
                     Divider()

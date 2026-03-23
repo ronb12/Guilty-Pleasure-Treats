@@ -225,6 +225,11 @@ struct CartRowView: View {
                     .foregroundStyle(AppConstants.Colors.textPrimary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                if let size = item.selectedSizeLabel, !size.isEmpty {
+                    Text(size)
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                }
                 if !item.specialInstructions.isEmpty {
                     Text(item.specialInstructions)
                         .font(.caption)
@@ -235,7 +240,7 @@ struct CartRowView: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(AppConstants.Colors.accent)
-                Text("\(item.quantity) × \(item.product.price.currencyFormatted) each")
+                Text("\(item.quantity) × \(item.unitPrice.currencyFormatted) each")
                     .font(.caption2)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
 

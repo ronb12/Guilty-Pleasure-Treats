@@ -45,8 +45,9 @@ struct CheckoutView: View {
     }
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
+        ZStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
                 if let msg = viewModel.errorMessage {
                     ErrorMessageBanner(message: msg, debugCopyText: viewModel.lastErrorDebugText) {
                         viewModel.errorMessage = nil
@@ -72,16 +73,12 @@ struct CheckoutView: View {
                     title: "Place Order",
                     action: { Task { await placeOrder() } },
                     isLoading: viewModel.isLoading,
-                    disabled: !viewModel.canCheckout
+                    disabled: !viewModel.canCheckout || viewModel.isWaitingForStripePayment
                 )
-                #if !os(macOS)
-                if let trace = viewModel.checkoutDebugTrace, !trace.isEmpty {
-                    checkoutDebugPanel(trace)
                 }
-                #endif
+                .padding(.horizontal, AppConstants.Layout.screenHorizontalPadding)
+                .padding(.bottom, 24)
             }
-            .padding(.horizontal, AppConstants.Layout.screenHorizontalPadding)
-            .padding(.bottom, 24)
         }
         .background(AppConstants.Colors.secondary)
         .navigationTitle("Checkout")
@@ -137,47 +134,8 @@ struct CheckoutView: View {
         }
         #if !os(macOS)
         .stripePaymentSheetOverlay(viewModel: viewModel)
-        .onChange(of: viewModel.showStripePaymentSheet) { _, new in
-            CheckoutDebugLog.console(
-                "SwiftUI: showStripePaymentSheet=\(new) stripePaymentSheet attached=\(viewModel.stripePaymentSheet != nil)"
-            )
-        }
-        .onChange(of: viewModel.stripePaymentSheet != nil) { _, hasSheet in
-            CheckoutDebugLog.console("SwiftUI: stripePaymentSheet non-nil=\(hasSheet)")
-        }
         #endif
     }
-
-    #if !os(macOS)
-    @ViewBuilder
-    private func checkoutDebugPanel(_ trace: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Checkout debug (last tap)")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                Spacer()
-                Button("Copy") {
-                    CheckoutDebugLog.copyToPasteboard(trace)
-                }
-                .font(.caption)
-            }
-            Text("Xcode console: search for “CheckoutDebug”.")
-                .font(.caption2)
-                .foregroundStyle(AppConstants.Colors.textSecondary)
-            ScrollView {
-                Text(trace)
-                    .font(.caption2)
-                    .monospaced()
-                    .textSelection(.enabled)
-            }
-            .frame(maxHeight: 180)
-        }
-        .padding(10)
-        .background(Color.orange.opacity(0.14))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-    #endif
     
     private var contactSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -440,7 +398,6 @@ struct CheckoutView: View {
     }
     
     private func placeOrder() async {
-        CheckoutDebugLog.console("CheckoutView: Place Order tapped paymentMethod=\(String(describing: checkoutPaymentMethod))")
         let success = await viewModel.placeOrder(paymentMethod: checkoutPaymentMethod)
         if success,
            let order = viewModel.lastCreatedOrder,
@@ -456,20 +413,16 @@ extension View {
     @ViewBuilder
     func stripePaymentSheetOverlay(viewModel: CheckoutViewModel) -> some View {
         if let sheet = viewModel.stripePaymentSheet {
-            self
-                .paymentSheet(
-                    isPresented: Binding(
-                        get: { viewModel.showStripePaymentSheet },
-                        set: { viewModel.showStripePaymentSheet = $0 }
-                    ),
-                    paymentSheet: sheet,
-                    onCompletion: { result in
-                        viewModel.handleStripePaymentSheetResult(result)
-                    }
-                )
-                .onAppear {
-                    CheckoutDebugLog.console("SwiftUI: .paymentSheet modifier active (sheet instance ready)")
+            self.paymentSheet(
+                isPresented: Binding(
+                    get: { viewModel.showStripePaymentSheet },
+                    set: { viewModel.showStripePaymentSheet = $0 }
+                ),
+                paymentSheet: sheet,
+                onCompletion: { result in
+                    viewModel.handleStripePaymentSheetResult(result)
                 }
+            )
         } else {
             self
         }

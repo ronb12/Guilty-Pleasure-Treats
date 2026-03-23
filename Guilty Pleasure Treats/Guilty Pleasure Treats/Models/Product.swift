@@ -39,6 +39,8 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
     var lowStockThreshold: Int?
     var createdAt: Date?
     var updatedAt: Date?
+    /// When non-empty, customer picks a size; each option has its own price. When nil/empty, `price` is the only price.
+    var sizeOptions: [ProductSizeOption]?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -55,6 +57,7 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
         case lowStockThreshold
         case createdAt
         case updatedAt
+        case sizeOptions
     }
     
     init(from decoder: Decoder) throws {
@@ -73,6 +76,11 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
         lowStockThreshold = Self.decodeFlexibleOptionalInt(c, key: .lowStockThreshold)
         createdAt = Product.parseISO8601(try c.decodeIfPresent(String.self, forKey: .createdAt))
         updatedAt = Product.parseISO8601(try c.decodeIfPresent(String.self, forKey: .updatedAt))
+        if let opts = try c.decodeIfPresent([ProductSizeOption].self, forKey: .sizeOptions), !opts.isEmpty {
+            sizeOptions = opts
+        } else {
+            sizeOptions = nil
+        }
     }
     
     /// JSON number (int/float) or numeric string → `Double` (avoids decode failures from APIs that send `price: 1`).
@@ -148,7 +156,8 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
         stockQuantity: Int? = nil,
         lowStockThreshold: Int? = nil,
         createdAt: Date? = nil,
-        updatedAt: Date? = nil
+        updatedAt: Date? = nil,
+        sizeOptions: [ProductSizeOption]? = nil
     ) {
         self.id = id
         self.name = name
@@ -164,6 +173,7 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
         self.lowStockThreshold = lowStockThreshold
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.sizeOptions = sizeOptions
     }
     
     var isLowStock: Bool {
@@ -193,6 +203,37 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
         ProductCategory(rawValue: category)
     }
 
+    /// True when the product has at least one size/price option.
+    var hasSizeOptions: Bool {
+        !(sizeOptions?.isEmpty ?? true)
+    }
+
+    /// Menu list / card: show "From $X" when multiple sizes exist.
+    var listingPriceText: String {
+        guard let sizes = sizeOptions, let minP = sizes.map(\.price).min() else {
+            return price.currencyFormatted
+        }
+        return "From \(minP.currencyFormatted)"
+    }
+
+    /// Unit price for a cart line when a size is selected.
+    func unitPrice(forSizeId sizeId: String?) -> Double {
+        guard let sizes = sizeOptions, !sizes.isEmpty else { return price }
+        guard let sid = sizeId?.trimmingCharacters(in: .whitespacesAndNewlines), !sid.isEmpty else {
+            return sizes.map(\.price).min() ?? price
+        }
+        if let match = sizes.first(where: { $0.id == sid }) {
+            return match.price
+        }
+        return sizes.map(\.price).min() ?? price
+    }
+
+    /// Label for a size id, if known.
+    func sizeLabel(forSizeId sizeId: String?) -> String? {
+        guard let sid = sizeId?.trimmingCharacters(in: .whitespacesAndNewlines), !sid.isEmpty else { return nil }
+        return sizeOptions?.first(where: { $0.id == sid })?.label
+    }
+
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
         hasher.combine(name)
@@ -208,5 +249,6 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
         hasher.combine(lowStockThreshold)
         hasher.combine(createdAt)
         hasher.combine(updatedAt)
+        hasher.combine(sizeOptions)
     }
 }

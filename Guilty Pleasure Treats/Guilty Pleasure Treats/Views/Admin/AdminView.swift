@@ -695,6 +695,32 @@ struct AdminProductRow: View {
     }
 }
 
+// MARK: - Product size rows (admin)
+
+private struct AdminProductSizeRow: Identifiable {
+    let id = UUID()
+    var label: String
+    var priceText: String
+}
+
+private func adminProductSizeOptions(from rows: [AdminProductSizeRow]) -> [ProductSizeOption]? {
+    let parsed = rows.compactMap { row -> ProductSizeOption? in
+        let label = row.label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !label.isEmpty else { return nil }
+        let p = Double(row.priceText.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces)) ?? 0
+        guard p > 0 else { return nil }
+        return ProductSizeOption(label: label, price: p)
+    }
+    return parsed.isEmpty ? nil : parsed
+}
+
+private func adminProductBasePrice(fromPriceText: String, sizeOptions: [ProductSizeOption]?) -> Double {
+    if let opts = sizeOptions, !opts.isEmpty {
+        return opts.map(\.price).min() ?? 0
+    }
+    return Double(fromPriceText.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespacesAndNewlines)) ?? 0
+}
+
 struct AddProductView: View {
     @ObservedObject var viewModel: AdminViewModel
     @Environment(\.dismiss) private var dismiss
@@ -707,6 +733,7 @@ struct AddProductView: View {
     @State private var isVegetarian = false
     @State private var stockText = ""
     @State private var lowStockText = ""
+    @State private var sizeRows: [AdminProductSizeRow] = []
     @State private var selectedImage: PlatformImage?
     @State private var showImagePicker = false
     @State private var isSaving = false
@@ -714,9 +741,16 @@ struct AddProductView: View {
     private var categoryOptions: [String] {
         viewModel.productCategoryNames.isEmpty ? ProductCategory.allCases.map(\.rawValue) : viewModel.productCategoryNames
     }
+
+    private var parsedSizeOptionsForAdd: [ProductSizeOption]? {
+        adminProductSizeOptions(from: sizeRows)
+    }
     
     private var canSaveNewProduct: Bool {
-        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !priceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return false }
+        if let opts = parsedSizeOptionsForAdd, !opts.isEmpty { return true }
+        return !priceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     
     var body: some View {
@@ -760,6 +794,25 @@ struct AddProductView: View {
                     #if os(iOS)
                     .keyboardType(.numberPad)
                     #endif
+                Section {
+                    ForEach($sizeRows) { $row in
+                        HStack {
+                            TextField("Size label", text: $row.label)
+                            TextField("Price", text: $row.priceText)
+                                #if os(iOS)
+                                .keyboardType(.decimalPad)
+                                #endif
+                        }
+                    }
+                    .onDelete { sizeRows.remove(atOffsets: $0) }
+                    Button("Add size") {
+                        sizeRows.append(AdminProductSizeRow(label: "", priceText: ""))
+                    }
+                } header: {
+                    Text("Sizes (optional)")
+                } footer: {
+                    Text("When set, customers choose a size on the product page. The menu lists “From” the lowest price.")
+                }
                 Text("Product photo (shows on menu)")
                     .font(.subheadline)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
@@ -792,7 +845,8 @@ struct AddProductView: View {
                             isSaving = true
                             defer { isSaving = false }
                             let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                            let price = Double(priceText.replacingOccurrences(of: ",", with: "")) ?? 0
+                            let sizeOpts = adminProductSizeOptions(from: sizeRows)
+                            let price = adminProductBasePrice(fromPriceText: priceText, sizeOptions: sizeOpts)
                             let cost = Double(costText.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces))
                             let costOpt = (cost != nil && cost! > 0) ? cost : nil
                             let stock = Int(stockText.trimmingCharacters(in: .whitespaces))
@@ -807,7 +861,8 @@ struct AddProductView: View {
                                 isVegetarian: isVegetarian,
                                 image: selectedImage,
                                 stockQuantity: stock,
-                                lowStockThreshold: low
+                                lowStockThreshold: low,
+                                sizeOptions: sizeOpts
                             )
                             if didSave {
                                 dismiss()
@@ -854,6 +909,7 @@ struct EditProductView: View {
     @State private var isVegetarian: Bool
     @State private var stockText: String
     @State private var lowStockText: String
+    @State private var sizeRows: [AdminProductSizeRow]
     @State private var selectedImage: PlatformImage?
     @State private var showImagePicker = false
     @State private var showDeleteConfirm = false
@@ -881,6 +937,9 @@ struct EditProductView: View {
         _isVegetarian = State(initialValue: product.isVegetarian)
         _stockText = State(initialValue: product.stockQuantity.map { String($0) } ?? "")
         _lowStockText = State(initialValue: product.lowStockThreshold.map { String($0) } ?? "")
+        _sizeRows = State(initialValue: (product.sizeOptions ?? []).map {
+            AdminProductSizeRow(label: $0.label, priceText: String(format: "%.2f", $0.price))
+        })
     }
 
     private var editCategoryOptions: [String] {
@@ -937,6 +996,25 @@ struct EditProductView: View {
                     #if os(iOS)
                     .keyboardType(.numberPad)
                     #endif
+                Section {
+                    ForEach($sizeRows) { $row in
+                        HStack {
+                            TextField("Size label", text: $row.label)
+                            TextField("Price", text: $row.priceText)
+                                #if os(iOS)
+                                .keyboardType(.decimalPad)
+                                #endif
+                        }
+                    }
+                    .onDelete { sizeRows.remove(atOffsets: $0) }
+                    Button("Add size") {
+                        sizeRows.append(AdminProductSizeRow(label: "", priceText: ""))
+                    }
+                } header: {
+                    Text("Sizes (optional)")
+                } footer: {
+                    Text("When set, customers choose a size on the product page. Base price updates to the lowest size price.")
+                }
                 Text("Product photo (shows on menu)")
                     .font(.subheadline)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
@@ -995,6 +1073,11 @@ struct EditProductView: View {
                             updated.isVegetarian = isVegetarian
                             updated.stockQuantity = Int(stockText.trimmingCharacters(in: .whitespaces))
                             updated.lowStockThreshold = Int(lowStockText.trimmingCharacters(in: .whitespaces))
+                            let sizeOpts = adminProductSizeOptions(from: sizeRows)
+                            updated.sizeOptions = sizeOpts
+                            if let opts = sizeOpts, !opts.isEmpty {
+                                updated.price = opts.map(\.price).min() ?? updated.price
+                            }
                             if let q = updated.stockQuantity, q > 0 {
                                 updated.isSoldOut = false
                             }

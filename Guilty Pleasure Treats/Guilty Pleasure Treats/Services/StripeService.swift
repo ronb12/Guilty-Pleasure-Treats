@@ -48,11 +48,8 @@ final class StripeService: ObservableObject {
     
     /// Fetches `client_secret` from your backend. Use with `makePaymentSheet` and SwiftUI `.paymentSheet(...)`.
     func fetchPaymentIntentClientSecret(amountCents: Int, orderId: String) async throws -> String {
-        CheckoutDebugLog.console("Stripe fetchPaymentIntentClientSecret baseURL=\(baseURL) amountCents=\(amountCents) orderId=\(orderId)")
         Self.ensurePublishableKeyConfigured()
         let trimmedPk = (StripeAPI.defaultPublishableKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let pkPreview = trimmedPk.isEmpty ? "(empty)" : "\(trimmedPk.prefix(12))…(len:\(trimmedPk.count))"
-        CheckoutDebugLog.console("Stripe publishable key after ensure: \(pkPreview)")
         guard !trimmedPk.isEmpty else {
             throw StripeError.backendError(
                 "Missing Stripe publishable key. Add it in Admin → Business Settings or AppConstants."
@@ -64,7 +61,6 @@ final class StripeService: ObservableObject {
 
     /// Builds a `PaymentSheet` for SwiftUI presentation (see `CheckoutView` + `.paymentSheet`).
     func makePaymentSheet(clientSecret: String, customerName: String, customerEmail: String?) -> PaymentSheet {
-        CheckoutDebugLog.console("Stripe makePaymentSheet clientSecret=\(CheckoutDebugLog.describeClientSecret(clientSecret))")
         Self.ensurePublishableKeyConfigured()
         var configuration = PaymentSheet.Configuration()
         configuration.merchantDisplayName = "Guilty Pleasure Treats"
@@ -82,10 +78,8 @@ final class StripeService: ObservableObject {
     /// Call your backend to create a PaymentIntent and return client_secret.
     private func createPaymentIntent(amountCents: Int, orderId: String) async throws -> String {
         guard let url = URL(string: "\(baseURL)/api/stripe/create-payment-intent") else {
-            CheckoutDebugLog.console("Stripe createPaymentIntent: invalid URL from baseURL")
             throw StripeError.invalidURL
         }
-        CheckoutDebugLog.console("Stripe POST \(url.absoluteString)")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -98,13 +92,10 @@ final class StripeService: ObservableObject {
         
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else {
-            CheckoutDebugLog.console("Stripe createPaymentIntent: response was not HTTPURLResponse")
             throw StripeError.backendError("Invalid response from payment server.")
         }
         guard http.statusCode == 200 else {
             let raw = String(data: data, encoding: .utf8) ?? "Unknown"
-            let preview = raw.count > 800 ? String(raw.prefix(800)) + "…" : raw
-            CheckoutDebugLog.console("Stripe createPaymentIntent: HTTP \(http.statusCode) body=\(preview)")
             throw StripeError.backendError(raw)
         }
         struct CreateIntentResponse: Decodable {
@@ -122,16 +113,8 @@ final class StripeService: ObservableObject {
                 }
             }
         }
-        do {
-            let decoded = try JSONDecoder().decode(CreateIntentResponse.self, from: data)
-            CheckoutDebugLog.console("Stripe createPaymentIntent: decoded OK \(CheckoutDebugLog.describeClientSecret(decoded.clientSecret))")
-            return decoded.clientSecret
-        } catch {
-            let raw = String(data: data, encoding: .utf8) ?? ""
-            let preview = raw.count > 400 ? String(raw.prefix(400)) + "…" : raw
-            CheckoutDebugLog.console("Stripe createPaymentIntent: JSON decode failed \(error) body=\(preview)")
-            throw error
-        }
+        let decoded = try JSONDecoder().decode(CreateIntentResponse.self, from: data)
+        return decoded.clientSecret
     }
 }
 #else

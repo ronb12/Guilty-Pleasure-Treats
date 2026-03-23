@@ -54,7 +54,7 @@ struct ProductCard: View {
                     .lineLimit(hasImage ? 3 : 2)
 
                 HStack {
-                    Text(product.price.currencyFormatted)
+                    Text(product.listingPriceText)
                         .font(.subheadline)
                         .fontWeight(.semibold)
                         .foregroundStyle(AppConstants.Colors.accent)

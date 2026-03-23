@@ -9,6 +9,39 @@ import { setCors, handleOptions } from '../lib/cors.js';
 import { notifyAdminsWhenStockBecomesLow } from '../../api/lib/notifyAdminLowStock.js';
 import { pgBool, bodyBool, soldOutFromRow } from '../pgBool.js';
 
+/** PATCH: omit column when key absent; clear to [] when key present with empty array. */
+function normalizeSizeOptionsPatch(body) {
+  const has =
+    Object.prototype.hasOwnProperty.call(body, 'sizeOptions') ||
+    Object.prototype.hasOwnProperty.call(body, 'size_options');
+  if (!has) return null;
+  const raw = body.sizeOptions ?? body.size_options;
+  const arr = Array.isArray(raw) ? raw : [];
+  const out = [];
+  for (let i = 0; i < arr.length; i++) {
+    const o = arr[i] || {};
+    const label = String(o.label ?? '').trim();
+    const pr = Number(o.price);
+    if (!label || !Number.isFinite(pr) || pr < 0) continue;
+    let sid = String(o.id ?? '').trim();
+    if (!sid) {
+      sid = label
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') || `size-${i}`;
+    }
+    out.push({ id: sid, label, price: pr });
+  }
+  return out;
+}
+
+function rowSizeOptions(row) {
+  const v = row.size_options;
+  if (v == null) return null;
+  if (Array.isArray(v) && v.length) return v;
+  return null;
+}
+
 function rowToProduct(row) {
   if (!row) return null;
   return {
@@ -25,6 +58,7 @@ function rowToProduct(row) {
     isVegetarian: pgBool(row.is_vegetarian),
     stockQuantity: row.stock_quantity ?? null,
     lowStockThreshold: row.low_stock_threshold ?? null,
+    sizeOptions: rowSizeOptions(row),
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
     updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
   };
@@ -85,6 +119,13 @@ export default async function handler(req, res) {
     const stockQuantity = body.stockQuantity != null ? Number(body.stockQuantity) : null;
     const lowStockThreshold = body.lowStockThreshold != null ? Number(body.lowStockThreshold) : null;
     const cost = body.cost != null && body.cost !== '' ? Number(body.cost) : null;
+    const sizeOptsFromBody = normalizeSizeOptionsPatch(body);
+    const sizeJson =
+      sizeOptsFromBody != null ? JSON.stringify(sizeOptsFromBody) : null;
+    let priceForRow = price;
+    if (sizeOptsFromBody != null && sizeOptsFromBody.length > 0) {
+      priceForRow = Math.min(...sizeOptsFromBody.map((o) => o.price));
+    }
 
     if (!name) return res.status(400).json({ error: 'Name is required' });
 
@@ -105,7 +146,28 @@ export default async function handler(req, res) {
 
     const isAvailable = !isSoldOut;
 
-    const patchProduct = () => sql`
+    const patchProduct = () =>
+      sizeJson != null
+        ? sql`
+      UPDATE products SET
+        name = ${name},
+        description = ${description},
+        price = ${priceForRow},
+        cost = ${cost},
+        image_url = ${imageURL},
+        category = ${category},
+        is_featured = ${isFeatured},
+        is_sold_out = ${isSoldOut},
+        is_vegetarian = ${isVegetarian},
+        stock_quantity = ${stockQuantity},
+        low_stock_threshold = ${lowStockThreshold},
+        is_available = ${isAvailable},
+        size_options = ${sizeJson}::jsonb,
+        updated_at = NOW()
+      WHERE id = ${id}::uuid
+      RETURNING *
+    `
+        : sql`
       UPDATE products SET
         name = ${name},
         description = ${description},
@@ -131,12 +193,17 @@ export default async function handler(req, res) {
       return res.status(200).json(rowToProduct(row));
     } catch (err) {
       if (err?.code === '22P02') return res.status(400).json({ error: 'Invalid product id' });
+      const missingSizeOpts =
+        err?.code === '42703' && String(err.message || '').includes('size_options');
       const missingVeg =
         err?.code === '42703' && String(err.message || '').includes('is_vegetarian');
       const missingAvail =
         err?.code === '42703' && String(err.message || '').includes('is_available');
-      if (missingVeg || missingAvail) {
+      if (missingSizeOpts || missingVeg || missingAvail) {
         try {
+          if (missingSizeOpts) {
+            await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS size_options JSONB DEFAULT '[]'::jsonb`;
+          }
           if (missingVeg) {
             await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegetarian BOOLEAN NOT NULL DEFAULT false`;
           }

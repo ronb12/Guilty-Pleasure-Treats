@@ -7,6 +7,9 @@
  *
  * If PATCH /api/promotions/:id returns 503 and logs say promotions.updated_at missing,
  * run scripts/sql/fix-promotions-updated-at.sql in the Neon SQL Editor, or re-run this script.
+ *
+ * Product sizes (Small/Large, per-size pricing): `products.size_options` JSONB — see scripts/sql/add-products-size-options.sql
+ * or rely on ALTER below; the products API also runs ALTER IF NOT EXISTS on first write if the column is missing.
  */
 import { neon } from '@neondatabase/serverless';
 
@@ -144,12 +147,15 @@ async function main() {
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW(),
         is_available BOOLEAN NOT NULL DEFAULT true,
-        available_from DATE
+        available_from DATE,
+        size_options JSONB DEFAULT '[]'::jsonb
       )
     `;
     // Existing DBs created before is_vegetarian existed — CREATE TABLE IF NOT EXISTS does not add columns.
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegetarian BOOLEAN NOT NULL DEFAULT false`;
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_available BOOLEAN NOT NULL DEFAULT true`;
+    // Per-product sizes (e.g. Small/Large) with individual prices; app + API expect this column.
+    await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS size_options JSONB DEFAULT '[]'::jsonb`;
     await sql`CREATE INDEX IF NOT EXISTS idx_products_category ON products(category)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_products_created_at ON products(created_at DESC)`;
     console.log('products OK');

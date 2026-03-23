@@ -713,7 +713,7 @@ final class AdminViewModel: ObservableObject {
         }
     }
     
-    func addProduct(name: String, description: String, price: Double, cost: Double? = nil, category: String, isFeatured: Bool, isVegetarian: Bool = false, image: PlatformImage?, stockQuantity: Int? = nil, lowStockThreshold: Int? = nil) async -> Bool {
+    func addProduct(name: String, description: String, price: Double, cost: Double? = nil, category: String, isFeatured: Bool, isVegetarian: Bool = false, image: PlatformImage?, stockQuantity: Int? = nil, lowStockThreshold: Int? = nil, sizeOptions: [ProductSizeOption]? = nil) async -> Bool {
         let product = Product(
             name: name,
             productDescription: description,
@@ -725,7 +725,8 @@ final class AdminViewModel: ObservableObject {
             isSoldOut: false,
             isVegetarian: isVegetarian,
             stockQuantity: stockQuantity,
-            lowStockThreshold: lowStockThreshold
+            lowStockThreshold: lowStockThreshold,
+            sizeOptions: sizeOptions
         )
         do {
             let id = try await api.addProduct(product)

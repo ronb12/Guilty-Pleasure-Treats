@@ -192,6 +192,7 @@ final class VercelService {
             "lowStockThreshold": product.lowStockThreshold as Any,
         ]
         if let c = product.cost { body["cost"] = c }
+        body["sizeOptions"] = Self.sizeOptionsPayload(from: product)
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
@@ -236,10 +237,17 @@ final class VercelService {
             "lowStockThreshold": product.lowStockThreshold as Any,
         ]
         if let c = product.cost { body["cost"] = c }
+        body["sizeOptions"] = Self.sizeOptionsPayload(from: product)
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
         try validateResponse(http, data: data)
+    }
+
+    /// JSON array for `sizeOptions` / `size_options` on the API.
+    private static func sizeOptionsPayload(from product: Product) -> [[String: Any]] {
+        guard let opts = product.sizeOptions, !opts.isEmpty else { return [] }
+        return opts.map { ["id": $0.id, "label": $0.label, "price": $0.price] }
     }
 
     func deleteProduct(id: String) async throws {
@@ -1260,15 +1268,19 @@ final class VercelService {
             "userId": order.userId as Any,
             "customerName": order.customerName,
             "customerPhone": order.customerPhone,
-            "items": order.items.map { item in
-                [
+            "items": order.items.map { item -> [String: Any] in
+                var row: [String: Any] = [
                     "id": item.id,
                     "productId": item.productId,
                     "name": item.name,
                     "price": item.price,
                     "quantity": item.quantity,
                     "specialInstructions": item.specialInstructions,
-                ] as [String: Any]
+                ]
+                if let sl = item.sizeLabel?.trimmingCharacters(in: .whitespacesAndNewlines), !sl.isEmpty {
+                    row["sizeLabel"] = sl
+                }
+                return row
             },
             "subtotal": order.subtotal,
             "tax": order.tax,

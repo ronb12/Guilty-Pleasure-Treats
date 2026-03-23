@@ -16,6 +16,8 @@ struct ProductDetailView: View {
     @State private var quantity = 1
     @State private var specialInstructions = ""
     @State private var addedToCart = false
+    /// When `product.sizeOptions` is set, must match one option id (default: first).
+    @State private var selectedSizeId: String = ""
     
     init(product: Product) {
         _product = State(initialValue: product)
@@ -66,10 +68,27 @@ struct ProductDetailView: View {
                         .foregroundStyle(AppConstants.Colors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text(product.price.currencyFormatted)
+                    Text(product.unitPrice(forSizeId: selectedSizeId.isEmpty ? nil : selectedSizeId).currencyFormatted)
                         .font(.title2)
                         .fontWeight(.semibold)
                         .foregroundStyle(AppConstants.Colors.accent)
+
+                    if product.hasSizeOptions, let opts = product.sizeOptions {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Size")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundStyle(AppConstants.Colors.textPrimary)
+                            Picker("Size", selection: $selectedSizeId) {
+                                ForEach(opts) { o in
+                                    Text("\(o.label) — \(o.price.currencyFormatted)").tag(o.id)
+                                }
+                            }
+                            #if os(iOS)
+                            .pickerStyle(.menu)
+                            #endif
+                        }
+                    }
 
                     if product.isUnavailableOnMenu {
                         Text("Currently sold out")
@@ -100,10 +119,17 @@ struct ProductDetailView: View {
         .navigationTitle(product.name)
         .inlineNavigationTitle()
         .task {
-            guard canRefetchProduct, let id = product.id else { return }
+            guard canRefetchProduct, let id = product.id else {
+                applyDefaultSelectedSize()
+                return
+            }
             if let updated = try? await VercelService.shared.fetchProduct(id: id) {
                 product = updated
             }
+            applyDefaultSelectedSize()
+        }
+        .onChange(of: product.id) { _, _ in
+            applyDefaultSelectedSize()
         }
         .alert("Added to Cart", isPresented: $addedToCart) {
             Button("Continue Shopping") {
@@ -114,7 +140,18 @@ struct ProductDetailView: View {
                 dismiss()
             }
         } message: {
-            Text("\(quantity) x \(product.name) added to your cart.")
+            let sizeNote = product.sizeLabel(forSizeId: selectedSizeId.isEmpty ? nil : selectedSizeId).map { " (\($0))" } ?? ""
+            Text("\(quantity) x \(product.name)\(sizeNote) added to your cart.")
+        }
+    }
+
+    private func applyDefaultSelectedSize() {
+        guard let opts = product.sizeOptions, !opts.isEmpty else {
+            selectedSizeId = ""
+            return
+        }
+        if selectedSizeId.isEmpty || !opts.contains(where: { $0.id == selectedSizeId }) {
+            selectedSizeId = opts[0].id
         }
     }
     
@@ -160,8 +197,16 @@ struct ProductDetailView: View {
     
     private var addToCartButton: some View {
         PrimaryButton(title: "Add to Cart") {
+            let sid = product.hasSizeOptions ? (selectedSizeId.isEmpty ? product.sizeOptions?.first?.id : selectedSizeId) : nil
+            let lbl = product.sizeLabel(forSizeId: sid)
             for _ in 0..<quantity {
-                cart.add(product: product, quantity: 1, specialInstructions: specialInstructions)
+                cart.add(
+                    product: product,
+                    quantity: 1,
+                    specialInstructions: specialInstructions,
+                    selectedSizeId: sid,
+                    selectedSizeLabel: lbl
+                )
             }
             addedToCart = true
         }

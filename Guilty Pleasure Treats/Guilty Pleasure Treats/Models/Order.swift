@@ -30,8 +30,60 @@ struct OrderItem: Codable, Identifiable, Equatable {
     var price: Double
     var quantity: Int
     var specialInstructions: String
-    
+    /// When set (e.g. "Small"), shown on receipts and admin order detail.
+    var sizeLabel: String?
+
     var subtotal: Double { price * Double(quantity) }
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case productId
+        case name
+        case price
+        case quantity
+        case specialInstructions
+        case sizeLabel
+    }
+
+    init(
+        id: String,
+        productId: String,
+        name: String,
+        price: Double,
+        quantity: Int,
+        specialInstructions: String,
+        sizeLabel: String? = nil
+    ) {
+        self.id = id
+        self.productId = productId
+        self.name = name
+        self.price = price
+        self.quantity = quantity
+        self.specialInstructions = specialInstructions
+        self.sizeLabel = sizeLabel
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        productId = try c.decodeIfPresent(String.self, forKey: .productId) ?? ""
+        name = try c.decode(String.self, forKey: .name)
+        price = try c.decode(Double.self, forKey: .price)
+        quantity = try c.decode(Int.self, forKey: .quantity)
+        specialInstructions = try c.decodeIfPresent(String.self, forKey: .specialInstructions) ?? ""
+        sizeLabel = try c.decodeIfPresent(String.self, forKey: .sizeLabel)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(productId, forKey: .productId)
+        try c.encode(name, forKey: .name)
+        try c.encode(price, forKey: .price)
+        try c.encode(quantity, forKey: .quantity)
+        try c.encode(specialInstructions, forKey: .specialInstructions)
+        try c.encodeIfPresent(sizeLabel, forKey: .sizeLabel)
+    }
 }
 
 struct Order: Identifiable, Codable, Equatable {

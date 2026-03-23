@@ -29,6 +29,7 @@ function rowToOrder(row) {
       price: Number(i?.price ?? 0),
       quantity: Number(i?.quantity ?? 0),
       specialInstructions: i?.specialInstructions ?? i?.special_instructions ?? '',
+      sizeLabel: i?.sizeLabel ?? i?.size_label ?? null,
     })),
     subtotal: Number(row.subtotal ?? 0),
     tax: Number(row.tax ?? 0),
@@ -216,6 +217,7 @@ export default async function handler(req, res) {
       price: Number(i.price ?? 0),
       quantity: Number(i.quantity ?? 0),
       specialInstructions: i.specialInstructions ?? '',
+      sizeLabel: i.sizeLabel ?? i.size_label ?? null,
     }));
 
     try {
