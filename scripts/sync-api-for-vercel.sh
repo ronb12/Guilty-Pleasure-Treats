@@ -15,11 +15,14 @@ strip_stripe_route_duplicates() {
 }
 
 sync_with_rsync() {
+    if ! command -v rsync >/dev/null 2>&1; then
+        return 1
+    fi
     # macOS rsync has no --no-mmap; try it only when supported so Linux can avoid mmap timeouts.
     if rsync -a --exclude='lib' --no-mmap api-src/ api/ 2>/dev/null; then
         :
     else
-        rsync -a --exclude='lib' api-src/ api/
+        rsync -a --exclude='lib' api-src/ api/ >/dev/null 2>&1 || return 1
     fi
     strip_stripe_route_duplicates
 }
