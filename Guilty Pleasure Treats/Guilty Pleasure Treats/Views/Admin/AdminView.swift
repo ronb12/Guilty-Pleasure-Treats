@@ -5889,8 +5889,13 @@ struct AdminSettingsView: View {
                         .font(.caption2)
                         .foregroundStyle(AppConstants.Colors.textSecondary)
                 }
-                if let uid = viewModel.businessSettings?.settingsLastUpdatedByUserId, !uid.isEmpty {
-                    Text("Saved by user id: \(uid)")
+                if let saverName = viewModel.businessSettings?.settingsLastUpdatedByName, !saverName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text("Saved by: \(saverName)")
+                        .font(.caption2)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                        .textSelection(.enabled)
+                } else if let uid = viewModel.businessSettings?.settingsLastUpdatedByUserId, !uid.isEmpty {
+                    Text("Saved by: \(uid)")
                         .font(.caption2)
                         .foregroundStyle(AppConstants.Colors.textSecondary)
                         .textSelection(.enabled)

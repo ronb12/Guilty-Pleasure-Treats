@@ -28,6 +28,8 @@ struct BusinessSettings: Codable {
     var settingsLastUpdatedAt: String?
     /// User id (from auth) who last saved settings; informational only.
     var settingsLastUpdatedByUserId: String?
+    /// Display name (or email fallback) of the user who last saved settings.
+    var settingsLastUpdatedByName: String?
     /// Stripe publishable key (`pk_live_…` / `pk_test_…`) for in-app Payment Sheet; from server when admin saves it.
     var stripePublishableKey: String?
     /// Server can create PaymentIntents (secret key in env or DB).
@@ -49,6 +51,7 @@ struct BusinessSettings: Codable {
         shippingFee: Double? = nil,
         settingsLastUpdatedAt: String? = nil,
         settingsLastUpdatedByUserId: String? = nil,
+        settingsLastUpdatedByName: String? = nil,
         stripePublishableKey: String? = nil,
         stripeCheckoutEnabled: Bool = false,
         stripeSecretKeyConfigured: Bool = false
@@ -66,6 +69,7 @@ struct BusinessSettings: Codable {
         self.shippingFee = shippingFee
         self.settingsLastUpdatedAt = settingsLastUpdatedAt
         self.settingsLastUpdatedByUserId = settingsLastUpdatedByUserId
+        self.settingsLastUpdatedByName = settingsLastUpdatedByName
         self.stripePublishableKey = stripePublishableKey
         self.stripeCheckoutEnabled = stripeCheckoutEnabled
         self.stripeSecretKeyConfigured = stripeSecretKeyConfigured

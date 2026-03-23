@@ -528,6 +528,7 @@ final class VercelService {
             shippingFee: j["shippingFee"] as? Double,
             settingsLastUpdatedAt: j["settingsLastUpdatedAt"] as? String,
             settingsLastUpdatedByUserId: j["settingsLastUpdatedByUserId"] as? String,
+            settingsLastUpdatedByName: j["settingsLastUpdatedByName"] as? String,
             stripePublishableKey: j["stripePublishableKey"] as? String,
             stripeCheckoutEnabled: stripeCheckout ?? false,
             stripeSecretKeyConfigured: stripeSecretOk ?? false

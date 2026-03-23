@@ -29,6 +29,28 @@ const DEFAULT_MAIN = {
 async function buildAppResponse(row, sql) {
   const v = row?.value_json ? { ...DEFAULT_MAIN, ...row.value_json } : DEFAULT_MAIN;
   const taxRate = (v.tax_rate_percent != null ? Number(v.tax_rate_percent) / 100 : 0.08);
+  const updatedByUserId =
+    v.settings_last_updated_by_user_id != null ? String(v.settings_last_updated_by_user_id) : null;
+  let updatedByName = null;
+  if (updatedByUserId) {
+    try {
+      const [userRow] = await sql`
+        SELECT display_name, email
+        FROM users
+        WHERE id::text = ${updatedByUserId}
+        LIMIT 1
+      `;
+      const display = userRow?.display_name != null ? String(userRow.display_name).trim() : '';
+      if (display) {
+        updatedByName = display;
+      } else if (userRow?.email != null) {
+        const email = String(userRow.email).trim();
+        updatedByName = email || null;
+      }
+    } catch {
+      updatedByName = null;
+    }
+  }
   const pk =
     v.stripe_publishable_key != null && String(v.stripe_publishable_key).trim() !== ''
       ? String(v.stripe_publishable_key).trim()
@@ -47,7 +69,8 @@ async function buildAppResponse(row, sql) {
     deliveryFee: v.delivery_fee != null ? Number(v.delivery_fee) : null,
     shippingFee: v.shipping_fee != null ? Number(v.shipping_fee) : null,
     settingsLastUpdatedAt: v.settings_last_updated_at ?? null,
-    settingsLastUpdatedByUserId: v.settings_last_updated_by_user_id ?? null,
+    settingsLastUpdatedByUserId: updatedByUserId,
+    settingsLastUpdatedByName: updatedByName,
     stripePublishableKey: pk,
     /** True if STRIPE_SECRET_KEY env or DB secret is set (PaymentIntents can be created). */
     stripeCheckoutEnabled: secretConfigured,
