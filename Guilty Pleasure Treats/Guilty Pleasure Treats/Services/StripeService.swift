@@ -11,7 +11,6 @@ import Foundation
 
 #if !os(macOS)
 import StripePaymentSheet
-import UIKit
 
 final class StripeService: ObservableObject {
     static let shared = StripeService()
@@ -47,25 +46,26 @@ final class StripeService: ObservableObject {
         return !pk.isEmpty
     }
     
-    /// Create a PaymentIntent on your backend, then present Payment Sheet.
-    /// amount: total in cents (e.g. 1999 = $19.99)
-    func presentPaymentSheet(
-        amountCents: Int,
-        orderId: String,
-        customerName: String,
-        customerEmail: String?
-    ) async throws {
+    /// Fetches `client_secret` from your backend. Use with `makePaymentSheet` and SwiftUI `.paymentSheet(...)`.
+    func fetchPaymentIntentClientSecret(amountCents: Int, orderId: String) async throws -> String {
+        CheckoutDebugLog.console("Stripe fetchPaymentIntentClientSecret baseURL=\(baseURL) amountCents=\(amountCents) orderId=\(orderId)")
         Self.ensurePublishableKeyConfigured()
         let trimmedPk = (StripeAPI.defaultPublishableKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let pkPreview = trimmedPk.isEmpty ? "(empty)" : "\(trimmedPk.prefix(12))…(len:\(trimmedPk.count))"
+        CheckoutDebugLog.console("Stripe publishable key after ensure: \(pkPreview)")
         guard !trimmedPk.isEmpty else {
             throw StripeError.backendError(
                 "Missing Stripe publishable key. Add it in Admin → Business Settings or AppConstants."
             )
         }
         StripeAPI.defaultPublishableKey = trimmedPk
+        return try await createPaymentIntent(amountCents: amountCents, orderId: orderId)
+    }
 
-        let clientSecret = try await createPaymentIntent(amountCents: amountCents, orderId: orderId)
-        
+    /// Builds a `PaymentSheet` for SwiftUI presentation (see `CheckoutView` + `.paymentSheet`).
+    func makePaymentSheet(clientSecret: String, customerName: String, customerEmail: String?) -> PaymentSheet {
+        CheckoutDebugLog.console("Stripe makePaymentSheet clientSecret=\(CheckoutDebugLog.describeClientSecret(clientSecret))")
+        Self.ensurePublishableKeyConfigured()
         var configuration = PaymentSheet.Configuration()
         configuration.merchantDisplayName = "Guilty Pleasure Treats"
         configuration.allowsDelayedPaymentMethods = false
@@ -73,60 +73,19 @@ final class StripeService: ObservableObject {
             configuration.defaultBillingDetails.email = email
         }
         configuration.defaultBillingDetails.name = customerName
-        
-        let paymentSheet = PaymentSheet(
+        return PaymentSheet(
             paymentIntentClientSecret: clientSecret,
             configuration: configuration
         )
-        
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            // Stripe requires `presentingViewController.presentedViewController == nil`.
-            // Do NOT drill into NavigationStack to a SwiftUI UIHostingController — it often has internal
-            // presentation state and triggers PaymentSheetError.alreadyPresented. Use window root or modal chain only.
-            DispatchQueue.main.async {
-                guard let presenter = Self.presentingViewControllerForStripePaymentSheet() else {
-                    continuation.resume(throwing: StripeError.backendError(
-                        "Could not open the payment screen. Close and reopen checkout, then try again."
-                    ))
-                    return
-                }
-                paymentSheet.present(from: presenter) { result in
-                    switch result {
-                    case .completed:
-                        continuation.resume()
-                    case .canceled:
-                        // Must not treat as success — otherwise checkout navigates to confirmation without payment.
-                        continuation.resume(throwing: StripeError.paymentCanceled)
-                    case .failed(let error):
-                        continuation.resume(throwing: StripeError.backendError(error.localizedDescription))
-                    }
-                }
-            }
-        }
     }
-    
-    /// Walks only the *modal* `presentedViewController` chain from the key window’s root (no nav/tab drilling).
-    /// Stripe’s PaymentSheet fails if the presenter already has a presented VC (`alreadyPresented`).
-    private static func presentingViewControllerForStripePaymentSheet() -> UIViewController? {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        let foreground = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first
-        guard let scene = foreground else { return nil }
-        let window = scene.keyWindow
-            ?? scene.windows.first(where: { $0.isKeyWindow })
-            ?? scene.windows.first(where: { !$0.isHidden && $0.alpha > 0.01 })
-        guard let root = window?.rootViewController else { return nil }
-        var current = root
-        while let presented = current.presentedViewController {
-            current = presented
-        }
-        return current
-    }
-    
+
     /// Call your backend to create a PaymentIntent and return client_secret.
     private func createPaymentIntent(amountCents: Int, orderId: String) async throws -> String {
         guard let url = URL(string: "\(baseURL)/api/stripe/create-payment-intent") else {
+            CheckoutDebugLog.console("Stripe createPaymentIntent: invalid URL from baseURL")
             throw StripeError.invalidURL
         }
+        CheckoutDebugLog.console("Stripe POST \(url.absoluteString)")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -138,8 +97,14 @@ final class StripeService: ObservableObject {
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+        guard let http = response as? HTTPURLResponse else {
+            CheckoutDebugLog.console("Stripe createPaymentIntent: response was not HTTPURLResponse")
+            throw StripeError.backendError("Invalid response from payment server.")
+        }
+        guard http.statusCode == 200 else {
             let raw = String(data: data, encoding: .utf8) ?? "Unknown"
+            let preview = raw.count > 800 ? String(raw.prefix(800)) + "…" : raw
+            CheckoutDebugLog.console("Stripe createPaymentIntent: HTTP \(http.statusCode) body=\(preview)")
             throw StripeError.backendError(raw)
         }
         struct CreateIntentResponse: Decodable {
@@ -157,8 +122,16 @@ final class StripeService: ObservableObject {
                 }
             }
         }
-        let decoded = try JSONDecoder().decode(CreateIntentResponse.self, from: data)
-        return decoded.clientSecret
+        do {
+            let decoded = try JSONDecoder().decode(CreateIntentResponse.self, from: data)
+            CheckoutDebugLog.console("Stripe createPaymentIntent: decoded OK \(CheckoutDebugLog.describeClientSecret(decoded.clientSecret))")
+            return decoded.clientSecret
+        } catch {
+            let raw = String(data: data, encoding: .utf8) ?? ""
+            let preview = raw.count > 400 ? String(raw.prefix(400)) + "…" : raw
+            CheckoutDebugLog.console("Stripe createPaymentIntent: JSON decode failed \(error) body=\(preview)")
+            throw error
+        }
     }
 }
 #else
@@ -167,12 +140,9 @@ final class StripeService: ObservableObject {
     static let shared = StripeService()
     private init() {}
     static func configure(publishableKey: String) {}
-    func presentPaymentSheet(
-        amountCents: Int,
-        orderId: String,
-        customerName: String,
-        customerEmail: String?
-    ) async throws {
+    static func ensurePublishableKeyConfigured() {}
+    static func canStartCheckout() -> Bool { false }
+    func fetchPaymentIntentClientSecret(amountCents: Int, orderId: String) async throws -> String {
         throw StripeError.backendError(
             "In-app card checkout isn’t available on Mac. Use pay-by-link (place your order and pay when the shop sends the link)."
         )

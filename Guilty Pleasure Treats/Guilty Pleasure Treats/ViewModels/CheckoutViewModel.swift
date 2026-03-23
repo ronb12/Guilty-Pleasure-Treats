@@ -7,6 +7,9 @@
 
 import Foundation
 import Combine
+#if !os(macOS)
+import StripePaymentSheet
+#endif
 
 @MainActor
 final class CheckoutViewModel: ObservableObject {
@@ -43,9 +46,17 @@ final class CheckoutViewModel: ObservableObject {
     @Published var errorMessage: String?
     /// Raw API/support text (shown with Copy in checkout error banner).
     @Published var lastErrorDebugText: String?
+    /// Step-by-step trace for the last Place Order tap (mirrors `[CheckoutDebug]` console lines).
+    @Published var checkoutDebugTrace: String?
     @Published var lastCreatedOrderId: String?
     @Published var lastCreatedOrder: Order?
     @Published var lastPaymentMethod: PaymentMethod = .payAtPickup
+#if !os(macOS)
+    /// Built after `createOrder`; presented via SwiftUI `.paymentSheet` (Stripe’s recommended path vs UIKit `present(from:)`).
+    @Published var stripePaymentSheet: PaymentSheet?
+    @Published var showStripePaymentSheet = false
+    private var stripePaymentContinuation: CheckedContinuation<Void, Error>?
+#endif
     
     private let api = VercelService.shared
     private let cart = CartManager.shared
@@ -53,6 +64,19 @@ final class CheckoutViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     /// Reused until an order succeeds so retries don’t create duplicates (server idempotency).
     private var pendingIdempotencyKey: String?
+
+    private func traceCheckout(_ line: String) {
+        CheckoutDebugLog.console(line)
+        let row = line + "\n"
+        if checkoutDebugTrace == nil {
+            checkoutDebugTrace = row
+        } else {
+            checkoutDebugTrace = (checkoutDebugTrace ?? "") + row
+        }
+        if (checkoutDebugTrace?.count ?? 0) > 12_000 {
+            checkoutDebugTrace = String((checkoutDebugTrace ?? "").suffix(12_000))
+        }
+    }
 
     init() {
         cart.$taxRate
@@ -227,7 +251,10 @@ final class CheckoutViewModel: ObservableObject {
     }
     
     func placeOrder(paymentMethod: PaymentMethod) async -> Bool {
+        checkoutDebugTrace = ""
+        traceCheckout("placeOrder start paymentMethod=\(String(describing: paymentMethod)) canCheckout=\(canCheckout)")
         guard canCheckout else {
+            traceCheckout("ABORT: canCheckout=false (name/phone/address missing?)")
             if fulfillmentType == .delivery || fulfillmentType == .shipping {
                 errorMessage = "Please enter name, phone, and full delivery address."
             } else {
@@ -237,6 +264,7 @@ final class CheckoutViewModel: ObservableObject {
         }
         let orderItems = cart.toOrderItems()
         guard !orderItems.isEmpty else {
+            traceCheckout("ABORT: cart empty")
             errorMessage = "Your cart is empty."
             return false
         }
@@ -287,6 +315,7 @@ final class CheckoutViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         lastErrorDebugText = nil
+        traceCheckout("order built total=\(String(format: "%.2f", total)) items=\(orderItems.count)")
         defer { isLoading = false }
         
         if pendingIdempotencyKey == nil {
@@ -296,7 +325,10 @@ final class CheckoutViewModel: ObservableObject {
 
         #if !os(macOS)
         if paymentMethod == .stripe || paymentMethod == .applePay {
-            guard StripeService.canStartCheckout() else {
+            let ok = StripeService.canStartCheckout()
+            traceCheckout("StripeService.canStartCheckout()=\(ok)")
+            guard ok else {
+                traceCheckout("ABORT: missing Stripe publishable key (configure Admin / AppConstants)")
                 errorMessage = "Card payments aren’t set up in this app build. Update the app or contact the shop."
                 return false
             }
@@ -304,7 +336,9 @@ final class CheckoutViewModel: ObservableObject {
         #endif
         
         do {
+            traceCheckout("createOrder request idempotencyKey=\(idemKey ?? "nil")")
             let created = try await api.createOrder(order, idempotencyKey: idemKey)
+            traceCheckout("createOrder OK orderId=\(created.id) serverTotal=\(created.total)")
             order.id = created.id
             order.subtotal = created.subtotal
             order.tax = created.tax
@@ -314,13 +348,35 @@ final class CheckoutViewModel: ObservableObject {
             
             switch paymentMethod {
             case .stripe, .applePay:
+#if os(macOS)
+                throw StripeError.backendError(
+                    "In-app card checkout isn’t available on Mac. Use pay-by-link."
+                )
+#else
                 let amountCents = Int((order.total * 100).rounded())
-                try await StripeService.shared.presentPaymentSheet(
+                traceCheckout("Stripe: fetching PaymentIntent amountCents=\(amountCents) orderId=\(orderId)")
+                let clientSecret = try await StripeService.shared.fetchPaymentIntentClientSecret(
                     amountCents: amountCents,
-                    orderId: orderId,
+                    orderId: orderId
+                )
+                traceCheckout("Stripe: client secret OK \(CheckoutDebugLog.describeClientSecret(clientSecret))")
+                let sheet = StripeService.shared.makePaymentSheet(
+                    clientSecret: clientSecret,
                     customerName: order.customerName,
                     customerEmail: order.customerEmail
                 )
+                traceCheckout("Stripe: PaymentSheet built, wiring SwiftUI presentation…")
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                    stripePaymentContinuation = continuation
+                    stripePaymentSheet = sheet
+                    traceCheckout("Stripe: continuation stored, scheduling showStripePaymentSheet=true")
+                    Task { @MainActor in
+                        showStripePaymentSheet = true
+                        traceCheckout("Stripe: showStripePaymentSheet set true (awaiting PaymentSheet onCompletion)")
+                    }
+                }
+                traceCheckout("Stripe: payment flow finished successfully")
+#endif
             case .payByLink, .payAtPickup, .cashApp:
                 // Pay by link: owner sends Stripe link from Admin; customer pays in browser. No in-app payment.
                 break
@@ -331,8 +387,10 @@ final class CheckoutViewModel: ObservableObject {
             cart.clear()
             lastCreatedOrderId = orderId
             lastCreatedOrder = order
+            traceCheckout("SUCCESS: order confirmed path (cart cleared)")
             return true
         } catch {
+            traceCheckout("ERROR: \(String(describing: error))")
             if let apiErr = error as? VercelAPIError {
                 lastErrorDebugText = apiErr.supportDebugText
             } else {
@@ -360,6 +418,38 @@ final class CheckoutViewModel: ObservableObject {
         clearPromoCode()
     }
 }
+
+#if !os(macOS)
+extension CheckoutViewModel {
+    func handleStripePaymentSheetResult(_ result: PaymentSheetResult) {
+        let resultLabel: String
+        switch result {
+        case .completed:
+            resultLabel = "completed"
+        case .canceled:
+            resultLabel = "canceled"
+        case .failed(let error):
+            resultLabel = "failed: \(error.localizedDescription)"
+        }
+        traceCheckout("PaymentSheet onCompletion: \(resultLabel)")
+        showStripePaymentSheet = false
+        stripePaymentSheet = nil
+        guard let cont = stripePaymentContinuation else {
+            traceCheckout("BUG: handleStripePaymentSheetResult but stripePaymentContinuation is nil (already resumed?)")
+            return
+        }
+        stripePaymentContinuation = nil
+        switch result {
+        case .completed:
+            cont.resume()
+        case .canceled:
+            cont.resume(throwing: StripeError.paymentCanceled)
+        case .failed(let error):
+            cont.resume(throwing: StripeError.backendError(error.localizedDescription))
+        }
+    }
+}
+#endif
 
 enum PaymentMethod {
     /// Owner sends a Stripe payment link (from Admin); customer pays in browser. No in-app card collection.

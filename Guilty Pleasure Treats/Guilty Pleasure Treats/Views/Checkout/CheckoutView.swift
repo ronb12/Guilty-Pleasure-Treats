@@ -6,6 +6,9 @@
 //
 
 import SwiftUI
+#if !os(macOS)
+import StripePaymentSheet
+#endif
 
 /// Wraps order + id + payment method for navigation destination.
 struct ConfirmedOrderItem: Identifiable, Hashable {
@@ -71,6 +74,11 @@ struct CheckoutView: View {
                     isLoading: viewModel.isLoading,
                     disabled: !viewModel.canCheckout
                 )
+                #if !os(macOS)
+                if let trace = viewModel.checkoutDebugTrace, !trace.isEmpty {
+                    checkoutDebugPanel(trace)
+                }
+                #endif
             }
             .padding(.horizontal, AppConstants.Layout.screenHorizontalPadding)
             .padding(.bottom, 24)
@@ -127,7 +135,49 @@ struct CheckoutView: View {
                 viewModel.scheduledDate = viewModel.minScheduledDate
             }
         }
+        #if !os(macOS)
+        .stripePaymentSheetOverlay(viewModel: viewModel)
+        .onChange(of: viewModel.showStripePaymentSheet) { _, new in
+            CheckoutDebugLog.console(
+                "SwiftUI: showStripePaymentSheet=\(new) stripePaymentSheet attached=\(viewModel.stripePaymentSheet != nil)"
+            )
+        }
+        .onChange(of: viewModel.stripePaymentSheet != nil) { _, hasSheet in
+            CheckoutDebugLog.console("SwiftUI: stripePaymentSheet non-nil=\(hasSheet)")
+        }
+        #endif
     }
+
+    #if !os(macOS)
+    @ViewBuilder
+    private func checkoutDebugPanel(_ trace: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Checkout debug (last tap)")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                Spacer()
+                Button("Copy") {
+                    CheckoutDebugLog.copyToPasteboard(trace)
+                }
+                .font(.caption)
+            }
+            Text("Xcode console: search for “CheckoutDebug”.")
+                .font(.caption2)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
+            ScrollView {
+                Text(trace)
+                    .font(.caption2)
+                    .monospaced()
+                    .textSelection(.enabled)
+            }
+            .frame(maxHeight: 180)
+        }
+        .padding(10)
+        .background(Color.orange.opacity(0.14))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+    #endif
     
     private var contactSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -390,6 +440,7 @@ struct CheckoutView: View {
     }
     
     private func placeOrder() async {
+        CheckoutDebugLog.console("CheckoutView: Place Order tapped paymentMethod=\(String(describing: checkoutPaymentMethod))")
         let success = await viewModel.placeOrder(paymentMethod: checkoutPaymentMethod)
         if success,
            let order = viewModel.lastCreatedOrder,
@@ -398,3 +449,30 @@ struct CheckoutView: View {
         }
     }
 }
+
+#if !os(macOS)
+extension View {
+    /// Stripe’s SwiftUI `PaymentSheetPresenter` finds the correct VC from the view hierarchy (more reliable than manual `present(from:)`).
+    @ViewBuilder
+    func stripePaymentSheetOverlay(viewModel: CheckoutViewModel) -> some View {
+        if let sheet = viewModel.stripePaymentSheet {
+            self
+                .paymentSheet(
+                    isPresented: Binding(
+                        get: { viewModel.showStripePaymentSheet },
+                        set: { viewModel.showStripePaymentSheet = $0 }
+                    ),
+                    paymentSheet: sheet,
+                    onCompletion: { result in
+                        viewModel.handleStripePaymentSheetResult(result)
+                    }
+                )
+                .onAppear {
+                    CheckoutDebugLog.console("SwiftUI: .paymentSheet modifier active (sheet instance ready)")
+                }
+        } else {
+            self
+        }
+    }
+}
+#endif
