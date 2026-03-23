@@ -225,7 +225,7 @@ struct RewardRowView: View {
     private var iconName: String {
         switch reward.productToAdd.category {
         case ProductCategory.cookies.rawValue: return "birthday.cake.fill"
-        case ProductCategory.cupcakes.rawValue: return "cupcake.and.candles.fill"
+        case ProductCategory.cupcakes.rawValue: return "birthday.cake.fill"
         default: return "gift.fill"
         }
     }

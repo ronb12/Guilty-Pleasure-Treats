@@ -6,11 +6,26 @@
 //
 
 import SwiftUI
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 
 struct ProductImageView: View {
     let urlString: String?
     let placeholderName: String
     var cornerRadius: CGFloat = AppConstants.Layout.cardCornerRadius
+
+    private var safePlaceholderName: String {
+        #if os(iOS)
+        return UIImage(systemName: placeholderName) != nil ? placeholderName : "photo"
+        #elseif os(macOS)
+        return NSImage(systemSymbolName: placeholderName, accessibilityDescription: nil) != nil ? placeholderName : "photo"
+        #else
+        return placeholderName
+        #endif
+    }
     
     var body: some View {
         Group {
@@ -25,7 +40,7 @@ struct ProductImageView: View {
                             .resizable()
                             .scaledToFit()
                     case .failure:
-                        Image(systemName: placeholderName)
+                        Image(systemName: safePlaceholderName)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .foregroundStyle(AppConstants.Colors.textSecondary)
@@ -34,7 +49,7 @@ struct ProductImageView: View {
                     }
                 }
             } else {
-                Image(systemName: placeholderName)
+                Image(systemName: safePlaceholderName)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .foregroundStyle(AppConstants.Colors.textSecondary)

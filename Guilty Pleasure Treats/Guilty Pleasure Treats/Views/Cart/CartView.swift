@@ -211,7 +211,7 @@ struct CartRowView: View {
 
     /// Same product image as menu/detail: use shared ProductImageView so thumbnails load consistently.
     private var cartItemThumbnail: some View {
-        ProductImageView(urlString: item.product.imageURL, placeholderName: "cupcake.and.candles.fill")
+        ProductImageView(urlString: item.product.imageURL, placeholderName: "birthday.cake.fill")
             .frame(width: 80, height: 80)
     }
 

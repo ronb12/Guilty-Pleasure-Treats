@@ -31,7 +31,7 @@ struct ProductDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 // 1. Image only – fixed height, no text overlay
-                ProductImageView(urlString: product.imageURL, placeholderName: "cupcake.and.candles.fill")
+                ProductImageView(urlString: product.imageURL, placeholderName: "birthday.cake.fill")
                     .frame(height: 240)
                     .frame(maxWidth: .infinity)
                     .clipped()
