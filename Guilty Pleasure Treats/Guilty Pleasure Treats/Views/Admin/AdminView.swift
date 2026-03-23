@@ -606,7 +606,7 @@ struct AdminProductRow: View {
         HStack(alignment: .top, spacing: 12) {
             Button(action: onEdit) {
                 HStack(alignment: .top, spacing: 12) {
-                    ProductImageView(urlString: product.imageURL, placeholderName: "birthday.cake.fill")
+                    ProductImageView(urlString: product.imageURL, placeholderName: "photo")
                         .frame(width: 56, height: 56)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                     VStack(alignment: .leading, spacing: 4) {
@@ -952,7 +952,7 @@ struct EditProductView: View {
                         .clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                 } else if product.imageURL != nil {
-                    ProductImageView(urlString: product.imageURL, placeholderName: "birthday.cake.fill")
+                    ProductImageView(urlString: product.imageURL, placeholderName: "photo")
                         .frame(maxWidth: .infinity)
                         .frame(height: adminProductPhotoHeight)
                         .clipped()
@@ -5148,7 +5148,7 @@ struct AdminInventoryRow: View {
     var body: some View {
         Button(action: onEdit) {
             HStack(spacing: 12) {
-                ProductImageView(urlString: product.imageURL, placeholderName: "birthday.cake.fill")
+                ProductImageView(urlString: product.imageURL, placeholderName: "photo")
                     .frame(width: 48, height: 48)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 VStack(alignment: .leading, spacing: 4) {

@@ -19,7 +19,7 @@ struct ProductCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .topTrailing) {
-                ProductImageView(urlString: product.imageURL, placeholderName: "birthday.cake.fill")
+                ProductImageView(urlString: product.imageURL, placeholderName: "photo")
                     .frame(height: 140)
                     .clipped()
                 if onToggleFavorite != nil {
