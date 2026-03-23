@@ -10,6 +10,15 @@ import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
 import { setCors, handleOptions } from '../../api/lib/cors.js';
 import { getStripeSecretKey } from '../../api/lib/stripeSecret.js';
 
+/** Display name for audit: session displayName, else email. */
+function saverDisplayNameFromSession(session) {
+  if (!session) return null;
+  const d = session.displayName != null ? String(session.displayName).trim() : '';
+  if (d) return d;
+  const e = session.email != null ? String(session.email).trim() : '';
+  return e || null;
+}
+
 const DEFAULT_MAIN = {
   lead_time_hours: 24,
   business_hours: { mon: '9-17', tue: '9-17', wed: '9-17', thu: '9-17', fri: '9-17', sat: '9-15', sun: null },
@@ -31,8 +40,12 @@ async function buildAppResponse(row, sql) {
   const taxRate = (v.tax_rate_percent != null ? Number(v.tax_rate_percent) / 100 : 0.08);
   const updatedByUserId =
     v.settings_last_updated_by_user_id != null ? String(v.settings_last_updated_by_user_id) : null;
-  let updatedByName = null;
-  if (updatedByUserId) {
+  const colName =
+    row?.settings_last_updated_by_name != null ? String(row.settings_last_updated_by_name).trim() : '';
+  const jsonName =
+    v.settings_last_updated_by_name != null ? String(v.settings_last_updated_by_name).trim() : '';
+  let updatedByName = colName || jsonName || null;
+  if (updatedByUserId && !updatedByName) {
     try {
       const [userRow] = await sql`
         SELECT display_name, email
@@ -113,7 +126,12 @@ export default async function handler(req, res) {
 
   try {
     if ((req.method || '').toUpperCase() === 'GET') {
-      const [row] = await sql`SELECT value_json FROM business_settings WHERE key = 'main' LIMIT 1`;
+      const [row] = await sql`
+        SELECT value_json, settings_last_updated_by_name
+        FROM business_settings
+        WHERE key = 'main'
+        LIMIT 1
+      `;
       return res.status(200).json(await buildAppResponse(row, sql));
     }
 
@@ -133,6 +151,8 @@ export default async function handler(req, res) {
     }
     next.settings_last_updated_at = new Date().toISOString();
     next.settings_last_updated_by_user_id = session?.userId != null ? String(session.userId) : null;
+    const saverName = saverDisplayNameFromSession(session);
+    next.settings_last_updated_by_name = saverName;
     const legacyTaxRate = next.tax_rate_percent != null ? Number(next.tax_rate_percent) / 100 : 0.08;
     await sql`
       INSERT INTO business_settings (
@@ -146,6 +166,7 @@ export default async function handler(req, res) {
         contact_phone,
         cash_app_tag,
         venmo_username,
+        settings_last_updated_by_name,
         updated_at
       )
       VALUES (
@@ -159,6 +180,7 @@ export default async function handler(req, res) {
         ${next.contact_phone ?? null},
         ${next.cash_app_tag ?? null},
         ${next.venmo_username ?? null},
+        ${saverName},
         NOW()
       )
       ON CONFLICT (key) DO UPDATE SET
@@ -171,9 +193,15 @@ export default async function handler(req, res) {
         contact_phone = ${next.contact_phone ?? null},
         cash_app_tag = ${next.cash_app_tag ?? null},
         venmo_username = ${next.venmo_username ?? null},
+        settings_last_updated_by_name = ${saverName},
         updated_at = NOW()
     `;
-    const [updated] = await sql`SELECT value_json FROM business_settings WHERE key = 'main' LIMIT 1`;
+    const [updated] = await sql`
+      SELECT value_json, settings_last_updated_by_name
+      FROM business_settings
+      WHERE key = 'main'
+      LIMIT 1
+    `;
     return res.status(200).json(await buildAppResponse(updated, sql));
   } catch (e) {
     console.error('[settings/business]', e);

@@ -393,6 +393,8 @@ async function main() {
     await sql`ALTER TABLE business_settings ADD COLUMN IF NOT EXISTS key TEXT`;
     await sql`ALTER TABLE business_settings ADD COLUMN IF NOT EXISTS value_json JSONB DEFAULT '{}'`;
     await sql`ALTER TABLE business_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
+    // Denormalized for Neon console / audits; API also stores in value_json on save.
+    await sql`ALTER TABLE business_settings ADD COLUMN IF NOT EXISTS settings_last_updated_by_name TEXT`;
     try {
       const mainRow = await sql`SELECT 1 FROM business_settings WHERE key = 'main' LIMIT 1`;
       if (mainRow.length === 0) {
