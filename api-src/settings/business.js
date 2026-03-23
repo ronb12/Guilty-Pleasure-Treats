@@ -173,6 +173,14 @@ export default async function handler(req, res) {
     for (const [k, v] of Object.entries(updates)) {
       if (v !== undefined) next[k] = v;
     }
+    // Stripe: from Admin app / PATCH (camelCase in JSON → snake_case in value_json)
+    if (body.stripePublishableKey !== undefined) {
+      const pk = String(body.stripePublishableKey).trim();
+      next.stripe_publishable_key = pk === '' ? null : pk;
+    }
+    if (body.stripeSecretKey != null && String(body.stripeSecretKey).trim() !== '') {
+      next.stripe_secret_key = String(body.stripeSecretKey).trim();
+    }
     next.settings_last_updated_at = new Date().toISOString();
     next.settings_last_updated_by_user_id = session?.userId != null ? String(session.userId) : null;
     const saverName = saverDisplayNameFromSession(session);

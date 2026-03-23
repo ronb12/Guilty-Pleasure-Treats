@@ -32,7 +32,7 @@ enum AppConstants {
     /// Stripe: backend that creates PaymentIntents. Must implement POST /api/stripe/create-payment-intent.
     static let stripeBackendURLString = "https://guilty-pleasure-treats.vercel.app"
     /// Optional fallback publishable key if not set in Admin → Business Settings (Stripe). Prefer saving `pk_live_…` / `pk_test_…` in Business Settings so you can change keys without rebuilding the app.
-    static let stripePublishableKey: String? = nil
+    static let stripePublishableKey: String? = "pk_live_51QJpOrLPBTLljgLnyzzx6m0asVVk5V4vwuFIiobBMbsjGlMpXULkCblcBxjzi2BN9JBdIr5tJ2ZbAGJWYOo5InhW00OKjNRnum"
     /// AI Cake Designer: uses Vercel API (DALL-E 3) when Vercel base URL is set. Set OPENAI_API_KEY in Vercel.
     static var imageGenerationBaseURL: String {
         guard let base = vercelBaseURLString?.trimmingCharacters(in: .whitespaces), !base.isEmpty else {

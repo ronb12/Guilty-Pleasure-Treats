@@ -33,7 +33,9 @@ const DEFAULT_MAIN = {
   venmo_username: null,
   delivery_fee: null,
   shipping_fee: null,
+  /** Lower rate for tri-state / nearby; defaults to shipping_fee when unset. */
   shipping_fee_local: null,
+  /** Two-letter state codes (e.g. ["NJ","NY"]) — JSON array in DB. */
   shipping_local_states: null,
 };
 
@@ -170,6 +172,14 @@ export default async function handler(req, res) {
     const next = { ...current };
     for (const [k, v] of Object.entries(updates)) {
       if (v !== undefined) next[k] = v;
+    }
+    // Stripe: from Admin app / PATCH (camelCase in JSON → snake_case in value_json)
+    if (body.stripePublishableKey !== undefined) {
+      const pk = String(body.stripePublishableKey).trim();
+      next.stripe_publishable_key = pk === '' ? null : pk;
+    }
+    if (body.stripeSecretKey != null && String(body.stripeSecretKey).trim() !== '') {
+      next.stripe_secret_key = String(body.stripeSecretKey).trim();
     }
     next.settings_last_updated_at = new Date().toISOString();
     next.settings_last_updated_by_user_id = session?.userId != null ? String(session.userId) : null;
