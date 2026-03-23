@@ -5750,6 +5750,7 @@ struct AdminSettingsView: View {
     @State private var storeName = ""
     @State private var stripePublishableKeyText = ""
     @State private var stripeSecretKeyText = ""
+    @State private var isSaving = false
 
     var body: some View {
         NavigationStack {
@@ -5785,8 +5786,9 @@ struct AdminSettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        saveSettings()
+                        Task { await saveSettings() }
                     }
+                    .disabled(isSaving)
                     .fontWeight(.semibold)
                     .foregroundStyle(AppConstants.Colors.accent)
                 }
@@ -5803,10 +5805,24 @@ struct AdminSettingsView: View {
                         .padding(.top, 8)
                 }
             }
+            .overlay {
+                if isSaving {
+                    ZStack {
+                        Color.black.opacity(0.15)
+                        ProgressView("Saving…")
+                            .padding(20)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    .ignoresSafeArea()
+                }
+            }
         }
     }
 
-    private func saveSettings() {
+    private func saveSettings() async {
+        guard !isSaving else { return }
+        isSaving = true
+        defer { isSaving = false }
         let tax = Double(taxRateText.replacingOccurrences(of: ",", with: "")) ?? 0.08
         let radius = Double(deliveryRadiusText.replacingOccurrences(of: ",", with: ""))
         let leadTime = Int(minimumOrderLeadTimeText.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces))
@@ -5830,10 +5846,8 @@ struct AdminSettingsView: View {
             stripeCheckoutEnabled: viewModel.businessSettings?.stripeCheckoutEnabled ?? false,
             stripeSecretKeyConfigured: viewModel.businessSettings?.stripeSecretKeyConfigured ?? false
         )
-        Task {
-            await viewModel.saveBusinessSettings(settings, newStripeSecretKey: secretTrim.isEmpty ? nil : secretTrim)
-            await MainActor.run { stripeSecretKeyText = "" }
-        }
+        await viewModel.saveBusinessSettings(settings, newStripeSecretKey: secretTrim.isEmpty ? nil : secretTrim)
+        stripeSecretKeyText = ""
     }
 
     private var stripeKeyInstructions: String {
@@ -5865,8 +5879,9 @@ struct AdminSettingsView: View {
 
                 PrimaryButton(
                     title: "Save",
-                    action: { saveSettings() }
+                    action: { Task { await saveSettings() } }
                 )
+                .disabled(isSaving)
                 .padding(.top, 8)
 
                 if let at = viewModel.businessSettings?.settingsLastUpdatedAt, !at.isEmpty {
