@@ -25,6 +25,8 @@ struct CheckoutView: View {
 
     /// In-app Stripe Payment Sheet when publishable key is available and the server can create PaymentIntents.
     /// macOS uses pay-by-link only (Stripe Payment Sheet is UIKit-based on iOS).
+    /// Note: `stripeCheckoutEnabledFromServer` may still be false before settings finish loading; if the app bundles
+    /// `AppConstants.stripePublishableKey` and Vercel has `STRIPE_SECRET_KEY`, we still allow in-app checkout.
     private var useInlineStripeCard: Bool {
         #if os(macOS)
         return false
@@ -33,7 +35,10 @@ struct CheckoutView: View {
         let pkApp = AppConstants.stripePublishableKey?.trimmingCharacters(in: .whitespacesAndNewlines)
         let hasPublishable = (pkServer != nil && !(pkServer?.isEmpty ?? true))
             || (pkApp != nil && !(pkApp?.isEmpty ?? true))
-        return hasPublishable && cart.stripeCheckoutEnabledFromServer
+        let serverSaysStripeOk = cart.stripeCheckoutEnabledFromServer
+        let appBundledPk = pkApp != nil && !(pkApp?.isEmpty ?? true)
+        let stripeReady = serverSaysStripeOk || appBundledPk
+        return hasPublishable && stripeReady
         #endif
     }
 
@@ -346,13 +351,14 @@ struct CheckoutView: View {
                 HStack {
                     Image(systemName: "creditcard.fill")
                         .foregroundStyle(AppConstants.Colors.accent)
-                    Text("Pay with card")
+                    Text("Debit or credit card")
                         .font(.subheadline)
                         .foregroundStyle(AppConstants.Colors.textPrimary)
                 }
-                Text("After you place your order, you’ll pay securely in the app with Apple Pay or a card (Stripe).")
+                Text("Checkout is powered by Stripe. After you place your order, you’ll enter your card in the secure payment screen—Visa, Mastercard, Amex, Discover, and most debit cards. Apple Pay is available where supported. You do not need a PayPal account.")
                     .font(.caption)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
                 HStack {
                     Image(systemName: "link.circle.fill")

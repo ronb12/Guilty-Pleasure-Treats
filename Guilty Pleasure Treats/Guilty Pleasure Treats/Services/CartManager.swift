@@ -38,6 +38,9 @@ final class CartManager: ObservableObject {
         #if os(iOS)
         if let k = stripePublishableKeyFromServer, !k.isEmpty {
             StripeService.configure(publishableKey: k)
+        } else if let fallback = AppConstants.stripePublishableKey?.trimmingCharacters(in: .whitespacesAndNewlines), !fallback.isEmpty {
+            // API may omit pk until Admin saves or STRIPE_PUBLISHABLE_KEY is set on Vercel; keep SDK configured.
+            StripeService.configure(publishableKey: fallback)
         }
         #endif
     }

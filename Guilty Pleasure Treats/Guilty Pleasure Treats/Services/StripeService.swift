@@ -51,21 +51,50 @@ final class StripeService: ObservableObject {
             configuration: configuration
         )
         
-        await MainActor.run {
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let rootVC = windowScene.windows.first?.rootViewController {
-                paymentSheet.present(from: rootVC) { result in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            Task { @MainActor in
+                guard let presenter = Self.topViewControllerForPaymentSheet() else {
+                    continuation.resume(throwing: StripeError.backendError(
+                        "Could not open the payment screen. Close and reopen checkout, then try again."
+                    ))
+                    return
+                }
+                paymentSheet.present(from: presenter) { result in
                     switch result {
                     case .completed:
-                        break
+                        continuation.resume()
                     case .canceled:
-                        break
+                        continuation.resume()
                     case .failed(let error):
-                        _ = error
+                        continuation.resume(throwing: StripeError.backendError(error.localizedDescription))
                     }
                 }
             }
         }
+    }
+    
+    /// SwiftUI apps often need the topmost VC; presenting from `rootViewController` alone can fail silently.
+    private static func topViewControllerForPaymentSheet() -> UIViewController? {
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }) ?? UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene }).first,
+            let root = scene.windows.first(where: \.isKeyWindow)?.rootViewController ?? scene.windows.first?.rootViewController
+        else { return nil }
+        return topPresented(from: root)
+    }
+    
+    private static func topPresented(from vc: UIViewController) -> UIViewController {
+        if let presented = vc.presentedViewController {
+            return topPresented(from: presented)
+        }
+        if let nav = vc as? UINavigationController, let visible = nav.visibleViewController {
+            return topPresented(from: visible)
+        }
+        if let tab = vc as? UITabBarController, let selected = tab.selectedViewController {
+            return topPresented(from: selected)
+        }
+        return vc
     }
     
     /// Call your backend to create a PaymentIntent and return client_secret.

@@ -60,11 +60,12 @@ export default async function handler(req, res) {
     }
 
     const stripe = new Stripe(secret, { apiVersion: '2023-10-16' });
+    // Card only (debit/credit + Apple Pay on device) — no PayPal / BNPL / wallets that require other accounts.
     const intent = await stripe.paymentIntents.create({
       amount,
       currency,
       metadata: { order_id: orderId },
-      automatic_payment_methods: { enabled: true },
+      payment_method_types: ['card'],
     });
 
     await sql`
