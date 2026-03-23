@@ -68,10 +68,16 @@ async function buildAppResponse(row, sql) {
       updatedByName = null;
     }
   }
-  const pk =
+  const pkFromDb =
     v.stripe_publishable_key != null && String(v.stripe_publishable_key).trim() !== ''
       ? String(v.stripe_publishable_key).trim()
       : null;
+  const pkFromEnv =
+    typeof process.env.STRIPE_PUBLISHABLE_KEY === 'string' && process.env.STRIPE_PUBLISHABLE_KEY.trim() !== ''
+      ? process.env.STRIPE_PUBLISHABLE_KEY.trim()
+      : null;
+  /** DB (Admin save) wins; else optional Vercel env so GET returns pk without republishing the app. */
+  const pk = pkFromDb ?? pkFromEnv;
   const secretConfigured = !!(await getStripeSecretKey(sql));
   return {
     storeHours: v.store_hours ?? null,
