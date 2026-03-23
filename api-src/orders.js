@@ -10,6 +10,7 @@ import { checkRateLimit } from './lib/rateLimit.js';
 import { evaluatePromotion } from './lib/promoServer.js';
 import { ensureOrdersOptionalColumns } from './lib/ordersSchema.js';
 import { parcelTrackingFieldsFromRow } from '../api/lib/parcelTrackingUrls.js';
+import { resolveShippingFeeDollars } from './lib/shippingFee.js';
 
 function rowToOrder(row) {
   if (!row) return null;
@@ -237,7 +238,10 @@ export default async function handler(req, res) {
       const v = settingsRow?.value_json ?? {};
       const taxRate = v.tax_rate_percent != null ? Number(v.tax_rate_percent) / 100 : 0.08;
       const deliveryFee = v.delivery_fee != null ? Number(v.delivery_fee) : 0;
-      const shippingFee = v.shipping_fee != null ? Number(v.shipping_fee) : 0;
+      const shippingFee =
+        normalizedFulfillmentType === 'Shipping'
+          ? resolveShippingFeeDollars(v, deliveryAddressClean)
+          : 0;
 
       // Sanity check: client discounted subtotal should not be greater than item subtotal.
       // (We allow slight cents drift.)

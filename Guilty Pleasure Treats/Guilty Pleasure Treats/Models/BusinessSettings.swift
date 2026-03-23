@@ -22,8 +22,12 @@ struct BusinessSettings: Codable {
     var venmoUsername: String?
     /// Delivery fee in dollars (e.g. 5.00). Applied at checkout when fulfillment is Delivery.
     var deliveryFee: Double?
-    /// Shipping fee in dollars (e.g. 8.00). Applied at checkout when fulfillment is Shipping.
+    /// Shipping fee in dollars (e.g. 8.00). Applied at checkout when fulfillment is Shipping (nationwide / default).
     var shippingFee: Double?
+    /// Lower shipping rate for nearby states (e.g. tri-state). When nil, matches `shippingFee`.
+    var shippingFeeLocal: Double?
+    /// Two-letter state codes for the local shipping zone (e.g. NJ, NY). When nil, API defaults apply.
+    var shippingLocalStates: [String]?
     /// ISO8601 timestamp when an admin last saved business settings (from API).
     var settingsLastUpdatedAt: String?
     /// User id (from auth) who last saved settings; informational only.
@@ -49,6 +53,8 @@ struct BusinessSettings: Codable {
         venmoUsername: String? = nil,
         deliveryFee: Double? = nil,
         shippingFee: Double? = nil,
+        shippingFeeLocal: Double? = nil,
+        shippingLocalStates: [String]? = nil,
         settingsLastUpdatedAt: String? = nil,
         settingsLastUpdatedByUserId: String? = nil,
         settingsLastUpdatedByName: String? = nil,
@@ -67,6 +73,8 @@ struct BusinessSettings: Codable {
         self.venmoUsername = venmoUsername
         self.deliveryFee = deliveryFee
         self.shippingFee = shippingFee
+        self.shippingFeeLocal = shippingFeeLocal
+        self.shippingLocalStates = shippingLocalStates
         self.settingsLastUpdatedAt = settingsLastUpdatedAt
         self.settingsLastUpdatedByUserId = settingsLastUpdatedByUserId
         self.settingsLastUpdatedByName = settingsLastUpdatedByName

@@ -514,6 +514,13 @@ final class VercelService {
             ?? ((j["stripeCheckoutEnabled"] as? NSNumber)?.boolValue)
         let stripeSecretOk = (j["stripeSecretKeyConfigured"] as? Bool)
             ?? ((j["stripeSecretKeyConfigured"] as? NSNumber)?.boolValue)
+        let shippingLocalStates: [String]? = {
+            guard let raw = j["shippingLocalStates"] else { return nil }
+            if let arr = raw as? [String] { return arr }
+            if let arr = raw as? [Any] { return arr.compactMap { $0 as? String } }
+            return nil
+        }()
+        let shippingFeeLocalOpt = (j["shippingFeeLocal"] as? Double) ?? (j["shippingFeeLocal"] as? NSNumber)?.doubleValue
         return BusinessSettings(
             storeHours: j["storeHours"] as? String,
             deliveryRadiusMiles: j["deliveryRadiusMiles"] as? Double,
@@ -526,6 +533,8 @@ final class VercelService {
             venmoUsername: j["venmoUsername"] as? String,
             deliveryFee: j["deliveryFee"] as? Double,
             shippingFee: j["shippingFee"] as? Double,
+            shippingFeeLocal: shippingFeeLocalOpt,
+            shippingLocalStates: shippingLocalStates,
             settingsLastUpdatedAt: j["settingsLastUpdatedAt"] as? String,
             settingsLastUpdatedByUserId: j["settingsLastUpdatedByUserId"] as? String,
             settingsLastUpdatedByName: j["settingsLastUpdatedByName"] as? String,
@@ -555,6 +564,8 @@ final class VercelService {
         if let v = settings.venmoUsername { body["venmoUsername"] = v }
         if let v = settings.deliveryFee { body["deliveryFee"] = v }
         if let v = settings.shippingFee { body["shippingFee"] = v }
+        if let v = settings.shippingFeeLocal { body["shippingFeeLocal"] = v }
+        if let v = settings.shippingLocalStates { body["shippingLocalStates"] = v }
         body["stripePublishableKey"] = settings.stripePublishableKey ?? ""
         if let sk = newStripeSecretKey?.trimmingCharacters(in: .whitespacesAndNewlines), !sk.isEmpty {
             body["stripeSecretKey"] = sk

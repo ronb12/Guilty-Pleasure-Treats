@@ -33,6 +33,8 @@ const DEFAULT_MAIN = {
   venmo_username: null,
   delivery_fee: null,
   shipping_fee: null,
+  shipping_fee_local: null,
+  shipping_local_states: null,
 };
 
 async function buildAppResponse(row, sql) {
@@ -81,6 +83,11 @@ async function buildAppResponse(row, sql) {
     venmoUsername: v.venmo_username ?? null,
     deliveryFee: v.delivery_fee != null ? Number(v.delivery_fee) : null,
     shippingFee: v.shipping_fee != null ? Number(v.shipping_fee) : null,
+    shippingFeeLocal:
+      v.shipping_fee_local != null ? Number(v.shipping_fee_local) : v.shipping_fee != null ? Number(v.shipping_fee) : null,
+    shippingLocalStates: Array.isArray(v.shipping_local_states)
+      ? v.shipping_local_states.map((s) => String(s).trim().toUpperCase().slice(0, 2)).filter(Boolean)
+      : null,
     settingsLastUpdatedAt: v.settings_last_updated_at ?? null,
     settingsLastUpdatedByUserId: updatedByUserId,
     settingsLastUpdatedByName: updatedByName,
@@ -105,6 +112,21 @@ function toDbValue(body) {
     venmo_username: body.venmoUsername != null ? String(body.venmoUsername) : undefined,
     delivery_fee: body.deliveryFee != null ? Number(body.deliveryFee) : undefined,
     shipping_fee: body.shippingFee != null ? Number(body.shippingFee) : undefined,
+    shipping_fee_local: body.shippingFeeLocal != null ? Number(body.shippingFeeLocal) : undefined,
+    shipping_local_states: (() => {
+      const raw = body.shippingLocalStates;
+      if (raw == null) return undefined;
+      if (Array.isArray(raw)) {
+        return raw.map((s) => String(s).trim().toUpperCase().slice(0, 2)).filter(Boolean);
+      }
+      if (typeof raw === 'string') {
+        return raw
+          .split(',')
+          .map((s) => s.trim().toUpperCase().slice(0, 2))
+          .filter(Boolean);
+      }
+      return undefined;
+    })(),
     lead_time_hours: leadTime,
     tax_rate_percent: taxPercent,
   };

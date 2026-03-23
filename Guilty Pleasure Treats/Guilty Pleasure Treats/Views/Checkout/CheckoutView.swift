@@ -109,7 +109,16 @@ struct CheckoutView: View {
                             }
                         }
                         viewModel.deliveryFee = max(0, settings.deliveryFee ?? 0)
-                        viewModel.shippingFee = max(0, settings.shippingFee ?? 0)
+                        let nationwide = max(0, settings.shippingFee ?? 0)
+                        viewModel.shippingFeeNationwide = nationwide
+                        viewModel.shippingFeeLocal = max(0, settings.shippingFeeLocal ?? nationwide)
+                        if let sts = settings.shippingLocalStates, !sts.isEmpty {
+                            viewModel.shippingLocalStates = sts.map {
+                                String($0.trimmingCharacters(in: .whitespaces).uppercased().prefix(2))
+                            }.filter { !$0.isEmpty }
+                        } else {
+                            viewModel.shippingLocalStates = CheckoutViewModel.defaultShippingLocalStates
+                        }
                         CartManager.shared.taxRate = settings.taxRate
                     }
                 }

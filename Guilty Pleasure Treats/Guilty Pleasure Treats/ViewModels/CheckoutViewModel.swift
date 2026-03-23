@@ -22,8 +22,15 @@ final class CheckoutViewModel: ObservableObject {
     @Published var minimumOrderLeadTimeHours: Int = AppConstants.minimumOrderLeadTimeHours
     /// Delivery fee in dollars (from business settings). Applied when fulfillment is Delivery.
     @Published var deliveryFee: Double = 0
-    /// Shipping fee in dollars (from business settings). Applied when fulfillment is Shipping.
-    @Published var shippingFee: Double = 0
+    /// Nationwide / default shipping rate (from business settings `shippingFee`).
+    @Published var shippingFeeNationwide: Double = 0
+    /// Local-zone shipping rate (from `shippingFeeLocal`, or same as nationwide when unset).
+    @Published var shippingFeeLocal: Double = 0
+    /// Two-letter state codes for local shipping; empty uses same default as API (`NJ, NY, PA, CT, DE`).
+    @Published var shippingLocalStates: [String] = ["NJ", "NY", "PA", "CT", "DE"]
+
+    /// Default local zone when admin leaves the list empty (matches `api/lib/shippingFee.js`).
+    static let defaultShippingLocalStates = ["NJ", "NY", "PA", "CT", "DE"]
     @Published var street = ""
     @Published var addressLine2 = ""
     @Published var city = ""
@@ -92,6 +99,43 @@ final class CheckoutViewModel: ObservableObject {
         ].filter { !$0.isEmpty }
         return parts.isEmpty ? nil : parts.joined(separator: "\n")
     }
+
+    /// Same rules as `extractStateCodeFromAddress` in `api/lib/shippingFee.js` (last line `City, ST, ZIP`).
+    private static func extractStateCodeFromAddress(_ addr: String?) -> String? {
+        guard let addr, !addr.isEmpty else { return nil }
+        let lines = addr
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard let last = lines.last else { return nil }
+        let parts = last.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
+        guard parts.count >= 2 else { return nil }
+        let segment = String(parts[1])
+        guard let regex = try? NSRegularExpression(pattern: "^[A-Za-z]{2}\\b") else { return nil }
+        let ns = segment as NSString
+        guard let match = regex.firstMatch(in: segment, range: NSRange(location: 0, length: ns.length)),
+              let range = Range(match.range, in: segment) else { return nil }
+        return String(segment[range]).uppercased()
+    }
+
+    private var effectiveLocalShippingStates: Set<String> {
+        let normalized = shippingLocalStates
+            .map { $0.trimmingCharacters(in: .whitespaces).uppercased().prefix(2) }
+            .map(String.init)
+            .filter { !$0.isEmpty }
+        if normalized.isEmpty { return Set(Self.defaultShippingLocalStates) }
+        return Set(normalized)
+    }
+
+    /// Mirrors `resolveShippingFeeDollars` on the server for the current address.
+    var resolvedShippingFee: Double {
+        let nationwide = max(0, shippingFeeNationwide)
+        let localFee = max(0, shippingFeeLocal)
+        guard fulfillmentType == .shipping else { return 0 }
+        guard let addr = deliveryAddressString else { return nationwide }
+        guard let st = Self.extractStateCodeFromAddress(addr) else { return nationwide }
+        return effectiveLocalShippingStates.contains(st) ? localFee : nationwide
+    }
     
     // Order summary for display (matches placeOrder math). Tax uses cart.taxRate.
     var orderSummarySubtotal: Double {
@@ -104,7 +148,7 @@ final class CheckoutViewModel: ObservableObject {
     /// Delivery fee when fulfillment is Delivery.
     var orderSummaryDeliveryFee: Double { fulfillmentType == .delivery ? deliveryFee : 0 }
     /// Shipping fee when fulfillment is Shipping.
-    var orderSummaryShippingFee: Double { fulfillmentType == .shipping ? shippingFee : 0 }
+    var orderSummaryShippingFee: Double { fulfillmentType == .shipping ? resolvedShippingFee : 0 }
     var orderSummaryTotal: Double {
         orderSummarySubtotalAfterDiscount + orderSummaryTax + orderSummaryTip
             + orderSummaryDeliveryFee + orderSummaryShippingFee
@@ -203,7 +247,7 @@ final class CheckoutViewModel: ObservableObject {
         let tax = subtotalAfterDiscount * taxRate
         let tip = cart.tipAmount
         let deliveryFeeAmount = fulfillmentType == .delivery ? deliveryFee : 0
-        let shippingFeeAmount = fulfillmentType == .shipping ? shippingFee : 0
+        let shippingFeeAmount = fulfillmentType == .shipping ? resolvedShippingFee : 0
         let total = subtotalAfterDiscount + tax + tip + deliveryFeeAmount + shippingFeeAmount
         
         let customCakeOrderIds = cart.items.compactMap { item -> String? in

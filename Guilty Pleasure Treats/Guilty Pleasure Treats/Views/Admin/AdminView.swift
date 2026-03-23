@@ -5745,6 +5745,8 @@ struct AdminSettingsView: View {
     @State private var minimumOrderLeadTimeText = ""
     @State private var deliveryFeeText = ""
     @State private var shippingFeeText = ""
+    @State private var shippingFeeLocalText = ""
+    @State private var shippingLocalStatesText = ""
     @State private var contactEmail = ""
     @State private var contactPhone = ""
     @State private var storeName = ""
@@ -5776,6 +5778,16 @@ struct AdminSettingsView: View {
                     minimumOrderLeadTimeText = s.minimumOrderLeadTimeHours.map { String($0) } ?? ""
                     deliveryFeeText = s.deliveryFee.map { String(format: "%.2f", $0) } ?? ""
                     shippingFeeText = s.shippingFee.map { String(format: "%.2f", $0) } ?? ""
+                    if let loc = s.shippingFeeLocal {
+                        shippingFeeLocalText = String(format: "%.2f", loc)
+                    } else {
+                        shippingFeeLocalText = s.shippingFee.map { String(format: "%.2f", $0) } ?? ""
+                    }
+                    if let sts = s.shippingLocalStates, !sts.isEmpty {
+                        shippingLocalStatesText = sts.joined(separator: ", ")
+                    } else {
+                        shippingLocalStatesText = CheckoutViewModel.defaultShippingLocalStates.joined(separator: ", ")
+                    }
                     contactEmail = s.contactEmail ?? ""
                     contactPhone = s.contactPhone ?? ""
                     storeName = s.storeName ?? ""
@@ -5828,6 +5840,12 @@ struct AdminSettingsView: View {
         let leadTime = Int(minimumOrderLeadTimeText.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces))
         let deliveryFee = Double(deliveryFeeText.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces))
         let shippingFee = Double(shippingFeeText.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces))
+        let national = (shippingFee != nil && shippingFee! >= 0) ? shippingFee! : 0
+        let localTrim = shippingFeeLocalText.trimmingCharacters(in: .whitespaces)
+        let localParsed = localTrim.isEmpty ? nil : Double(localTrim.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespaces))
+        let shippingFeeLocalResolved = (localParsed != nil && localParsed! >= 0) ? localParsed! : national
+        let parsedStates = parseShippingStatesCSV(shippingLocalStatesText)
+        let shippingLocalStatesResolved = parsedStates.isEmpty ? CheckoutViewModel.defaultShippingLocalStates : parsedStates
         let pkTrim = stripePublishableKeyText.trimmingCharacters(in: .whitespacesAndNewlines)
         let secretTrim = stripeSecretKeyText.trimmingCharacters(in: .whitespacesAndNewlines)
         let settings = BusinessSettings(
@@ -5841,13 +5859,22 @@ struct AdminSettingsView: View {
             cashAppTag: viewModel.businessSettings?.cashAppTag,
             venmoUsername: viewModel.businessSettings?.venmoUsername,
             deliveryFee: (deliveryFee != nil && deliveryFee! >= 0) ? deliveryFee : 0,
-            shippingFee: (shippingFee != nil && shippingFee! >= 0) ? shippingFee : 0,
+            shippingFee: national,
+            shippingFeeLocal: shippingFeeLocalResolved,
+            shippingLocalStates: shippingLocalStatesResolved,
             stripePublishableKey: pkTrim.isEmpty ? nil : pkTrim,
             stripeCheckoutEnabled: viewModel.businessSettings?.stripeCheckoutEnabled ?? false,
             stripeSecretKeyConfigured: viewModel.businessSettings?.stripeSecretKeyConfigured ?? false
         )
         await viewModel.saveBusinessSettings(settings, newStripeSecretKey: secretTrim.isEmpty ? nil : secretTrim)
         stripeSecretKeyText = ""
+    }
+
+    private func parseShippingStatesCSV(_ text: String) -> [String] {
+        text.split(separator: ",")
+            .map { String($0).trimmingCharacters(in: .whitespaces).uppercased().prefix(2) }
+            .map(String.init)
+            .filter { !$0.isEmpty }
     }
 
     private var stripeKeyInstructions: String {
@@ -5924,10 +5951,12 @@ struct AdminSettingsView: View {
             settingsSectionLabel("Delivery & tax")
             settingsLabeledField("Delivery radius (mi)", placeholder: "0", text: $deliveryRadiusText)
             settingsLabeledField("Delivery fee ($)", placeholder: "0", text: $deliveryFeeText)
-            settingsLabeledField("Shipping fee ($)", placeholder: "0", text: $shippingFeeText)
+            settingsLabeledField("Shipping fee — nationwide ($)", placeholder: "0", text: $shippingFeeText)
+            settingsLabeledField("Shipping fee — local zone ($)", placeholder: "same as above", text: $shippingFeeLocalText)
+            settingsLabeledField("Local shipping states", placeholder: "NJ, NY, PA, CT, DE", text: $shippingLocalStatesText)
             settingsLabeledField("Tax rate", placeholder: "0.08", text: $taxRateText)
             settingsLabeledField("Minimum order notice (hours)", placeholder: "24", text: $minimumOrderLeadTimeText)
-            Text("Delivery/shipping fees in dollars. Applied at checkout when customer chooses Delivery or Shipping.")
+            Text("Delivery fee applies to Delivery; nationwide vs local shipping applies to Shipping based on the address state (local zone list).")
                 .font(.caption)
                 .foregroundStyle(AppConstants.Colors.textSecondary)
             Text("Tax rate as decimal (e.g. 0.08 for 8%). Applied at checkout.")
@@ -6058,10 +6087,24 @@ struct AdminSettingsView: View {
                         .multilineTextAlignment(.trailing)
                         #endif
                 }
-                LabeledContent("Shipping fee ($)") {
+                LabeledContent("Shipping — nationwide ($)") {
                     TextField("0", text: $shippingFeeText)
                         #if os(iOS)
                         .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        #endif
+                }
+                LabeledContent("Shipping — local zone ($)") {
+                    TextField("Same as nationwide", text: $shippingFeeLocalText)
+                        #if os(iOS)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        #endif
+                }
+                LabeledContent("Local zone states") {
+                    TextField("NJ, NY, PA, CT, DE", text: $shippingLocalStatesText)
+                        #if os(iOS)
+                        .textInputAutocapitalization(.characters)
                         .multilineTextAlignment(.trailing)
                         #endif
                 }
@@ -6082,7 +6125,7 @@ struct AdminSettingsView: View {
             } header: {
                 Text("Delivery & tax")
             } footer: {
-                Text("Delivery and shipping fees in dollars; applied at checkout when customer chooses Delivery or Shipping. Tax rate as decimal (e.g. 0.08 for 8%). Minimum order notice: customers cannot select a pickup/delivery time sooner than this many hours from now.")
+                Text("Delivery fee applies to Delivery; nationwide vs local shipping applies to Shipping based on the address state (local zone list). Tax rate as decimal (e.g. 0.08 for 8%). Minimum order notice: customers cannot select a pickup/delivery time sooner than this many hours from now.")
             }
 
             Section {
