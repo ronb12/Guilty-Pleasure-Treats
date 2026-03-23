@@ -110,10 +110,45 @@ export default async function handler(req, res) {
     }
     next.settings_last_updated_at = new Date().toISOString();
     next.settings_last_updated_by_user_id = session?.userId != null ? String(session.userId) : null;
+    const legacyTaxRate = next.tax_rate_percent != null ? Number(next.tax_rate_percent) / 100 : 0.08;
     await sql`
-      INSERT INTO business_settings (key, value_json, updated_at)
-      VALUES ('main', ${JSON.stringify(next)}::jsonb, NOW())
-      ON CONFLICT (key) DO UPDATE SET value_json = ${JSON.stringify(next)}::jsonb, updated_at = NOW()
+      INSERT INTO business_settings (
+        key,
+        value_json,
+        store_hours,
+        store_name,
+        delivery_radius_miles,
+        tax_rate,
+        contact_email,
+        contact_phone,
+        cash_app_tag,
+        venmo_username,
+        updated_at
+      )
+      VALUES (
+        'main',
+        ${JSON.stringify(next)}::jsonb,
+        ${next.store_hours ?? null},
+        ${next.store_name ?? null},
+        ${next.delivery_radius_miles ?? null},
+        ${legacyTaxRate},
+        ${next.contact_email ?? null},
+        ${next.contact_phone ?? null},
+        ${next.cash_app_tag ?? null},
+        ${next.venmo_username ?? null},
+        NOW()
+      )
+      ON CONFLICT (key) DO UPDATE SET
+        value_json = ${JSON.stringify(next)}::jsonb,
+        store_hours = ${next.store_hours ?? null},
+        store_name = ${next.store_name ?? null},
+        delivery_radius_miles = ${next.delivery_radius_miles ?? null},
+        tax_rate = ${legacyTaxRate},
+        contact_email = ${next.contact_email ?? null},
+        contact_phone = ${next.contact_phone ?? null},
+        cash_app_tag = ${next.cash_app_tag ?? null},
+        venmo_username = ${next.venmo_username ?? null},
+        updated_at = NOW()
     `;
     const [updated] = await sql`SELECT value_json FROM business_settings WHERE key = 'main' LIMIT 1`;
     return res.status(200).json(await buildAppResponse(updated, sql));
