@@ -6165,7 +6165,10 @@ struct EditGalleryCakeSheet: View {
 struct AdminNewsletterView: View {
     @ObservedObject var viewModel: AdminViewModel
     @State private var subject = ""
-    @State private var htmlBody = ""
+    /// What the owner edits — always plain text. HTML is built when sending or previewing.
+    @State private var messagePlain = ""
+    /// HTML fragments from Canva uploads only (not shown in the editor).
+    @State private var designHTMLFragments = ""
     @State private var textBody = ""
     @State private var replyTo = ""
     @State private var isSending = false
@@ -6195,7 +6198,8 @@ struct AdminNewsletterView: View {
 
             Section {
                 Button {
-                    if htmlBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    if messagePlain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        && designHTMLFragments.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         insertProfessionalTemplate()
                     } else {
                         showTemplateReplaceConfirm = true
@@ -6221,27 +6225,30 @@ struct AdminNewsletterView: View {
             } header: {
                 Text("Design")
             } footer: {
-                Text("Use a built-in polished layout, or export from Canva as PNG or JPEG (recommended so the design appears in the email). PDF is supported as a download link. Images are uploaded securely and embedded in the HTML.")
+                Text("Use a built-in polished layout, or export from Canva as PNG or JPEG (recommended so the design appears in the email). PDF is supported as a download link. Images are uploaded securely and placed in your message automatically.")
                     .font(.caption)
             }
 
             Section {
                 TextField("Subject line", text: $subject)
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("HTML body")
+                    Text("Your message")
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundStyle(AppConstants.Colors.textSecondary)
+                    Text("Write in plain text. Separate paragraphs with a blank line. You won’t see code here—preview shows the final email.")
+                        .font(.caption2)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
                     #if os(iOS)
-                    TextEditor(text: $htmlBody)
+                    TextEditor(text: $messagePlain)
                         .frame(minHeight: 160)
                         .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppConstants.Colors.textSecondary.opacity(0.25)))
                     #else
-                    TextEditor(text: $htmlBody)
+                    TextEditor(text: $messagePlain)
                         .frame(minHeight: 160)
                     #endif
                 }
-                TextField("Plain text (optional)", text: $textBody, axis: .vertical)
+                TextField("Plain-text version (optional)", text: $textBody, axis: .vertical)
                 TextField("Reply-to override (optional)", text: $replyTo)
                     #if os(iOS)
                     .keyboardType(.emailAddress)
@@ -6259,7 +6266,7 @@ struct AdminNewsletterView: View {
                 }
                 .disabled(!hasBody || isUploadingDesign)
             } footer: {
-                Text("Opens a preview of your HTML (or plain text if you only use that). Appearance may vary slightly in different email apps.")
+                Text("Shows how the email will look when sent. Appearance may vary slightly in different email apps.")
                     .font(.caption)
             }
 
@@ -6282,7 +6289,7 @@ struct AdminNewsletterView: View {
         .navigationTitle("Newsletter")
         .inlineNavigationTitle()
         .macOSGroupedFormStyle()
-        .confirmationDialog("Replace the current HTML with a new professional template?", isPresented: $showTemplateReplaceConfirm, titleVisibility: .visible) {
+        .confirmationDialog("Replace your current message and any uploaded design with a new starter template?", isPresented: $showTemplateReplaceConfirm, titleVisibility: .visible) {
             Button("Replace", role: .destructive) { insertProfessionalTemplate() }
             Button("Cancel", role: .cancel) {}
         }
@@ -6319,7 +6326,7 @@ struct AdminNewsletterView: View {
         .sheet(isPresented: $showPreview) {
             NewsletterEmailPreviewSheet(
                 subject: subject,
-                htmlBody: htmlBody,
+                htmlBody: composeEmailHTML(),
                 textBody: textBody,
                 onDismiss: { showPreview = false }
             )
@@ -6362,32 +6369,55 @@ struct AdminNewsletterView: View {
     private func insertProfessionalTemplate() {
         let rawName = viewModel.businessSettings?.storeName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let store = rawName.isEmpty ? "Guilty Pleasure Treats" : rawName
-        let trimmedContact = viewModel.businessSettings?.contactEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let email = trimmedContact.flatMap { $0.isEmpty ? nil : $0 }
-        htmlBody = NewsletterHTMLTemplate.professionalEmail(
-            storeName: store,
-            preheader: "A note from \(store)",
-            bodyParagraphs: [
-                "Hello,",
-                "Thank you for supporting our bakery. We’re excited to share what’s new with you.",
-                "Warmly,",
-                "\(store)"
-            ],
-            contactEmail: email
-        )
+        designHTMLFragments = ""
+        messagePlain = """
+Hello,
+
+Thank you for supporting our bakery. We’re excited to share what’s new with you.
+
+Warmly,
+\(store)
+"""
         if subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             subject = "What’s new at \(store)"
         }
     }
 
-    private func appendHTMLFragment(_ fragment: String) {
+    private func appendDesignFragment(_ fragment: String) {
         let f = fragment.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !f.isEmpty else { return }
-        if htmlBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            htmlBody = f
+        if designHTMLFragments.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            designHTMLFragments = f
         } else {
-            htmlBody += "\n\n" + f
+            designHTMLFragments += "\n\n" + f
         }
+    }
+
+    /// Builds the HTML sent to Resend and shown in preview (owner only edits plain text + uploads).
+    private func composeEmailHTML() -> String {
+        let rawName = viewModel.businessSettings?.storeName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let store = rawName.isEmpty ? "Guilty Pleasure Treats" : rawName
+        let trimmedContact = viewModel.businessSettings?.contactEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = trimmedContact.flatMap { $0.isEmpty ? nil : $0 }
+
+        let trimmed = messagePlain.trimmingCharacters(in: .whitespacesAndNewlines)
+        let paras: [String]
+        if trimmed.isEmpty {
+            paras = []
+        } else {
+            paras = trimmed.components(separatedBy: "\n\n").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        }
+
+        let prepend = designHTMLFragments.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return NewsletterHTMLTemplate.professionalEmail(
+            storeName: store,
+            preheader: "A note from \(store)",
+            bodyParagraphs: paras,
+            contactEmail: email,
+            iconImageURL: AppConstants.newsletterAppIconURLString,
+            prependInnerHTML: prepend.isEmpty ? nil : prepend
+        )
     }
 
     @MainActor
@@ -6412,9 +6442,9 @@ struct AdminNewsletterView: View {
                 let trimmedStore = viewModel.businessSettings?.storeName?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let storeLabel = trimmedStore.flatMap { $0.isEmpty ? nil : $0 } ?? "Newsletter"
                 if ext == "pdf" {
-                    appendHTMLFragment(NewsletterHTMLTemplate.pdfLinkBlock(pdfURL: publicURL, linkLabel: "Download newsletter (PDF)"))
+                    appendDesignFragment(NewsletterHTMLTemplate.pdfLinkBlock(pdfURL: publicURL, linkLabel: "Download newsletter (PDF)"))
                 } else {
-                    appendHTMLFragment(NewsletterHTMLTemplate.imageEmbedBlock(imageURL: publicURL, altText: storeLabel))
+                    appendDesignFragment(NewsletterHTMLTemplate.imageEmbedBlock(imageURL: publicURL, altText: storeLabel))
                 }
                 isUploadingDesign = false
             } catch {
@@ -6425,7 +6455,8 @@ struct AdminNewsletterView: View {
     }
 
     private var hasBody: Bool {
-        !htmlBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !messagePlain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !designHTMLFragments.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || !textBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
@@ -6433,7 +6464,7 @@ struct AdminNewsletterView: View {
         isSending = true
         defer { isSending = false }
         let sub = subject.trimmingCharacters(in: .whitespacesAndNewlines)
-        let html = htmlBody
+        let html = composeEmailHTML()
         let text = textBody.trimmingCharacters(in: .whitespacesAndNewlines)
         let reply = replyTo.trimmingCharacters(in: .whitespacesAndNewlines)
         _ = await viewModel.sendNewsletter(

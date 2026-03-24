@@ -53,6 +53,13 @@ enum AppConstants {
     
     /// Business Instagram profile for DMs. Shown in Settings and Contact.
     static let instagramURLString = "https://www.instagram.com/gp_treats"
+
+    /// Public URL for the app icon image used in HTML newsletter templates. Deployed as `website/app-icon.png` (root `/app-icon.png` on Vercel).
+    static var newsletterAppIconURLString: String? {
+        guard let base = vercelBaseURLString?.trimmingCharacters(in: .whitespacesAndNewlines), !base.isEmpty else { return nil }
+        let trimmed = base.hasSuffix("/") ? String(base.dropLast()) : base
+        return "\(trimmed)/app-icon.png"
+    }
     
     // MARK: - Design (Pink bakery theme; light/dark via asset catalog)
     enum Colors {
