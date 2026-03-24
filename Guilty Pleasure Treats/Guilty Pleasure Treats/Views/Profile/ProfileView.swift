@@ -10,6 +10,7 @@ import SwiftUI
 struct ProfileView: View {
     @StateObject private var auth = AuthService.shared
     @ObservedObject private var notificationService = NotificationService.shared
+    @ObservedObject private var tabRouter = TabRouter.shared
     @State private var showLogin = false
     @State private var showAdmin = false
     @State private var navigateToContactReplies = false
@@ -102,7 +103,7 @@ struct ProfileView: View {
                     .font(.title2)
                     .fontWeight(.semibold)
                     .foregroundStyle(AppConstants.Colors.textPrimary)
-                Text("Sign in to see your orders, rewards, and more.")
+                Text("Sign in to see your orders, rewards, and more. After signing in, use the Orders tab for full history.")
                     .font(.subheadline)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
                     .multilineTextAlignment(.center)
@@ -222,6 +223,36 @@ struct ProfileView: View {
                 .padding(.vertical, 28)
                 .padding(.horizontal, 24)
                 .frame(maxWidth: .infinity)
+                .background(AppConstants.Colors.cardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+
+                Button {
+                    tabRouter.switchToOrders()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "doc.text.fill")
+                            .font(.subheadline)
+                            .foregroundStyle(AppConstants.Colors.accent)
+                            .frame(width: 24, alignment: .center)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Order history")
+                                .font(.subheadline)
+                                .foregroundStyle(AppConstants.Colors.textPrimary)
+                            Text("Past orders, totals, and status")
+                                .font(.caption)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 20)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .background(AppConstants.Colors.cardBackground)
                 .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
 

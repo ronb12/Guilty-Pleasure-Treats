@@ -17,6 +17,7 @@ final class TabRouter: ObservableObject {
     func switchToCart() { selectedTab = 2 }
     func switchToMenu() { selectedTab = 1 }
     func switchToHome() { selectedTab = 0 }
+    func switchToOrders() { selectedTab = 4 }
 
     private init() {}
 }

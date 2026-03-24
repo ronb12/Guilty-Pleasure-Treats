@@ -1,6 +1,6 @@
 # Guilty Pleasure Treats
 
-Bakery ordering stack: **SwiftUI app** (iOS / iPadOS; Mac build is limited for payments), **serverless API** on [Vercel](https://vercel.com), **PostgreSQL** on [Neon](https://neon.tech), and optional **Stripe** for cards (in-app Payment Sheet and admin-hosted Checkout links). A small **static site** in `website/` is served at the project root on the same deployment.
+Bakery ordering stack: **SwiftUI app** (iOS / iPadOS; Mac build is limited for payments), **serverless API** on [Vercel](https://vercel.com), **PostgreSQL** on [Neon](https://neon.tech), and optional **Stripe** for cards (in-app Payment Sheet and admin-hosted Checkout links). A small **static site** in `website/` is served at the project root on the same deployment. The **iOS and native Mac** targets share the same `Guilty Pleasure Treats/` sources—see [docs/MAC_IOS_APP_PARITY.md](docs/MAC_IOS_APP_PARITY.md).
 
 ## Repository layout
 

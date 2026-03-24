@@ -631,34 +631,7 @@ struct OrderDetailView: View {
 
     private var totalsCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Subtotal")
-                    .font(.subheadline)
-                    .foregroundStyle(AppConstants.Colors.textSecondary)
-                Spacer()
-                Text(displayOrder.subtotal.currencyFormatted)
-                    .font(.subheadline)
-                    .foregroundStyle(AppConstants.Colors.textPrimary)
-            }
-            HStack {
-                Text("Tax")
-                    .font(.subheadline)
-                    .foregroundStyle(AppConstants.Colors.textSecondary)
-                Spacer()
-                Text(displayOrder.tax.currencyFormatted)
-                    .font(.subheadline)
-                    .foregroundStyle(AppConstants.Colors.textPrimary)
-            }
-            Divider()
-            HStack {
-                Text("Total")
-                    .font(.headline)
-                    .foregroundStyle(AppConstants.Colors.textPrimary)
-                Spacer()
-                Text(displayOrder.total.currencyFormatted)
-                    .font(.headline)
-                    .foregroundStyle(AppConstants.Colors.accent)
-            }
+            OrderTotalsBreakdownView(order: displayOrder, emphasizeTotal: true)
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)

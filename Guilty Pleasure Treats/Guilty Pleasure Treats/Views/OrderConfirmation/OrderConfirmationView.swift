@@ -93,14 +93,7 @@ struct OrderConfirmationView: View {
                     }
                     
                     Divider()
-                    HStack {
-                        Text("Total")
-                            .fontWeight(.semibold)
-                        Spacer()
-                        Text(order.total.currencyFormatted)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(AppConstants.Colors.accent)
-                    }
+                    OrderTotalsBreakdownView(order: order, emphasizeTotal: false)
                     Text("This total was confirmed by the store when your order was placed and is what payment is based on.")
                         .font(.caption2)
                         .foregroundStyle(AppConstants.Colors.textSecondary)

@@ -84,9 +84,8 @@ struct ProductDetailView: View {
                                     Text("\(o.label) — \(o.price.currencyFormatted)").tag(o.id)
                                 }
                             }
-                            #if os(iOS)
+                            // Same menu style on iOS and macOS (shared target sources).
                             .pickerStyle(.menu)
-                            #endif
                         }
                     }
 

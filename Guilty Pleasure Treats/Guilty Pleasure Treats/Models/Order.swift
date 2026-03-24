@@ -162,4 +162,26 @@ struct Order: Identifiable, Codable, Equatable {
     
     var statusEnum: OrderStatus? { OrderStatus(rawValue: status) }
     var fulfillmentEnum: FulfillmentType? { FulfillmentType(rawValue: fulfillmentType) }
+
+    // MARK: - Totals breakdown (shipping/delivery + tip are folded into `total`, not separate DB columns)
+
+    /// Tip from checkout, in dollars (`tip_cents` from API).
+    var tipAmountDollars: Double {
+        guard let c = tipCents, c > 0 else { return 0 }
+        return Double(c) / 100
+    }
+
+    /// Portion of `total` after subtotal, tax, and tip — matches server `deliveryFee` / `shippingFee` for Delivery/Shipping.
+    var fulfillmentFeeDollars: Double {
+        max(0, total - subtotal - tax - tipAmountDollars)
+    }
+
+    /// Row label for `fulfillmentFeeDollars` in receipts and order detail.
+    var fulfillmentFeeLineLabel: String {
+        switch fulfillmentEnum {
+        case .delivery: return "Delivery fee"
+        case .shipping: return "Shipping"
+        case .pickup, .none: return "Fees"
+        }
+    }
 }
