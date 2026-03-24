@@ -59,6 +59,7 @@ Admin → **Business Settings** → **Marketing** → **Email newsletter** calls
 | `RESEND_API_KEY` | Resend API key |
 | `NEWSLETTER_FROM_EMAIL` or `RESEND_FROM_EMAIL` | Verified sender (domain verified in Resend) |
 | `NEWSLETTER_MAX_SENDS` | Optional; max sends per request (default 150, cap 500) |
+| `BLOB_READ_WRITE_TOKEN` | Required for **Upload Canva design** (stores PNG/JPEG/PDF on Vercel Blob; public URL is embedded in HTML). |
 
 Without these, the API returns **503** with a clear error; the app shows it in the newsletter screen.
 

@@ -2,10 +2,10 @@
  * GET /api/users/me — current user profile (auth required).
  * PATCH /api/users/me — update displayName; addPoints / redeemPoints; admin may addPoints with targetUserId.
  */
-import { sql, hasDb } from '../lib/db.js';
-import { getTokenFromRequest, getSession } from '../lib/auth.js';
-import { setCors, handleOptions } from '../lib/cors.js';
-import { ensureLoyaltyRewardsTable } from '../../api-src/lib/loyaltyRewardsSchema.js';
+import { sql, hasDb } from '../../api/lib/db.js';
+import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
+import { setCors, handleOptions } from '../../api/lib/cors.js';
+import { ensureLoyaltyRewardsTable } from '../lib/loyaltyRewardsSchema.js';
 
 function userResponse(row) {
   if (!row) return null;

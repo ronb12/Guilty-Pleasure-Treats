@@ -1251,7 +1251,16 @@ final class AdminViewModel: ObservableObject {
             return false
         }
     }
-    
+
+    /// Upload a Canva export (PNG/JPEG/PDF) to Vercel Blob; returns a public URL for the HTML body.
+    func uploadNewsletterAsset(data: Data, filename: String, contentType: String) async throws -> String {
+        let base = (filename as NSString).lastPathComponent
+        let safe = base.replacingOccurrences(of: "[^a-zA-Z0-9._-]", with: "", options: .regularExpression)
+        let suffix = safe.isEmpty ? "file" : safe
+        let path = "newsletters/\(UUID().uuidString)-\(suffix)"
+        return try await api.uploadImageBase64(data: data, pathname: path, contentType: contentType)
+    }
+
     @discardableResult
     func addPromotion(_ promotion: Promotion) async -> Bool {
         do {

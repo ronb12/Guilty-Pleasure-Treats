@@ -2727,6 +2727,35 @@ struct AdminPromotionsView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                NavigationLink {
+                    AdminNewsletterView(viewModel: viewModel)
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "envelope.open.fill")
+                            .font(.title3)
+                            .foregroundStyle(AppConstants.Colors.accent)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Email newsletter")
+                                .font(.headline)
+                                .foregroundStyle(AppConstants.Colors.textPrimary)
+                            Text("Send updates to customers who have ordered")
+                                .font(.caption)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                    }
+                    .padding(AppConstants.Layout.cardPadding)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AppConstants.Colors.cardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal)
+                .padding(.top, 8)
+
                 Picker("Section", selection: $promoSegment) {
                     Text("Discount codes").tag(0)
                     Text("Loyalty rewards").tag(1)
@@ -6140,6 +6169,10 @@ struct AdminNewsletterView: View {
     @State private var textBody = ""
     @State private var replyTo = ""
     @State private var isSending = false
+    @State private var showPreview = false
+    @State private var showDesignImporter = false
+    @State private var isUploadingDesign = false
+    @State private var showTemplateReplaceConfirm = false
 
     var body: some View {
         Form {
@@ -6157,6 +6190,38 @@ struct AdminNewsletterView: View {
                 Text("Audience")
             } footer: {
                 Text("Configure Resend on the server: RESEND_API_KEY, NEWSLETTER_FROM_EMAIL (verified domain), optional NEWSLETTER_MAX_SENDS. Reply-to defaults to your business contact email from settings.")
+                    .font(.caption)
+            }
+
+            Section {
+                Button {
+                    if htmlBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        insertProfessionalTemplate()
+                    } else {
+                        showTemplateReplaceConfirm = true
+                    }
+                } label: {
+                    Label("Insert professional template", systemImage: "doc.richtext.fill")
+                }
+                .disabled(isUploadingDesign)
+
+                Button {
+                    showDesignImporter = true
+                } label: {
+                    if isUploadingDesign {
+                        HStack {
+                            ProgressView()
+                            Text("Uploading…")
+                        }
+                    } else {
+                        Label("Upload Canva design…", systemImage: "square.and.arrow.up")
+                    }
+                }
+                .disabled(isUploadingDesign)
+            } header: {
+                Text("Design")
+            } footer: {
+                Text("Use a built-in polished layout, or export from Canva as PNG or JPEG (recommended so the design appears in the email). PDF is supported as a download link. Images are uploaded securely and embedded in the HTML.")
                     .font(.caption)
             }
 
@@ -6188,6 +6253,18 @@ struct AdminNewsletterView: View {
 
             Section {
                 Button {
+                    showPreview = true
+                } label: {
+                    Label("Preview how it looks", systemImage: "eye.fill")
+                }
+                .disabled(!hasBody || isUploadingDesign)
+            } footer: {
+                Text("Opens a preview of your HTML (or plain text if you only use that). Appearance may vary slightly in different email apps.")
+                    .font(.caption)
+            }
+
+            Section {
+                Button {
                     Task { await send() }
                 } label: {
                     if isSending {
@@ -6199,24 +6276,54 @@ struct AdminNewsletterView: View {
                         Text("Send newsletter")
                     }
                 }
-                .disabled(isSending || subject.trimmingCharacters(in: .whitespaces).isEmpty || !hasBody)
+                .disabled(isSending || isUploadingDesign || subject.trimmingCharacters(in: .whitespaces).isEmpty || !hasBody)
             }
         }
         .navigationTitle("Newsletter")
         .inlineNavigationTitle()
         .macOSGroupedFormStyle()
+        .confirmationDialog("Replace the current HTML with a new professional template?", isPresented: $showTemplateReplaceConfirm, titleVisibility: .visible) {
+            Button("Replace", role: .destructive) { insertProfessionalTemplate() }
+            Button("Cancel", role: .cancel) {}
+        }
+        .fileImporter(
+            isPresented: $showDesignImporter,
+            allowedContentTypes: [.png, .jpeg, .heic, .pdf, .image],
+            allowsMultipleSelection: false
+        ) { result in
+            Task { await importCanvaDesign(result: result) }
+        }
         .refreshable {
             await viewModel.loadNewsletterRecipientCount()
         }
         .toolbar {
             ToolbarItem(placement: toolbarTrailingPlacement) {
                 Button {
+                    showPreview = true
+                } label: {
+                    Label("Preview", systemImage: "eye.fill")
+                }
+                .disabled(!hasBody || isUploadingDesign)
+                .accessibilityLabel("Preview newsletter")
+            }
+            ToolbarItem(placement: toolbarTrailingPlacement) {
+                Button {
                     Task { await viewModel.loadNewsletterRecipientCount() }
                 } label: {
                     Label("Refresh count", systemImage: "arrow.clockwise")
                 }
+                .disabled(isUploadingDesign)
                 .accessibilityLabel("Refresh recipient count")
             }
+        }
+        .sheet(isPresented: $showPreview) {
+            NewsletterEmailPreviewSheet(
+                subject: subject,
+                htmlBody: htmlBody,
+                textBody: textBody,
+                onDismiss: { showPreview = false }
+            )
+            .macOSAdminSheetSizeLarge()
         }
         .overlay(alignment: .top) {
             if let msg = viewModel.errorMessage {
@@ -6248,6 +6355,71 @@ struct AdminNewsletterView: View {
                         replyTo = contact
                     }
                 }
+            }
+        }
+    }
+
+    private func insertProfessionalTemplate() {
+        let rawName = viewModel.businessSettings?.storeName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let store = rawName.isEmpty ? "Guilty Pleasure Treats" : rawName
+        let trimmedContact = viewModel.businessSettings?.contactEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = trimmedContact.flatMap { $0.isEmpty ? nil : $0 }
+        htmlBody = NewsletterHTMLTemplate.professionalEmail(
+            storeName: store,
+            preheader: "A note from \(store)",
+            bodyParagraphs: [
+                "Hello,",
+                "Thank you for supporting our bakery. We’re excited to share what’s new with you.",
+                "Warmly,",
+                "\(store)"
+            ],
+            contactEmail: email
+        )
+        if subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            subject = "What’s new at \(store)"
+        }
+    }
+
+    private func appendHTMLFragment(_ fragment: String) {
+        let f = fragment.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !f.isEmpty else { return }
+        if htmlBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            htmlBody = f
+        } else {
+            htmlBody += "\n\n" + f
+        }
+    }
+
+    @MainActor
+    private func importCanvaDesign(result: Result<[URL], Error>) async {
+        switch result {
+        case .failure(let err):
+            viewModel.errorMessage = err.localizedDescription
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            let didAccess = url.startAccessingSecurityScopedResource()
+            defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let data = try Data(contentsOf: url)
+                let ext = url.pathExtension.lowercased()
+                isUploadingDesign = true
+                let prepared = NewsletterAssetPreprocessor.prepareFile(data: data, pathExtension: ext)
+                let publicURL = try await viewModel.uploadNewsletterAsset(
+                    data: prepared.data,
+                    filename: prepared.filename,
+                    contentType: prepared.mime
+                )
+                let trimmedStore = viewModel.businessSettings?.storeName?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let storeLabel = trimmedStore.flatMap { $0.isEmpty ? nil : $0 } ?? "Newsletter"
+                if ext == "pdf" {
+                    appendHTMLFragment(NewsletterHTMLTemplate.pdfLinkBlock(pdfURL: publicURL, linkLabel: "Download newsletter (PDF)"))
+                } else {
+                    appendHTMLFragment(NewsletterHTMLTemplate.imageEmbedBlock(imageURL: publicURL, altText: storeLabel))
+                }
+                isUploadingDesign = false
+            } catch {
+                isUploadingDesign = false
+                viewModel.errorMessage = FriendlyErrorMessage.message(for: error)
             }
         }
     }
@@ -6339,6 +6511,13 @@ struct AdminSettingsView: View {
                     .disabled(isSaving)
                     .fontWeight(.semibold)
                     .foregroundStyle(AppConstants.Colors.accent)
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    NavigationLink {
+                        AdminNewsletterView(viewModel: viewModel)
+                    } label: {
+                        Label("Newsletter", systemImage: "envelope.open.fill")
+                    }
                 }
             }
             .overlay(alignment: .top) {
