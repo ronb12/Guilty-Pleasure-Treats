@@ -61,3 +61,11 @@ Admin → **Business Settings** → **Marketing** → **Email newsletter** calls
 | `NEWSLETTER_MAX_SENDS` | Optional; max sends per request (default 150, cap 500) |
 
 Without these, the API returns **503** with a clear error; the app shows it in the newsletter screen.
+
+### Checklist (Resend dashboard)
+
+1. **API key** — Create a key in Resend → API Keys; set `RESEND_API_KEY` on Vercel (Production + Preview). Send-only keys work for `/emails` but cannot call read-only APIs like listing domains.
+2. **From address** — `NEWSLETTER_FROM_EMAIL` must use a **verified domain** (Resend → Domains → add `guiltypleasuretreats.com` or your real domain and complete DNS). If Resend returns *“domain is not verified”*, the domain is missing or DNS is not propagated yet.
+3. **Sandbox test** — To confirm the key works before DNS is ready, temporarily set `NEWSLETTER_FROM_EMAIL` to `onboarding@resend.dev` and send to `delivered@resend.dev` (Resend test recipient). Switch back to your real `From` after the domain is verified.
+
+Vercel: `RESEND_API_KEY` cannot be marked “sensitive” for the **Development** environment; use a local `.env.local` for `vercel dev` or rely on Preview/Production.
