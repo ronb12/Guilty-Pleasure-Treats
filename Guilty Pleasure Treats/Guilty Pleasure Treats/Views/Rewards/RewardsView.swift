@@ -75,7 +75,7 @@ struct RewardsView: View {
                     .fontWeight(.semibold)
                     .foregroundStyle(AppConstants.Colors.textPrimary)
                     .multilineTextAlignment(.center)
-                Text("Earn 1 point for every $1 spent and redeem points for free treats.")
+                Text("Earn 1 point per $1 of order total. Points are added when your order is marked completed. Redeem for free treats.")
                     .font(.subheadline)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
                     .multilineTextAlignment(.center)
@@ -144,9 +144,10 @@ struct RewardsView: View {
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundStyle(AppConstants.Colors.textPrimary)
-                Text("Earn 1 point per $1 spent. Redeem below for free items.")
+                Text("Earn 1 point per $1 of order total. Points are added after the store marks your order completed—not at checkout. Redeem below for free items.")
                     .font(.caption)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
@@ -162,14 +163,20 @@ struct RewardsView: View {
                 .font(.headline)
                 .fontWeight(.semibold)
                 .foregroundStyle(AppConstants.Colors.textPrimary)
-            
-            ForEach(viewModel.availableRewards) { reward in
-                RewardRowView(
-                    reward: reward,
-                    currentPoints: viewModel.points,
-                    isLoading: viewModel.isLoading
-                ) {
-                    Task { await viewModel.redeem(reward) }
+
+            if viewModel.availableRewards.isEmpty {
+                Text("No rewards are listed yet. The shop will add offers here.")
+                    .font(.subheadline)
+                    .foregroundStyle(AppConstants.Colors.textSecondary)
+            } else {
+                ForEach(viewModel.availableRewards) { reward in
+                    RewardRowView(
+                        reward: reward,
+                        currentPoints: viewModel.points,
+                        isLoading: viewModel.isLoading
+                    ) {
+                        Task { await viewModel.redeem(reward) }
+                    }
                 }
             }
         }

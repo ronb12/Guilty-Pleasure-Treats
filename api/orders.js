@@ -142,8 +142,10 @@ export default async function handler(req, res) {
         const fromTs = fromStr ? Date.parse(fromStr) : NaN;
         const toTs = toStr ? Date.parse(toStr) : NaN;
         rows = (rows || []).filter((r) => {
-          if (statusQ && String(r.status ?? '') !== statusQ) return false;
-          if (fulfillmentQ && String(r.fulfillment_type ?? '') !== fulfillmentQ) return false;
+          const rowStatus = String(r.status ?? '').trim();
+          const rowFulfillment = String(r.fulfillment_type ?? '').trim();
+          if (statusQ && rowStatus.toLowerCase() !== statusQ.toLowerCase()) return false;
+          if (fulfillmentQ && rowFulfillment.toLowerCase() !== fulfillmentQ.toLowerCase()) return false;
           if (searchQ) {
             const hay = `${r.customer_name ?? ''} ${r.customer_phone ?? ''} ${r.customer_email ?? ''}`.toLowerCase();
             if (!hay.includes(searchQ)) return false;
@@ -196,7 +198,15 @@ export default async function handler(req, res) {
     if (!customerName || !customerPhone) return res.status(400).json({ error: 'customerName and customerPhone are required' });
 
     const userId = body.userId != null ? (body.userId === '' ? null : String(body.userId)) : null;
-    const customerEmail = body.customerEmail ?? body.customer_email ?? null;
+    const customerEmailRaw = String(body.customerEmail ?? body.customer_email ?? '').trim();
+    if (!customerEmailRaw) {
+      return res.status(400).json({ error: 'customerEmail is required' });
+    }
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmailRaw);
+    if (!emailOk) {
+      return res.status(400).json({ error: 'A valid email address is required' });
+    }
+    const customerEmail = customerEmailRaw.toLowerCase();
     const deliveryAddress = body.deliveryAddress ?? body.delivery_address ?? null;
     const scheduledPickupDate = body.scheduledPickupDate ?? body.scheduled_pickup_date ?? null;
     const status = String(body.status ?? 'Pending').trim();

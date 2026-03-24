@@ -480,6 +480,11 @@ final class VercelService {
         return true
     }
 
+    /// Redeem a configured loyalty reward (server validates id, points cost, active flag).
+    func redeemLoyaltyReward(rewardId: String) async throws {
+        try await patchUserMe(["redeemLoyaltyRewardId": rewardId])
+    }
+
     private func patchUserMe(_ body: [String: Any]) async throws {
         guard let url = apiURL(pathComponents: "api", "users", "me"), let token = authToken else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
@@ -775,6 +780,121 @@ final class VercelService {
         let (_, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
         try validateResponse(http, data: Data())
+    }
+
+    // MARK: - Loyalty rewards (admin + customer list)
+
+    /// Active rewards for shoppers. With `includeInactive: true` and admin auth, returns all rows for editing.
+    func fetchLoyaltyRewards(includeInactive: Bool = false) async throws -> [LoyaltyRewardItem] {
+        guard let base = baseURL else { throw VercelNotConfiguredError() }
+        var comp = URLComponents(url: base.appendingPathComponent("api/loyalty-rewards"), resolvingAgainstBaseURL: false)
+        if includeInactive {
+            comp?.queryItems = [URLQueryItem(name: "includeInactive", value: "1")]
+        }
+        guard let url = comp?.url else { throw VercelNotConfiguredError() }
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        if let token = authToken { req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        let (data, res) = try await session.data(for: req)
+        guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
+        try validateResponse(http, data: data)
+        return try decoder.decode([LoyaltyRewardItem].self, from: data)
+    }
+
+    func createLoyaltyReward(name: String, pointsRequired: Int, productId: String, sortOrder: Int, isActive: Bool) async throws -> String {
+        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
+        let url = base.appendingPathComponent("api/loyalty-rewards")
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let body: [String: Any] = [
+            "name": name,
+            "pointsRequired": pointsRequired,
+            "productId": productId,
+            "sortOrder": sortOrder,
+            "isActive": isActive,
+        ]
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, res) = try await session.data(for: req)
+        guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
+        try validateResponse(http, data: data)
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        return json?["id"] as? String ?? ""
+    }
+
+    func updateLoyaltyReward(_ reward: LoyaltyRewardItem) async throws {
+        let rawId = reward.id.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rawId.isEmpty else {
+            throw VercelAPIError(message: "Reward is missing an id.", statusCode: nil)
+        }
+        guard let token = authToken else { throw VercelNotConfiguredError() }
+        guard let url = apiIDURL(resource: "loyalty-rewards", id: rawId) else { throw VercelNotConfiguredError() }
+        var req = URLRequest(url: url)
+        req.httpMethod = "PATCH"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        var body: [String: Any] = [
+            "name": reward.name,
+            "pointsRequired": reward.pointsRequired,
+            "sortOrder": reward.sortOrder,
+            "isActive": reward.isActive,
+        ]
+        let pidCandidate = reward.productId?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? reward.product?.id?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let pid = pidCandidate, !pid.isEmpty {
+            body["productId"] = pid
+        }
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, res) = try await session.data(for: req)
+        guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
+        try validateResponse(http, data: data)
+        _ = data
+    }
+
+    func deleteLoyaltyReward(id: String) async throws {
+        guard let token = authToken else { throw VercelNotConfiguredError() }
+        guard let url = apiIDURL(resource: "loyalty-rewards", id: id) else { throw VercelNotConfiguredError() }
+        var req = URLRequest(url: url)
+        req.httpMethod = "DELETE"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (_, res) = try await session.data(for: req)
+        guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
+        try validateResponse(http, data: Data())
+    }
+
+    // MARK: - Newsletter (admin)
+
+    func fetchNewsletterRecipientCount() async throws -> Int {
+        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
+        let url = base.appendingPathComponent("api/admin/newsletter")
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, res) = try await session.data(for: req)
+        guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
+        try validateResponse(http, data: data)
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        return (json?["recipientCount"] as? NSNumber)?.intValue ?? (json?["recipientCount"] as? Int) ?? 0
+    }
+
+    func sendNewsletter(subject: String, htmlBody: String, textBody: String?, replyTo: String?) async throws -> NewsletterSendResult {
+        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
+        let url = base.appendingPathComponent("api/admin/newsletter")
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        var body: [String: Any] = ["subject": subject]
+        let htmlTrim = htmlBody.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !htmlTrim.isEmpty { body["htmlBody"] = htmlBody }
+        if let t = textBody?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty { body["textBody"] = t }
+        if let r = replyTo?.trimmingCharacters(in: .whitespacesAndNewlines), !r.isEmpty { body["replyTo"] = r }
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, res) = try await session.data(for: req)
+        guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
+        try validateResponse(http, data: data)
+        return try decoder.decode(NewsletterSendResult.self, from: data)
     }
 
     // MARK: - Custom cake orders
@@ -1288,7 +1408,7 @@ final class VercelService {
             "fulfillmentType": order.fulfillmentType,
             "status": order.status,
         ]
-        if let e = order.customerEmail, !e.isEmpty { payload["customerEmail"] = e }
+        payload["customerEmail"] = order.customerEmail?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if let a = order.deliveryAddress, !a.isEmpty { payload["deliveryAddress"] = a }
         if let d = order.scheduledPickupDate { payload["scheduledPickupDate"] = ISO8601DateFormatter().string(from: d) }
         if let s = order.stripePaymentIntentId { payload["stripePaymentIntentId"] = s }

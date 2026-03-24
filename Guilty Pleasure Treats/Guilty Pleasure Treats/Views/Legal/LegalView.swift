@@ -11,6 +11,13 @@ struct LegalView: View {
     var body: some View {
         List {
             Section {
+                NavigationLink("Rewards & points") {
+                    DocumentView(title: "Rewards & points", markdown: LegalContent.rewardsHelpMarkdown)
+                }
+            } header: {
+                Text("Help")
+            }
+            Section {
                 NavigationLink("Privacy Policy") {
                     DocumentView(title: "Privacy Policy", markdown: LegalContent.privacyPolicyMarkdown)
                 }

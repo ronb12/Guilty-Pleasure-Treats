@@ -49,3 +49,15 @@ Without these, push sending is skipped (no crash); handlers still run.
 2. Customer submits contact form → backend inserts message, fetches admin tokens, calls `notifyNewMessage()` → admins get push.
 3. Admin updates order status → backend updates order, fetches customer token, calls `notifyOrderStatusUpdate()` → customer gets push.
 4. User taps push → app receives notification, adds to in-app center, sets `pendingPushAction` → RootView opens Orders tab or Admin.
+
+## Email newsletter (Resend)
+
+Admin → **Business Settings** → **Marketing** → **Email newsletter** calls **GET/POST `/api/admin/newsletter`** (routed in `api/[[...path]].js` → `api-src/admin/newsletter.js`). Recipients are distinct emails from **orders** plus **non-admin user** accounts.
+
+| Variable | Description |
+|----------|-------------|
+| `RESEND_API_KEY` | Resend API key |
+| `NEWSLETTER_FROM_EMAIL` or `RESEND_FROM_EMAIL` | Verified sender (domain verified in Resend) |
+| `NEWSLETTER_MAX_SENDS` | Optional; max sends per request (default 150, cap 500) |
+
+Without these, the API returns **503** with a clear error; the app shows it in the newsletter screen.

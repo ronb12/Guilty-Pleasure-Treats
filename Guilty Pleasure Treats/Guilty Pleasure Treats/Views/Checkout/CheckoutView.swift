@@ -150,13 +150,16 @@ struct CheckoutView: View {
                 #if os(iOS)
                 .keyboardType(.phonePad)
                 #endif
-            TextField("Email (optional — for receipts)", text: $viewModel.customerEmail)
+            TextField("Email (required)", text: $viewModel.customerEmail)
                 .textFieldStyle(.roundedBorder)
                 #if os(iOS)
                 .keyboardType(.emailAddress)
                 .textInputAutocapitalization(.never)
                 #endif
                 .autocorrectionDisabled()
+            Text("We need your email for order updates and receipts. If you’re signed in, your account email is used when this field is empty.")
+                .font(.caption)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
         }
         .padding()
         .background(AppConstants.Colors.cardBackground)

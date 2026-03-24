@@ -61,34 +61,15 @@ struct AdminCustomer: Identifiable {
     let key: String
     let displayName: String
     let phone: String
+    /// First non-empty email from this customer’s orders (checkout email).
+    let email: String?
     let orderCount: Int
     let totalSpent: Double
     let orders: [Order]
     /// Loyalty points (from first order's userPoints, if available). Nil for guest customers.
     let points: Int?
-    
-    /// True if customer has enough points for free cookie (50+).
-    var canRedeemCookie: Bool {
-        guard let p = points else { return false }
-        return p >= 50
-    }
-    
-    /// True if customer has enough points for free cupcake (100+).
-    var canRedeemCupcake: Bool {
-        guard let p = points else { return false }
-        return p >= 100
-    }
-    
-    /// Returns reward eligibility text, e.g. "50 pts (Free cookie)" or "100 pts (Free cupcake)".
-    var rewardEligibilityText: String? {
-        guard let p = points else { return nil }
-        if p >= 100 {
-            return "\(p) pts (Free cupcake)"
-        } else if p >= 50 {
-            return "\(p) pts (Free cookie)"
-        }
-        return "\(p) pts"
-    }
+    /// True when at least one order is tied to a signed-in user (`userId`).
+    var hasAccount: Bool { key.hasPrefix("u:") }
 }
 
 @MainActor
@@ -101,8 +82,11 @@ final class AdminViewModel: ObservableObject {
     @Published var adminOrderSearchText: String = ""
     @Published var adminOrderDateFrom: Date? = nil
     @Published var adminOrderDateTo: Date? = nil
+    /// Set when `loadOrders()` fails (decode, network, auth). Cleared on success.
+    @Published var ordersLoadError: String? = nil
     @Published var businessSettings: BusinessSettings?
     @Published var promotions: [Promotion] = []
+    @Published var loyaltyRewards: [LoyaltyRewardItem] = []
     @Published var customCakeOrders: [CustomCakeOrder] = []
     @Published var aiCakeDesignOrders: [AICakeDesignOrder] = []
     @Published var customCakeOptions: CustomCakeOptionsResponse?
@@ -160,10 +144,15 @@ final class AdminViewModel: ObservableObject {
             let total = orderList.filter { $0.statusEnum != .cancelled }.reduce(0.0) { $0 + $1.total }
             // Get points from first order that has userPoints (for signed-in customers)
             let points = orderList.compactMap { $0.userPoints }.first
+            let email = orderList.compactMap { ord -> String? in
+                let e = ord.customerEmail?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return e.isEmpty ? nil : e
+            }.first
             return AdminCustomer(
                 key: key,
                 displayName: o.customerName,
                 phone: o.customerPhone,
+                email: email,
                 orderCount: orderList.count,
                 totalSpent: total,
                 orders: orderList.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) },
@@ -172,9 +161,45 @@ final class AdminViewModel: ObservableObject {
         }.sorted { $0.orderCount > $1.orderCount }
     }
     
-    /// Customers eligible for rewards (50+ points for cookie, 100+ for cupcake).
+    /// Customers with enough points for at least one active loyalty reward (from Admin → Loyalty rewards).
     var customersEligibleForRewards: [AdminCustomer] {
-        customers.filter { $0.canRedeemCookie }
+        let active = loyaltyRewards.filter { $0.isActive }
+        guard let minPts = active.map(\.pointsRequired).min() else { return [] }
+        return customers.filter { ($0.points ?? 0) >= minPts }
+    }
+
+    /// Short caption for the Customers list (uses `loyaltyRewards`).
+    func rewardEligibilityCaption(for customer: AdminCustomer) -> String? {
+        guard let p = customer.points else { return nil }
+        let active = loyaltyRewards.filter { $0.isActive }.sorted { $0.pointsRequired < $1.pointsRequired }
+        if active.isEmpty { return "\(p) pts" }
+        let eligible = active.filter { p >= $0.pointsRequired }
+        if !eligible.isEmpty {
+            let names = eligible.map(\.name).joined(separator: ", ")
+            return "\(p) pts — can redeem: \(names)"
+        }
+        if let next = active.first(where: { p < $0.pointsRequired }) {
+            let gap = next.pointsRequired - p
+            return "\(p) pts (need \(gap) more for \(next.name))"
+        }
+        return "\(p) pts"
+    }
+
+    /// Badges for customer detail (e.g. eligible reward names).
+    func eligibleRewardNames(for customer: AdminCustomer) -> String? {
+        guard let p = customer.points else { return nil }
+        let eligible = loyaltyRewards.filter { $0.isActive && p >= $0.pointsRequired }
+        if eligible.isEmpty { return nil }
+        return eligible.map(\.name).joined(separator: ", ")
+    }
+
+    /// Hint when not yet eligible for the next cheapest reward.
+    func nextRewardPointsHint(for customer: AdminCustomer) -> String? {
+        guard let p = customer.points else { return nil }
+        let active = loyaltyRewards.filter { $0.isActive }.sorted { $0.pointsRequired < $1.pointsRequired }
+        guard let next = active.first(where: { p < $0.pointsRequired }) else { return nil }
+        let gap = next.pointsRequired - p
+        return "\(gap) more points for \(next.name)"
     }
     
     var totalRevenue: Double {
@@ -512,6 +537,80 @@ final class AdminViewModel: ObservableObject {
         """
     }
 
+    /// HTML for a printable customer report: everyone who appears in **From orders**, split into account vs guest checkout.
+    func customerReportHTML() -> String {
+        let storeName = (businessSettings?.storeName?.trimmingCharacters(in: .whitespaces)).flatMap { $0.isEmpty ? nil : $0 } ?? "Guilty Pleasure Treats"
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .medium
+        dateFormatter.timeStyle = .short
+        let now = Date()
+        let currencyFormatter = NumberFormatter()
+        currencyFormatter.numberStyle = .currency
+        currencyFormatter.locale = Locale.current
+        func fmt(_ n: Double) -> String { currencyFormatter.string(from: NSNumber(value: n)) ?? "$0.00" }
+        func esc(_ s: String) -> String {
+            s.replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+                .replacingOccurrences(of: "\"", with: "&quot;")
+        }
+        let list = customers
+        let withAccount = list.filter(\.hasAccount).sorted {
+            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
+        let guests = list.filter { !$0.hasAccount }.sorted {
+            $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
+        func row(_ c: AdminCustomer) -> String {
+            let em = (c.email.map { esc($0) }) ?? "—"
+            return "<tr><td>\(esc(c.displayName))</td><td>\(esc(c.phone))</td><td>\(em)</td><td>\(c.orderCount)</td><td>\(fmt(c.totalSpent))</td></tr>"
+        }
+        var accountRows = ""
+        for c in withAccount { accountRows += row(c) }
+        var guestRows = ""
+        for c in guests { guestRows += row(c) }
+        let accountEmpty = accountRows.isEmpty ? "<tr><td colspan=\"5\">None</td></tr>" : accountRows
+        let guestEmpty = guestRows.isEmpty ? "<tr><td colspan=\"5\">None</td></tr>" : guestRows
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <meta charset="utf-8">
+        <title>Customer Report – Guilty Pleasure Treats</title>
+        <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 20px; color: #333; }
+        h1 { font-size: 22px; margin-bottom: 4px; }
+        .meta { color: #666; font-size: 14px; margin-bottom: 16px; }
+        h2 { font-size: 16px; margin-top: 20px; margin-bottom: 8px; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
+        th, td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+        th { background: #f5f5f5; }
+        .summary p { margin: 6px 0; }
+        </style>
+        </head>
+        <body>
+        <h1>Customer report</h1>
+        <p class="meta">\(esc(storeName)) · Generated \(esc(dateFormatter.string(from: now)))</p>
+        <div class="summary">
+        <p><strong>Customers who ordered</strong> (from your order history): \(list.count) total · \(withAccount.count) with an account · \(guests.count) guest checkout (no account)</p>
+        </div>
+        <h2>With an account</h2>
+        <p class="meta">Signed-in customers (orders linked to a user).</p>
+        <table>
+        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Orders</th><th>Total spent</th></tr></thead>
+        <tbody>\(accountEmpty)</tbody>
+        </table>
+        <h2>Guest checkout (no account)</h2>
+        <p class="meta">Orders placed without signing in (grouped by name and phone).</p>
+        <table>
+        <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Orders</th><th>Total spent</th></tr></thead>
+        <tbody>\(guestEmpty)</tbody>
+        </table>
+        </body>
+        </html>
+        """
+    }
+
     func loadProducts() async {
         isLoading = true
         errorMessage = nil
@@ -690,6 +789,7 @@ final class AdminViewModel: ObservableObject {
     
     func loadOrders() async {
         do {
+            ordersLoadError = nil
             orders = try await api.fetchAllOrders(
                 status: adminOrderStatusFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : adminOrderStatusFilter,
                 fulfillmentType: adminOrderFulfillmentFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : adminOrderFulfillmentFilter,
@@ -707,10 +807,20 @@ final class AdminViewModel: ObservableObject {
             }
         } catch {
             orders = []
+            ordersLoadError = FriendlyErrorMessage.message(for: error)
             #if DEBUG
             print("[Admin] loadOrders failed: \(error)")
             #endif
         }
+    }
+
+    /// True when any admin order list filter is active (may hide rows that exist in Neon).
+    var hasActiveAdminOrderFilters: Bool {
+        !adminOrderStatusFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !adminOrderFulfillmentFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !adminOrderSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || adminOrderDateFrom != nil
+            || adminOrderDateTo != nil
     }
     
     func addProduct(name: String, description: String, price: Double, cost: Double? = nil, category: String, isFeatured: Bool, isVegan: Bool = false, image: PlatformImage?, stockQuantity: Int? = nil, lowStockThreshold: Int? = nil, sizeOptions: [ProductSizeOption]? = nil) async -> Bool {
@@ -1052,6 +1162,93 @@ final class AdminViewModel: ObservableObject {
             #if DEBUG
             print("[Admin] loadPromotions failed: \(error)")
             #endif
+        }
+    }
+
+    func loadLoyaltyRewards() async {
+        do {
+            loyaltyRewards = try await api.fetchLoyaltyRewards(includeInactive: true)
+        } catch {
+            loyaltyRewards = []
+            #if DEBUG
+            print("[Admin] loadLoyaltyRewards failed: \(error)")
+            #endif
+        }
+    }
+
+    @discardableResult
+    func addLoyaltyReward(name: String, pointsRequired: Int, productId: String, sortOrder: Int, isActive: Bool) async -> Bool {
+        do {
+            _ = try await api.createLoyaltyReward(name: name, pointsRequired: pointsRequired, productId: productId, sortOrder: sortOrder, isActive: isActive)
+            successMessage = "Loyalty reward added."
+            await loadLoyaltyRewards()
+            return true
+        } catch {
+            errorMessage = FriendlyErrorMessage.message(for: error)
+            return false
+        }
+    }
+
+    @discardableResult
+    func updateLoyaltyReward(_ reward: LoyaltyRewardItem) async -> Bool {
+        do {
+            try await api.updateLoyaltyReward(reward)
+            successMessage = "Loyalty reward updated."
+            await loadLoyaltyRewards()
+            return true
+        } catch {
+            errorMessage = FriendlyErrorMessage.message(for: error)
+            return false
+        }
+    }
+
+    func deleteLoyaltyReward(id: String) async {
+        do {
+            try await api.deleteLoyaltyReward(id: id)
+            successMessage = "Loyalty reward removed."
+            await loadLoyaltyRewards()
+        } catch {
+            errorMessage = FriendlyErrorMessage.message(for: error)
+        }
+    }
+
+    @Published var newsletterRecipientCount: Int?
+
+    func loadNewsletterRecipientCount() async {
+        do {
+            newsletterRecipientCount = try await api.fetchNewsletterRecipientCount()
+        } catch {
+            newsletterRecipientCount = nil
+            #if DEBUG
+            print("[Admin] loadNewsletterRecipientCount failed: \(error)")
+            #endif
+        }
+    }
+
+    @discardableResult
+    func sendNewsletter(subject: String, htmlBody: String, textBody: String?, replyTo: String?) async -> Bool {
+        do {
+            let result = try await api.sendNewsletter(
+                subject: subject,
+                htmlBody: htmlBody,
+                textBody: textBody,
+                replyTo: replyTo
+            )
+            var msg = "Sent \(result.sent) email(s)."
+            if result.failed > 0 { msg += " \(result.failed) failed." }
+            if result.truncated {
+                msg += " Some recipients were skipped (per-send limit). Raise NEWSLETTER_MAX_SENDS on the server or send again later."
+            }
+            if let samples = result.sampleErrors, !samples.isEmpty {
+                let detail = samples.prefix(3).map { "\($0.to): \($0.message)" }.joined(separator: " · ")
+                msg += " Examples: \(detail)"
+            }
+            successMessage = msg
+            await loadNewsletterRecipientCount()
+            return true
+        } catch {
+            errorMessage = FriendlyErrorMessage.message(for: error)
+            return false
         }
     }
     

@@ -2,7 +2,7 @@
 //  LegalContent.swift
 //  Guilty Pleasure Treats
 //
-//  Privacy Policy and Terms of Service text for in-app display.
+//  Privacy Policy, Terms of Service, and Help articles for in-app display.
 //  Update these when you update the .md files; replace [placeholders] with your URLs/email/state.
 //
 
@@ -69,6 +69,8 @@ enum LegalContent {
 
     Loyalty points and promotions are offered at our discretion and may change. Points have no cash value unless stated.
 
+    **How loyalty points work:** When you are signed in and place an order, you may earn points based on the order total. You earn **1 point per $1** of order total (rounded down to a whole number). **Points are credited after the store marks your order completed** in our system; they are not added at checkout when you pay. You may redeem points in the app for rewards we offer from time to time (for example, free items), subject to availability and these Terms.
+
     ## 5. Intellectual Property
 
     The app and its content are owned by us or our licensors. You may not copy or distribute our content without permission. You grant us a license to use your submitted content to provide and improve our services.
@@ -82,5 +84,18 @@ enum LegalContent {
     We may suspend or terminate access at any time. We may update these Terms; continued use means acceptance. For questions, use the Support URL or contact email in the app or on our website.
 
     Thank you for using Guilty Pleasure Treats.
+    """
+
+    /// Help article: same loyalty mechanics as the Rewards screen and Terms §4, in plain language.
+    static let rewardsHelpMarkdown = """
+    # Rewards & points
+
+    **Earn:** 1 point per $1 of order total.
+
+    **When you get points:** Points are added after the store marks your order completed—not at checkout.
+
+    **Redeem:** Open the **Rewards** tab and redeem for free treats. Current offers (for example, point costs for specific items) are listed there.
+
+    The program is offered at our discretion and may change. Points have no cash value unless we say otherwise. For full terms, see **Terms of Service** in Settings.
     """
 }

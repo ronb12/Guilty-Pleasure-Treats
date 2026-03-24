@@ -387,6 +387,22 @@ async function main() {
     await sql`ALTER TABLE promotions ADD COLUMN IF NOT EXISTS first_order_only BOOLEAN NOT NULL DEFAULT false`;
     console.log('promotions OK');
 
+    // loyalty_rewards (admin-editable: points → free catalog product)
+    await sql`
+      CREATE TABLE IF NOT EXISTS loyalty_rewards (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        points_required INT NOT NULL CHECK (points_required > 0),
+        product_id UUID NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+        sort_order INT NOT NULL DEFAULT 0,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS idx_loyalty_rewards_active ON loyalty_rewards (is_active, sort_order)`;
+    console.log('loyalty_rewards OK');
+
     // business_settings (custom_cake_options, main config, etc.)
     await sql`
       CREATE TABLE IF NOT EXISTS business_settings (
@@ -428,7 +444,7 @@ async function main() {
       'users', 'sessions', 'password_reset_tokens', 'orders', 'products',
       'custom_cake_orders', 'ai_cake_designs', 'admin_messages', 'contact_messages',
       'contact_message_replies', 'cake_gallery', 'product_categories', 'customers',
-      'push_tokens', 'events', 'reviews', 'promotions', 'business_settings',
+      'push_tokens', 'events', 'reviews', 'promotions', 'loyalty_rewards', 'business_settings',
       'order_idempotency',
     ];
     const verify = await sql`
@@ -438,7 +454,7 @@ async function main() {
           'users', 'sessions', 'password_reset_tokens', 'orders', 'products',
           'custom_cake_orders', 'ai_cake_designs', 'admin_messages', 'contact_messages',
           'contact_message_replies', 'cake_gallery', 'product_categories', 'customers',
-          'push_tokens', 'events', 'reviews', 'promotions', 'business_settings',
+          'push_tokens', 'events', 'reviews', 'promotions', 'loyalty_rewards', 'business_settings',
           'order_idempotency'
         )
       ORDER BY tablename

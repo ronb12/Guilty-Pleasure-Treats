@@ -2,9 +2,10 @@
  * GET /api/users/me — current user profile (auth required).
  * PATCH /api/users/me — update displayName; addPoints / redeemPoints; admin may addPoints with targetUserId.
  */
-import { sql, hasDb } from '../../api/lib/db.js';
-import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
-import { setCors, handleOptions } from '../../api/lib/cors.js';
+import { sql, hasDb } from '../lib/db.js';
+import { getTokenFromRequest, getSession } from '../lib/auth.js';
+import { setCors, handleOptions } from '../lib/cors.js';
+import { ensureLoyaltyRewardsTable } from '../../api-src/lib/loyaltyRewardsSchema.js';
 
 function userResponse(row) {
   if (!row) return null;
@@ -63,6 +64,10 @@ export default async function handler(req, res) {
       let targetId = sessionUserId;
       const addPoints = body.addPoints != null ? Number(body.addPoints) : null;
       const redeemPoints = body.redeemPoints != null ? Number(body.redeemPoints) : null;
+      const redeemLoyaltyRewardIdRaw = body.redeemLoyaltyRewardId ?? body.redeem_loyalty_reward_id;
+      const redeemLoyaltyRewardId = redeemLoyaltyRewardIdRaw != null && String(redeemLoyaltyRewardIdRaw).trim() !== ''
+        ? String(redeemLoyaltyRewardIdRaw).trim()
+        : null;
       const targetUserId = body.targetUserId != null ? String(body.targetUserId).trim() : null;
 
       if (addPoints != null && addPoints > 0 && targetUserId && session.isAdmin === true) {
@@ -76,9 +81,18 @@ export default async function handler(req, res) {
 
       let nextPoints = Number(current.points ?? 0);
       let nextDisplay = current.display_name;
+      let nextPhone = current.phone;
 
       if (body.displayName !== undefined && targetId === sessionUserId) {
         nextDisplay = body.displayName == null ? null : String(body.displayName).trim() || null;
+      }
+
+      if (body.phone !== undefined && targetId === sessionUserId) {
+        nextPhone = body.phone == null || body.phone === '' ? null : String(body.phone).trim();
+      }
+
+      if (redeemLoyaltyRewardId && redeemPoints != null && redeemPoints > 0) {
+        return res.status(400).json({ error: 'Use either redeemLoyaltyRewardId or redeemPoints' });
       }
 
       if (addPoints != null && addPoints > 0) {
@@ -88,7 +102,24 @@ export default async function handler(req, res) {
         nextPoints += addPoints;
       }
 
-      if (redeemPoints != null && redeemPoints > 0) {
+      if (redeemLoyaltyRewardId) {
+        if (targetId !== sessionUserId) return res.status(403).json({ error: 'Forbidden' });
+        try {
+          await ensureLoyaltyRewardsTable(sql);
+          const [rw] = await sql`
+            SELECT id, points_required FROM loyalty_rewards
+            WHERE id = ${redeemLoyaltyRewardId}::uuid AND is_active = true
+            LIMIT 1
+          `;
+          if (!rw) return res.status(400).json({ error: 'Invalid or inactive reward' });
+          const cost = Number(rw.points_required);
+          if (nextPoints < cost) return res.status(400).json({ error: 'Not enough points' });
+          nextPoints -= cost;
+        } catch (e) {
+          if (e?.code === '22P02') return res.status(400).json({ error: 'Invalid reward id' });
+          throw e;
+        }
+      } else if (redeemPoints != null && redeemPoints > 0) {
         if (targetId !== sessionUserId) return res.status(403).json({ error: 'Forbidden' });
         if (nextPoints < redeemPoints) return res.status(400).json({ error: 'Not enough points' });
         nextPoints -= redeemPoints;

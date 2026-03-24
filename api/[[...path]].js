@@ -33,6 +33,8 @@ function modulePathFor(key) {
     promotions: 'promotions/index.js',
     'promotions/code/code': 'promotions/code/code.js',
     'promotions/id': 'promotions/id.js',
+    'loyalty-rewards': 'loyalty-rewards/index.js',
+    'loyalty-rewards/id': 'loyalty-rewards/id.js',
     'custom-cake-orders': 'custom-cake-orders/index.js',
     'custom-cake-orders/id': 'custom-cake-orders/id.js',
     'ai-cake-designs': 'ai-cake-designs/index.js',
@@ -56,6 +58,7 @@ function modulePathFor(key) {
     'push/register': 'push/register.js',
     'webhooks/carrier-tracking': 'webhooks/carrier-tracking.js',
     'analytics/summary': 'analytics/summary.js',
+    'admin/newsletter': 'admin/newsletter.js',
     reviews: 'reviews/index.js',
     events: 'events/index.js',
     'events/id': 'events/id.js',
@@ -181,6 +184,12 @@ function getPathKey(req) {
       key = 'promotions/id';
       assignDetailIdFromSegments(q, segs);
     }
+  } else if (segs[0] === 'loyalty-rewards') {
+    if (segs.length === 1) key = 'loyalty-rewards';
+    else {
+      key = 'loyalty-rewards/id';
+      assignDetailIdFromSegments(q, segs);
+    }
   } else if (segs[0] === 'custom-cake-orders') {
     if (segs.length === 1) key = 'custom-cake-orders';
     else {
@@ -209,6 +218,8 @@ function getPathKey(req) {
     }
   } else if (segs[0] === 'admin-messages') {
     key = 'admin-messages';
+  } else if (segs[0] === 'admin' && segs[1] === 'newsletter') {
+    key = 'admin/newsletter';
   } else if (segs[0] === 'stripe' && segs[1] === 'create-checkout-session') {
     key = 'stripe/create-checkout-session';
   } else if (segs[0] === 'stripe' && segs[1] === 'create-payment-intent') {

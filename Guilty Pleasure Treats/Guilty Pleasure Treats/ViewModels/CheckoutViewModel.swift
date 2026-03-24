@@ -88,9 +88,25 @@ final class CheckoutViewModel: ObservableObject {
         Calendar.current.date(byAdding: .hour, value: minimumOrderLeadTimeHours, to: Date()) ?? Date()
     }
 
+    /// Email from the field, or signed-in account when the field is empty.
+    var effectiveEmailForOrder: String {
+        let raw = customerEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !raw.isEmpty { return raw }
+        return auth.currentUser?.email?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    private func isValidEmail(_ s: String) -> Bool {
+        guard !s.isEmpty else { return false }
+        let pattern = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
+        return s.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
+    var hasValidEmailForOrder: Bool { isValidEmail(effectiveEmailForOrder) }
+
     var canCheckout: Bool {
         guard !customerName.trimmingCharacters(in: .whitespaces).isEmpty,
-              !customerPhone.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+              !customerPhone.trimmingCharacters(in: .whitespaces).isEmpty,
+              hasValidEmailForOrder else { return false }
         if fulfillmentType == .delivery || fulfillmentType == .shipping {
             return !street.trimmingCharacters(in: .whitespaces).isEmpty &&
                    !city.trimmingCharacters(in: .whitespaces).isEmpty &&
@@ -240,10 +256,12 @@ final class CheckoutViewModel: ObservableObject {
     func placeOrder(paymentMethod: PaymentMethod) async -> Bool {
         isWaitingForStripePayment = false
         guard canCheckout else {
-            if fulfillmentType == .delivery || fulfillmentType == .shipping {
-                errorMessage = "Please enter name, phone, and full delivery address."
+            if !hasValidEmailForOrder {
+                errorMessage = "Please enter a valid email address."
+            } else if fulfillmentType == .delivery || fulfillmentType == .shipping {
+                errorMessage = "Please enter name, phone, email, and full delivery address."
             } else {
-                errorMessage = "Please enter name and phone number."
+                errorMessage = "Please enter name, phone number, and email."
             }
             return false
         }
@@ -271,14 +289,14 @@ final class CheckoutViewModel: ObservableObject {
             return String(id.dropFirst("aicake-".count))
         }
         
-        let emailToUse = customerEmail.trimmingCharacters(in: .whitespaces).isEmpty ? auth.currentUser?.email : customerEmail.trimmingCharacters(in: .whitespaces)
+        let emailToUse = effectiveEmailForOrder.trimmingCharacters(in: .whitespacesAndNewlines)
         let promoForApi: String? = appliedPromotion.map { $0.code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }.flatMap { $0.isEmpty ? nil : $0 }
         var order = Order(
             id: nil,
             userId: auth.currentUser?.uid,
             customerName: customerName.trimmingCharacters(in: .whitespaces),
             customerPhone: customerPhone.trimmingCharacters(in: .whitespaces),
-            customerEmail: emailToUse?.isEmpty == true ? nil : emailToUse,
+            customerEmail: emailToUse,
             deliveryAddress: deliveryAddressString,
             items: orderItems,
             subtotal: subtotalAfterDiscount,

@@ -53,8 +53,6 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
         case isFeatured
         case isSoldOut
         case isVegan
-        /// Older API responses used `isVegetarian` for the same flag.
-        case legacyIsVegetarian = "isVegetarian"
         case stockQuantity
         case lowStockThreshold
         case createdAt
@@ -73,13 +71,7 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
         category = try c.decode(String.self, forKey: .category)
         isFeatured = Self.decodeFlexibleBool(c, key: .isFeatured)
         isSoldOut = Self.decodeFlexibleBool(c, key: .isSoldOut)
-        if c.contains(.isVegan) {
-            isVegan = Self.decodeFlexibleBool(c, key: .isVegan)
-        } else if c.contains(.legacyIsVegetarian) {
-            isVegan = Self.decodeFlexibleBool(c, key: .legacyIsVegetarian)
-        } else {
-            isVegan = false
-        }
+        isVegan = Self.decodeFlexibleBool(c, key: .isVegan)
         stockQuantity = Self.decodeFlexibleOptionalInt(c, key: .stockQuantity)
         lowStockThreshold = Self.decodeFlexibleOptionalInt(c, key: .lowStockThreshold)
         createdAt = Product.parseISO8601(try c.decodeIfPresent(String.self, forKey: .createdAt))

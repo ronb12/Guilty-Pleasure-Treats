@@ -187,6 +187,7 @@ struct AdminView: View {
                         await viewModel.loadOrders()
                         await viewModel.loadBusinessSettings()
                         await viewModel.loadPromotions()
+                        await viewModel.loadLoyaltyRewards()
                         await viewModel.loadSpecialOrders()
                         await viewModel.loadCustomCakeOptions()
                         await viewModel.loadContactMessages()
@@ -1309,6 +1310,7 @@ struct AdminOrdersView: View {
                         viewModel.adminOrderSearchText = ""
                         viewModel.adminOrderDateFrom = nil
                         viewModel.adminOrderDateTo = nil
+                        viewModel.ordersLoadError = nil
                         Task { await viewModel.loadOrders() }
                     }
                 }
@@ -1327,6 +1329,15 @@ struct AdminOrdersView: View {
             }
             #endif
             Section("Orders") {
+                if let err = viewModel.ordersLoadError, !err.isEmpty {
+                    Text(err)
+                        .font(.subheadline)
+                        .foregroundStyle(.red)
+                } else if viewModel.orders.isEmpty, viewModel.hasActiveAdminOrderFilters {
+                    Text("No orders match the current filters. The order may still be in the database—tap Clear above to show all orders.")
+                        .font(.subheadline)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                }
                 ForEach(viewModel.orders) { order in
                     NavigationLink {
                         OrderDetailView(
@@ -2129,7 +2140,7 @@ struct AdminCustomersView: View {
                                         Text(customer.phone)
                                             .font(.caption)
                                             .foregroundStyle(AppConstants.Colors.textSecondary)
-                                        if let rewardText = customer.rewardEligibilityText {
+                                        if let rewardText = viewModel.rewardEligibilityCaption(for: customer) {
                                             Text(rewardText)
                                                 .font(.caption)
                                                 .foregroundStyle(.green)
@@ -2183,6 +2194,13 @@ struct AdminCustomersView: View {
             }
             .navigationTitle("Customers")
             .toolbar {
+                ToolbarItem(placement: toolbarTrailingPlacement) {
+                    Button {
+                        PrintHelper.presentPrint(html: viewModel.customerReportHTML(), jobName: "Customer Report – Guilty Pleasure Treats")
+                    } label: {
+                        Label("Print report", systemImage: "printer")
+                    }
+                }
                 ToolbarItem(placement: toolbarTrailingPlacement) {
                     Button("Add customer") {
                         showAddCustomer = true
@@ -2268,16 +2286,12 @@ struct CustomerDetailSheet: View {
                                 .font(.headline)
                                 .foregroundStyle(AppConstants.Colors.accent)
                         }
-                        if customer.canRedeemCupcake {
-                            Label("Eligible for free cupcake (100 pts)", systemImage: "gift.fill")
+                        if let names = viewModel.eligibleRewardNames(for: customer) {
+                            Label("Eligible for: \(names)", systemImage: "gift.fill")
                                 .font(.caption)
                                 .foregroundStyle(.green)
-                        } else if customer.canRedeemCookie {
-                            Label("Eligible for free cookie (50 pts)", systemImage: "gift.fill")
-                                .font(.caption)
-                                .foregroundStyle(.green)
-                        } else if points > 0 {
-                            Text("\(50 - points) more points for free cookie")
+                        } else if let hint = viewModel.nextRewardPointsHint(for: customer) {
+                            Text(hint)
                                 .font(.caption2)
                                 .foregroundStyle(AppConstants.Colors.textSecondary)
                         }
@@ -2706,61 +2720,36 @@ struct AdminPromotionsView: View {
     @ObservedObject var viewModel: AdminViewModel
     @State private var showAddPromo = false
     @State private var editingPromo: Promotion?
-    
+    @State private var showAddLoyalty = false
+    @State private var editingLoyalty: LoyaltyRewardItem?
+    @State private var promoSegment = 0
+
     var body: some View {
         NavigationStack {
-            List {
-                #if os(macOS)
-                Section {
-                    Button {
-                        showAddPromo = true
-                    } label: {
-                        Label("Add promo", systemImage: "plus.circle.fill")
-                            .font(.body)
-                            .foregroundStyle(AppConstants.Colors.accent)
-                    }
-                    .buttonStyle(.plain)
+            VStack(spacing: 0) {
+                Picker("Section", selection: $promoSegment) {
+                    Text("Discount codes").tag(0)
+                    Text("Loyalty rewards").tag(1)
                 }
-                #endif
-                ForEach(viewModel.promotions, id: \.listingId) { p in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(p.code)
-                                .font(.headline)
-                            Text("\(p.discountType) · \(p.value)")
-                                .font(.caption)
-                                .foregroundStyle(AppConstants.Colors.textSecondary)
-                            if let rules = p.rewardRulesCaption {
-                                Text(rules)
-                                    .font(.caption2)
-                                    .foregroundStyle(AppConstants.Colors.textSecondary.opacity(0.9))
-                            }
-                        }
-                        Spacer()
-                        if p.isActive {
-                            Text("Active")
-                                .font(.caption)
-                                .foregroundStyle(.green)
-                        }
-                        Button("Edit") {
-                            editingPromo = p
-                        }
-                        .foregroundStyle(AppConstants.Colors.accent)
-                    }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            if let id = p.id {
-                                Task { await viewModel.deletePromotion(id: id) }
-                            }
-                        } label: { Label("Delete", systemImage: "trash") }
-                    }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+
+                if promoSegment == 0 {
+                    promoCodesList
+                } else {
+                    loyaltyRewardsList
                 }
             }
             .navigationTitle("Promotions")
             .toolbar {
                 ToolbarItem(placement: toolbarTrailingPlacement) {
                     Button("Add") {
-                        showAddPromo = true
+                        if promoSegment == 0 {
+                            showAddPromo = true
+                        } else {
+                            showAddLoyalty = true
+                        }
                     }
                     .foregroundStyle(AppConstants.Colors.accent)
                 }
@@ -2773,8 +2762,332 @@ struct AdminPromotionsView: View {
                 EditPromotionView(promotion: p, viewModel: viewModel)
                     .macOSAdminSheetSizeForm()
             }
+            .sheet(isPresented: $showAddLoyalty) {
+                AddLoyaltyRewardView(viewModel: viewModel) { showAddLoyalty = false }
+                    .macOSAdminSheetSizeForm()
+            }
+            .sheet(item: $editingLoyalty) { item in
+                EditLoyaltyRewardView(reward: item, viewModel: viewModel) { editingLoyalty = nil }
+                    .macOSAdminSheetSizeForm()
+            }
         }
     }
+
+    private var promoCodesList: some View {
+        List {
+            #if os(macOS)
+            Section {
+                Button {
+                    showAddPromo = true
+                } label: {
+                    Label("Add promo", systemImage: "plus.circle.fill")
+                        .font(.body)
+                        .foregroundStyle(AppConstants.Colors.accent)
+                }
+                .buttonStyle(.plain)
+            }
+            #endif
+            ForEach(viewModel.promotions, id: \.listingId) { p in
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(p.code)
+                            .font(.headline)
+                        Text("\(p.discountType) · \(p.value)")
+                            .font(.caption)
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                        if let rules = p.rewardRulesCaption {
+                            Text(rules)
+                                .font(.caption2)
+                                .foregroundStyle(AppConstants.Colors.textSecondary.opacity(0.9))
+                        }
+                    }
+                    Spacer()
+                    if p.isActive {
+                        Text("Active")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                    Button("Edit") {
+                        editingPromo = p
+                    }
+                    .foregroundStyle(AppConstants.Colors.accent)
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(role: .destructive) {
+                        if let id = p.id {
+                            Task { await viewModel.deletePromotion(id: id) }
+                        }
+                    } label: { Label("Delete", systemImage: "trash") }
+                }
+            }
+        }
+    }
+
+    private var loyaltyRewardsList: some View {
+        List {
+            #if os(macOS)
+            Section {
+                Button {
+                    showAddLoyalty = true
+                } label: {
+                    Label("Add loyalty reward", systemImage: "plus.circle.fill")
+                        .font(.body)
+                        .foregroundStyle(AppConstants.Colors.accent)
+                }
+                .buttonStyle(.plain)
+            }
+            #endif
+            if viewModel.loyaltyRewards.isEmpty {
+                Section {
+                    Text("No loyalty rewards yet. Add one and pick a menu product—the customer redeems points for that item at $0.")
+                        .font(.subheadline)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                }
+            }
+            ForEach(viewModel.loyaltyRewards) { r in
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(r.name)
+                            .font(.headline)
+                        Text("\(r.pointsRequired) pts → \(r.product?.name ?? "Product")")
+                            .font(.caption)
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                        Text("Sort \(r.sortOrder)")
+                            .font(.caption2)
+                            .foregroundStyle(AppConstants.Colors.textSecondary.opacity(0.9))
+                    }
+                    Spacer()
+                    if r.isActive {
+                        Text("Active")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    } else {
+                        Text("Hidden")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                    Button("Edit") {
+                        editingLoyalty = r
+                    }
+                    .foregroundStyle(AppConstants.Colors.accent)
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    Button(role: .destructive) {
+                        Task { await viewModel.deleteLoyaltyReward(id: r.id) }
+                    } label: { Label("Delete", systemImage: "trash") }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Loyalty rewards (admin)
+
+private struct AddLoyaltyRewardView: View {
+    @ObservedObject var viewModel: AdminViewModel
+    var onDismiss: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var pointsText = "50"
+    @State private var productId = ""
+    @State private var sortOrderText = "0"
+    @State private var isActive = true
+
+    private var productsWithIds: [Product] {
+        viewModel.products.filter { ($0.id ?? "").isEmpty == false }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if let err = viewModel.errorMessage, !err.isEmpty {
+                    Section {
+                        Text(err)
+                            .font(.subheadline)
+                            .foregroundStyle(.red)
+                    }
+                }
+                Section {
+                    TextField("Display name", text: $name)
+                } header: {
+                    Text("Name")
+                }
+                Section {
+                    TextField("Points required", text: $pointsText)
+                        #if os(iOS)
+                        .keyboardType(.numberPad)
+                        #endif
+                } header: {
+                    Text("Points")
+                }
+                Section {
+                    Picker("Product", selection: $productId) {
+                        Text("Select…").tag("")
+                        ForEach(productsWithIds, id: \.stablePickerId) { p in
+                            Text(p.name).tag(p.id ?? "")
+                        }
+                    }
+                } header: {
+                    Text("Free product")
+                } footer: {
+                    Text("Customer gets this catalog item at $0 when they redeem.")
+                        .font(.caption)
+                }
+                Section {
+                    TextField("Sort order", text: $sortOrderText)
+                        #if os(iOS)
+                        .keyboardType(.numberPad)
+                        #endif
+                } header: {
+                    Text("Order")
+                }
+                Section {
+                    Toggle("Active (show in app)", isOn: $isActive)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .macOSCompactFormContent()
+            .macOSGroupedFormStyle()
+            .navigationTitle("New loyalty reward")
+            .onAppear {
+                viewModel.clearMessages()
+                if productId.isEmpty, let first = productsWithIds.first?.id {
+                    productId = first
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { onDismiss(); dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        let pts = Int(pointsText) ?? 0
+                        let sort = Int(sortOrderText) ?? 0
+                        Task {
+                            let ok = await viewModel.addLoyaltyReward(
+                                name: name.trimmingCharacters(in: .whitespaces),
+                                pointsRequired: max(1, pts),
+                                productId: productId,
+                                sortOrder: sort,
+                                isActive: isActive
+                            )
+                            if ok { onDismiss(); dismiss() }
+                        }
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || productId.isEmpty)
+                }
+            }
+            .macOSEditSheetPadding()
+            .macOSReduceSheetTitleGap()
+        }
+    }
+}
+
+private struct EditLoyaltyRewardView: View {
+    let reward: LoyaltyRewardItem
+    @ObservedObject var viewModel: AdminViewModel
+    var onDismiss: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+    @State private var pointsText: String
+    @State private var productId: String
+    @State private var sortOrderText: String
+    @State private var isActive: Bool
+
+    private var productsWithIds: [Product] {
+        viewModel.products.filter { ($0.id ?? "").isEmpty == false }
+    }
+
+    init(reward: LoyaltyRewardItem, viewModel: AdminViewModel, onDismiss: @escaping () -> Void) {
+        self.reward = reward
+        self.viewModel = viewModel
+        self.onDismiss = onDismiss
+        _name = State(initialValue: reward.name)
+        _pointsText = State(initialValue: String(reward.pointsRequired))
+        _productId = State(initialValue: reward.productId ?? reward.product?.id ?? "")
+        _sortOrderText = State(initialValue: String(reward.sortOrder))
+        _isActive = State(initialValue: reward.isActive)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if let err = viewModel.errorMessage, !err.isEmpty {
+                    Section {
+                        Text(err)
+                            .font(.subheadline)
+                            .foregroundStyle(.red)
+                    }
+                }
+                Section {
+                    TextField("Display name", text: $name)
+                } header: {
+                    Text("Name")
+                }
+                Section {
+                    TextField("Points required", text: $pointsText)
+                        #if os(iOS)
+                        .keyboardType(.numberPad)
+                        #endif
+                } header: {
+                    Text("Points")
+                }
+                Section {
+                    Picker("Product", selection: $productId) {
+                        ForEach(productsWithIds, id: \.stablePickerId) { p in
+                            Text(p.name).tag(p.id ?? "")
+                        }
+                    }
+                } header: {
+                    Text("Free product")
+                }
+                Section {
+                    TextField("Sort order", text: $sortOrderText)
+                        #if os(iOS)
+                        .keyboardType(.numberPad)
+                        #endif
+                } header: {
+                    Text("Order")
+                }
+                Section {
+                    Toggle("Active (show in app)", isOn: $isActive)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .macOSCompactFormContent()
+            .macOSGroupedFormStyle()
+            .navigationTitle("Edit reward")
+            .onAppear { viewModel.clearMessages() }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { onDismiss(); dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        let pts = Int(pointsText) ?? reward.pointsRequired
+                        let sort = Int(sortOrderText) ?? reward.sortOrder
+                        let updated = LoyaltyRewardItem(
+                            id: reward.id,
+                            name: name.trimmingCharacters(in: .whitespaces),
+                            pointsRequired: max(1, pts),
+                            sortOrder: sort,
+                            isActive: isActive,
+                            productId: productId,
+                            product: reward.product
+                        )
+                        Task {
+                            let ok = await viewModel.updateLoyaltyReward(updated)
+                            if ok { onDismiss(); dismiss() }
+                        }
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || productId.isEmpty)
+                }
+            }
+            .macOSEditSheetPadding()
+            .macOSReduceSheetTitleGap()
+        }
+    }
+}
+
+private extension Product {
+    /// Stable identity for pickers when `id` is non-nil.
+    var stablePickerId: String { id ?? name }
 }
 
 struct AddPromotionView: View {
@@ -3913,13 +4226,13 @@ private struct AnalyticsDayRow: View {
 
 /// Presents the system print UI for HTML content (e.g. financial report).
 private enum PrintHelper {
-    static func presentPrint(html: String) {
+    static func presentPrint(html: String, jobName: String = "Financial Report – Guilty Pleasure Treats") {
         #if os(iOS)
         let formatter = UIMarkupTextPrintFormatter(markupText: html)
         formatter.perPageContentInsets = UIEdgeInsets(top: 36, left: 36, bottom: 36, right: 36)
         let printInfo = UIPrintInfo.printInfo()
         printInfo.outputType = .general
-        printInfo.jobName = "Financial Report – Guilty Pleasure Treats"
+        printInfo.jobName = jobName
         let printController = UIPrintInteractionController.shared
         printController.printInfo = printInfo
         printController.printFormatter = formatter
@@ -5820,6 +6133,146 @@ struct EditGalleryCakeSheet: View {
     }
 }
 
+struct AdminNewsletterView: View {
+    @ObservedObject var viewModel: AdminViewModel
+    @State private var subject = ""
+    @State private var htmlBody = ""
+    @State private var textBody = ""
+    @State private var replyTo = ""
+    @State private var isSending = false
+
+    var body: some View {
+        Form {
+            Section {
+                if let n = viewModel.newsletterRecipientCount {
+                    Text("\(n) unique email address(es) will receive this send (from past orders and customer accounts).")
+                        .font(.subheadline)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                } else {
+                    Text("Could not load recipient count. Check your connection and try again.")
+                        .font(.subheadline)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                }
+            } header: {
+                Text("Audience")
+            } footer: {
+                Text("Configure Resend on the server: RESEND_API_KEY, NEWSLETTER_FROM_EMAIL (verified domain), optional NEWSLETTER_MAX_SENDS. Reply-to defaults to your business contact email from settings.")
+                    .font(.caption)
+            }
+
+            Section {
+                TextField("Subject line", text: $subject)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("HTML body")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                    #if os(iOS)
+                    TextEditor(text: $htmlBody)
+                        .frame(minHeight: 160)
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(AppConstants.Colors.textSecondary.opacity(0.25)))
+                    #else
+                    TextEditor(text: $htmlBody)
+                        .frame(minHeight: 160)
+                    #endif
+                }
+                TextField("Plain text (optional)", text: $textBody, axis: .vertical)
+                TextField("Reply-to override (optional)", text: $replyTo)
+                    #if os(iOS)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    #endif
+            } header: {
+                Text("Message")
+            }
+
+            Section {
+                Button {
+                    Task { await send() }
+                } label: {
+                    if isSending {
+                        HStack {
+                            ProgressView()
+                            Text("Sending…")
+                        }
+                    } else {
+                        Text("Send newsletter")
+                    }
+                }
+                .disabled(isSending || subject.trimmingCharacters(in: .whitespaces).isEmpty || !hasBody)
+            }
+        }
+        .navigationTitle("Newsletter")
+        .inlineNavigationTitle()
+        .macOSGroupedFormStyle()
+        .refreshable {
+            await viewModel.loadNewsletterRecipientCount()
+        }
+        .toolbar {
+            ToolbarItem(placement: toolbarTrailingPlacement) {
+                Button {
+                    Task { await viewModel.loadNewsletterRecipientCount() }
+                } label: {
+                    Label("Refresh count", systemImage: "arrow.clockwise")
+                }
+                .accessibilityLabel("Refresh recipient count")
+            }
+        }
+        .overlay(alignment: .top) {
+            if let msg = viewModel.errorMessage {
+                ErrorMessageBanner(message: msg) { viewModel.clearMessages() }
+                    .padding()
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let msg = viewModel.successMessage {
+                Text(msg)
+                    .font(.caption)
+                    .foregroundStyle(.green)
+                    .padding(10)
+                    .frame(maxWidth: .infinity)
+                    .background(Color.green.opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+                    .onTapGesture { viewModel.clearMessages() }
+            }
+        }
+        .onAppear {
+            Task {
+                await viewModel.loadBusinessSettings()
+                await viewModel.loadNewsletterRecipientCount()
+                let contact = viewModel.businessSettings?.contactEmail?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                await MainActor.run {
+                    if replyTo.isEmpty && !contact.isEmpty {
+                        replyTo = contact
+                    }
+                }
+            }
+        }
+    }
+
+    private var hasBody: Bool {
+        !htmlBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !textBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func send() async {
+        isSending = true
+        defer { isSending = false }
+        let sub = subject.trimmingCharacters(in: .whitespacesAndNewlines)
+        let html = htmlBody
+        let text = textBody.trimmingCharacters(in: .whitespacesAndNewlines)
+        let reply = replyTo.trimmingCharacters(in: .whitespacesAndNewlines)
+        _ = await viewModel.sendNewsletter(
+            subject: sub,
+            htmlBody: html,
+            textBody: text.isEmpty ? nil : text,
+            replyTo: reply.isEmpty ? nil : reply
+        )
+    }
+}
+
 struct AdminSettingsView: View {
     @ObservedObject var viewModel: AdminViewModel
     @State private var storeHours = ""
@@ -5982,6 +6435,32 @@ struct AdminSettingsView: View {
                     .foregroundStyle(AppConstants.Colors.textSecondary)
                     .padding(.horizontal, 4)
 
+                NavigationLink {
+                    AdminNewsletterView(viewModel: viewModel)
+                } label: {
+                    HStack {
+                        Image(systemName: "envelope.open.fill")
+                            .foregroundStyle(AppConstants.Colors.accent)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Email newsletter")
+                                .font(.headline)
+                                .foregroundStyle(AppConstants.Colors.textPrimary)
+                            Text("Send updates to customers who have ordered")
+                                .font(.caption)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                    }
+                    .padding(AppConstants.Layout.cardPadding)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AppConstants.Colors.cardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+                }
+                .buttonStyle(.plain)
+
                 settingsStoreCard
                 settingsDeliveryTaxCard
                 settingsContactCard
@@ -6134,6 +6613,19 @@ struct AdminSettingsView: View {
                     .foregroundStyle(AppConstants.Colors.textSecondary)
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
+            }
+
+            Section {
+                NavigationLink {
+                    AdminNewsletterView(viewModel: viewModel)
+                } label: {
+                    Label("Email newsletter", systemImage: "envelope.open.fill")
+                }
+            } header: {
+                Text("Marketing")
+            } footer: {
+                Text("Email everyone who has placed an order (guest checkout or account). Requires Resend on the server.")
+                    .font(.caption)
             }
 
             Section {

@@ -26,6 +26,7 @@ struct SettingsView: View {
             appearanceSection
             notificationsSection
             contactSection
+            helpSection
             legalSection
             aboutSection
             if auth.currentUser != nil {
@@ -127,6 +128,14 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showContactForm) {
             ContactView()
+        }
+    }
+
+    private var helpSection: some View {
+        Section("Help") {
+            NavigationLink("Rewards & points") {
+                DocumentView(title: "Rewards & points", markdown: LegalContent.rewardsHelpMarkdown)
+            }
         }
     }
     

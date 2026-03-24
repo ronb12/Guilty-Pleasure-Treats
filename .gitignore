@@ -7,5 +7,7 @@ xcuserdata/
 .vercel
 .git.bak
 .env
+.env.local
 .env.*
+!.env.example
 .env.neon

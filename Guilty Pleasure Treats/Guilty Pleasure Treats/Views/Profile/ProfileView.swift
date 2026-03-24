@@ -131,6 +131,13 @@ struct ProfileView: View {
             Divider()
                 .padding(.leading, 44)
             NavigationLink {
+                DocumentView(title: "Rewards & points", markdown: LegalContent.rewardsHelpMarkdown)
+            } label: {
+                rowLabel("Rewards & points", systemImage: "gift.fill")
+            }
+            Divider()
+                .padding(.leading, 44)
+            NavigationLink {
                 DocumentView(title: "Privacy Policy", markdown: LegalContent.privacyPolicyMarkdown)
             } label: {
                 rowLabel("Privacy Policy", systemImage: "lock.shield")
