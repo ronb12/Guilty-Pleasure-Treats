@@ -55,7 +55,7 @@ function rowToProduct(row) {
     category: row.category,
     isFeatured: pgBool(row.is_featured),
     isSoldOut: soldOutFromRow(row),
-    isVegetarian: pgBool(row.is_vegetarian),
+    isVegan: pgBool(row.is_vegetarian),
     stockQuantity: row.stock_quantity ?? null,
     lowStockThreshold: row.low_stock_threshold ?? null,
     sizeOptions: rowSizeOptions(row),
@@ -115,7 +115,7 @@ export default async function handler(req, res) {
     const category = String(body.category ?? '').trim();
     const isFeatured = bodyBool(body.isFeatured);
     let isSoldOut = bodyBool(body.isSoldOut);
-    const isVegetarian = bodyBool(body.isVegetarian);
+    const isVegan = bodyBool(body.isVegan);
     const stockQuantity = body.stockQuantity != null ? Number(body.stockQuantity) : null;
     const lowStockThreshold = body.lowStockThreshold != null ? Number(body.lowStockThreshold) : null;
     const cost = body.cost != null && body.cost !== '' ? Number(body.cost) : null;
@@ -158,7 +158,7 @@ export default async function handler(req, res) {
         category = ${category},
         is_featured = ${isFeatured},
         is_sold_out = ${isSoldOut},
-        is_vegetarian = ${isVegetarian},
+        is_vegetarian = ${isVegan},
         stock_quantity = ${stockQuantity},
         low_stock_threshold = ${lowStockThreshold},
         is_available = ${isAvailable},
@@ -177,7 +177,7 @@ export default async function handler(req, res) {
         category = ${category},
         is_featured = ${isFeatured},
         is_sold_out = ${isSoldOut},
-        is_vegetarian = ${isVegetarian},
+        is_vegetarian = ${isVegan},
         stock_quantity = ${stockQuantity},
         low_stock_threshold = ${lowStockThreshold},
         is_available = ${isAvailable},

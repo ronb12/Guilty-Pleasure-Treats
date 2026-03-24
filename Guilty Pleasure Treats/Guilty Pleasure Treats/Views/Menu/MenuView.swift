@@ -29,7 +29,7 @@ struct MenuView: View {
     }
 
     private var vegetarianProducts: [Product] {
-        allProducts.filter(\.isVegetarian)
+        allProducts.filter(\.isVegan)
     }
 
     /// Fuzzy match: each word in the search query must appear (as substring) in name or category. Word order ignored.
@@ -195,7 +195,7 @@ struct MenuView: View {
                 }
                 ForEach(displayCategoryNames, id: \.self) { categoryName in
                     if let products = viewModel.productsByCategory[categoryName] {
-                        let filtered = showOnlyVegetarian ? products.filter(\.isVegetarian) : products
+                        let filtered = showOnlyVegetarian ? products.filter(\.isVegan) : products
                         if !filtered.isEmpty {
                             categorySection(title: categoryName, products: filtered, showFavoriteButton: true, onTapProduct: { selectedProduct = $0 })
                         }

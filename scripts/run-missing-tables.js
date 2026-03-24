@@ -141,7 +141,7 @@ async function main() {
         category TEXT NOT NULL DEFAULT '',
         is_featured BOOLEAN NOT NULL DEFAULT false,
         is_sold_out BOOLEAN NOT NULL DEFAULT false,
-        is_vegetarian BOOLEAN NOT NULL DEFAULT false,
+        is_vegan BOOLEAN NOT NULL DEFAULT false,
         stock_quantity INT,
         low_stock_threshold INT,
         created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -151,8 +151,8 @@ async function main() {
         size_options JSONB DEFAULT '[]'::jsonb
       )
     `;
-    // Existing DBs created before is_vegetarian existed — CREATE TABLE IF NOT EXISTS does not add columns.
-    await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegetarian BOOLEAN NOT NULL DEFAULT false`;
+    // Existing DBs created before is_vegan existed — CREATE TABLE IF NOT EXISTS does not add columns.
+    await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegan BOOLEAN NOT NULL DEFAULT false`;
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_available BOOLEAN NOT NULL DEFAULT true`;
     // Per-product sizes (e.g. Small/Large) with individual prices; app + API expect this column.
     await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS size_options JSONB DEFAULT '[]'::jsonb`;

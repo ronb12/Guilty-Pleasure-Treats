@@ -11,6 +11,7 @@
     "neon:connect": "bash scripts/neon-connect.sh",
     "neon:run-schema": "node scripts/run-missing-tables.js",
     "neon:migrate": "node --env-file=.env.neon scripts/run-missing-tables.js",
+    "neon:migrate:cli": "bash scripts/neon-migrate-with-cli.sh",
     "test:order-totals": "node scripts/test-order-totals.js",
     "test:api-write-routes": "node scripts/test-api-write-routes.js",
     "test:product-db": "node scripts/smoke-product-db-write.mjs",

@@ -5,21 +5,35 @@ The app expects PostgreSQL tables in your **Neon** project. Use the migration sc
 ## One command (recommended)
 
 1. Install deps: `npm install`
-2. Pull your production DB URL from Vercel (creates `.env.neon` — **do not commit**):
+
+2. **Either** pull your production DB URL from Vercel **or** use the Neon CLI (no `.env.neon` file needed).
+
+### Option A — Vercel env file
+
+Pull from Vercel (creates `.env.neon` — **do not commit**):
+
+```bash
+vercel env pull .env.neon --environment=production
+```
+
+Ensure the file contains `POSTGRES_URL` or `DATABASE_URL` (Neon connection string).
+
+```bash
+npm run neon:migrate
+```
+
+### Option B — Neon CLI (recommended if you live in Neon Console / CLI)
+
+1. One-time: `npx neonctl auth` and `npx neonctl set-context --org-id … --project-id …` (see [NEON_CLI_CONNECT.md](./NEON_CLI_CONNECT.md)).
+2. From project root:
 
    ```bash
-   vercel env pull .env.neon --environment=production
+   npm run neon:migrate:cli
    ```
 
-   Ensure the file contains `POSTGRES_URL` or `DATABASE_URL` (Neon connection string).
+   This sets `POSTGRES_URL` from `npx neonctl connection-string --role-name neondb_owner` and runs `scripts/run-missing-tables.js`.
 
-3. Run migrations:
-
-   ```bash
-   npm run neon:migrate
-   ```
-
-   You should see `All missing tables are ready.` and a line like `Verified 19/19 core tables...`.
+You should see `All missing tables are ready.` and a line like `Verified 19/19 core tables...`.
 
 ## Without Vercel CLI
 

@@ -126,6 +126,7 @@ node scripts/run-missing-tables.js
 | Login                   | `npx neonctl auth` |
 | Open psql               | `npx neonctl connection-string --role-name neondb_owner --psql` (or `npm run neon:connect`) |
 | Get connection string   | `npx neonctl connection-string --role-name neondb_owner` |
+| **Run DB migrations** (this repo) | `npm run neon:migrate:cli` (uses CLI connection string + `scripts/run-missing-tables.js`) |
 | List projects           | `npx neonctl projects list` |
 | List branches           | `npx neonctl branches list` |
 | Set project/branch      | `npx neonctl set-context` |
