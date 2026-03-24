@@ -59,6 +59,7 @@ function modulePathFor(key) {
     'webhooks/carrier-tracking': 'webhooks/carrier-tracking.js',
     'analytics/summary': 'analytics/summary.js',
     'admin/newsletter': 'admin/newsletter.js',
+    'newsletter/unsubscribe': 'newsletter/unsubscribe.js',
     reviews: 'reviews/index.js',
     events: 'events/index.js',
     'events/id': 'events/id.js',
@@ -220,6 +221,8 @@ function getPathKey(req) {
     key = 'admin-messages';
   } else if (segs[0] === 'admin' && segs[1] === 'newsletter') {
     key = 'admin/newsletter';
+  } else if (segs[0] === 'newsletter' && segs[1] === 'unsubscribe') {
+    key = 'newsletter/unsubscribe';
   } else if (segs[0] === 'stripe' && segs[1] === 'create-checkout-session') {
     key = 'stripe/create-checkout-session';
   } else if (segs[0] === 'stripe' && segs[1] === 'create-payment-intent') {

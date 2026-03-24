@@ -19,8 +19,10 @@ struct UserProfile: Codable {
     var createdAt: Date?
     /// Prior orders count from API (for first-order promos). Omitted in older API responses.
     var completedOrderCount: Int
+    /// Marketing newsletter / offers by email (server: not in `newsletter_suppressions`).
+    var marketingEmailOptIn: Bool
     
-    init(uid: String, email: String? = nil, displayName: String? = nil, phone: String? = nil, isAdmin: Bool = false, points: Int = 0, createdAt: Date? = nil, completedOrderCount: Int = 0) {
+    init(uid: String, email: String? = nil, displayName: String? = nil, phone: String? = nil, isAdmin: Bool = false, points: Int = 0, createdAt: Date? = nil, completedOrderCount: Int = 0, marketingEmailOptIn: Bool = true) {
         self.uid = uid
         self.email = email
         self.displayName = displayName
@@ -29,10 +31,11 @@ struct UserProfile: Codable {
         self.points = points
         self.createdAt = createdAt
         self.completedOrderCount = completedOrderCount
+        self.marketingEmailOptIn = marketingEmailOptIn
     }
     
     enum CodingKeys: String, CodingKey {
-        case uid, email, displayName, phone, isAdmin, points, createdAt, completedOrderCount
+        case uid, email, displayName, phone, isAdmin, points, createdAt, completedOrderCount, marketingEmailOptIn
     }
     
     init(from decoder: Decoder) throws {
@@ -45,5 +48,6 @@ struct UserProfile: Codable {
         points = try c.decodeIfPresent(Int.self, forKey: .points) ?? 0
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
         completedOrderCount = try c.decodeIfPresent(Int.self, forKey: .completedOrderCount) ?? 0
+        marketingEmailOptIn = try c.decodeIfPresent(Bool.self, forKey: .marketingEmailOptIn) ?? true
     }
 }

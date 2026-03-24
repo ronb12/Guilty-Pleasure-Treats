@@ -6,9 +6,12 @@ import { sql, hasDb } from '../../api/lib/db.js';
 import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
 import { setCors, handleOptions } from '../../api/lib/cors.js';
 import { ensureLoyaltyRewardsTable } from '../lib/loyaltyRewardsSchema.js';
+import { ensureNewsletterSuppressionsTable, normalizeMarketingEmail } from '../../api/lib/newsletterSuppressions.js';
 
 function userResponse(row) {
   if (!row) return null;
+  const marketing =
+    row.marketing_email_opt_in === undefined ? true : Boolean(row.marketing_email_opt_in);
   return {
     uid: row.id?.toString?.() ?? String(row.id),
     email: row.email ?? null,
@@ -17,6 +20,7 @@ function userResponse(row) {
     isAdmin: Boolean(row.is_admin),
     points: Number(row.points ?? 0),
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+    marketingEmailOptIn: marketing,
   };
 }
 
@@ -37,9 +41,18 @@ export default async function handler(req, res) {
 
   if ((req.method || '').toUpperCase() === 'GET') {
     try {
+      await ensureNewsletterSuppressionsTable(sql);
       const [row] = await sql`
-        SELECT id, email, display_name, phone, is_admin, points, created_at
-        FROM users WHERE id::text = ${sessionUserId} LIMIT 1
+        SELECT u.id, u.email, u.display_name, u.phone, u.is_admin, u.points, u.created_at,
+          CASE
+            WHEN TRIM(COALESCE(u.email, '')) = '' THEN true
+            ELSE NOT EXISTS (
+              SELECT 1 FROM newsletter_suppressions ns
+              WHERE ns.email = LOWER(TRIM(u.email))
+            )
+          END AS marketing_email_opt_in
+        FROM users u
+        WHERE u.id::text = ${sessionUserId} LIMIT 1
       `;
       if (!row) return res.status(404).json({ error: 'User not found' });
       let completedOrderCount = 0;
@@ -91,6 +104,25 @@ export default async function handler(req, res) {
         nextPhone = body.phone == null || body.phone === '' ? null : String(body.phone).trim();
       }
 
+      if (body.marketingEmailOptIn !== undefined && targetId === sessionUserId) {
+        await ensureNewsletterSuppressionsTable(sql);
+        const em = normalizeMarketingEmail(current.email);
+        if (!em) {
+          return res.status(400).json({
+            error: 'Add an email to your account to manage newsletter preferences.',
+          });
+        }
+        const want = Boolean(body.marketingEmailOptIn);
+        if (want) {
+          await sql`DELETE FROM newsletter_suppressions WHERE email = ${em}`;
+        } else {
+          await sql`
+            INSERT INTO newsletter_suppressions (email) VALUES (${em})
+            ON CONFLICT (email) DO NOTHING
+          `;
+        }
+      }
+
       if (redeemLoyaltyRewardId && redeemPoints != null && redeemPoints > 0) {
         return res.status(400).json({ error: 'Use either redeemLoyaltyRewardId or redeemPoints' });
       }
@@ -129,7 +161,14 @@ export default async function handler(req, res) {
         UPDATE users
         SET display_name = ${nextDisplay}, phone = ${nextPhone}, points = ${nextPoints}, updated_at = NOW()
         WHERE id::text = ${targetId}
-        RETURNING id, email, display_name, phone, is_admin, points, created_at
+        RETURNING id, email, display_name, phone, is_admin, points, created_at,
+          CASE
+            WHEN TRIM(COALESCE(email, '')) = '' THEN true
+            ELSE NOT EXISTS (
+              SELECT 1 FROM newsletter_suppressions ns
+              WHERE ns.email = LOWER(TRIM(email))
+            )
+          END AS marketing_email_opt_in
       `;
       return res.status(200).json(userResponse(row));
     } catch (err) {

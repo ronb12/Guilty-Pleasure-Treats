@@ -10,6 +10,7 @@ All settings flows are wired end-to-end. Summary and fixes applied.
 |--------|----------------|
 | **Appearance** | Picker for theme (system / light / dark). Stored in `@AppStorage("settings.appearance")`. |
 | **Notifications** | Toggle “Order updates & promotions”. On enable, calls `NotificationService.shared.requestPermissionAndRegister()`. |
+| **Email** | When signed in: toggle “Email newsletters & offers” → `PATCH /api/users/me` with `marketingEmailOptIn`; server updates `newsletter_suppressions`. |
 | **Contact** | Mailto link, Instagram link, “Send a message in app” → sheet with `ContactView()`. |
 | **Legal** | NavigationLinks to Privacy Policy and Terms of Service (`DocumentView` with `LegalContent`). |
 | **About** | Description, version, build, Support link, Instagram, credits. |

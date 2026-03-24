@@ -52,11 +52,18 @@ Without these, push sending is skipped (no crash); handlers still run.
 
 ## Email newsletter (Resend)
 
-Admin → **Business Settings** → **Marketing** → **Email newsletter** calls **GET/POST `/api/admin/newsletter`** (routed in `api/[[...path]].js` → `api-src/admin/newsletter.js`). Recipients are distinct emails from **orders** plus **non-admin user** accounts.
+Admin → **Business Settings** → **Marketing** → **Email newsletter** calls **GET/POST `/api/admin/newsletter`** (routed in `api/[[...path]].js` → `api-src/admin/newsletter.js`). Recipients are distinct emails from **orders** plus **non-admin user** accounts, **excluding** addresses in **`newsletter_suppressions`** (marketing opt-out).
+
+**Opt-out**
+
+- **App:** Settings → **Email** → turn off **Email newsletters & offers** (signed-in customers). `PATCH /api/users/me` with `{ "marketingEmailOptIn": false }` inserts the account email into `newsletter_suppressions`.
+- **Email link:** Each send replaces `{{UNSUBSCRIBE_URL}}` in HTML with `GET /api/newsletter/unsubscribe?token=…` (HMAC-signed). **Run** `scripts/run-missing-tables.js` (or create `newsletter_suppressions` manually) on Neon before first use.
 
 | Variable | Description |
 |----------|-------------|
-| `RESEND_API_KEY` | Resend API key |
+| `RESEND_API_KEY` | Resend API key (also used as fallback HMAC secret for unsubscribe tokens if `NEWSLETTER_UNSUBSCRIBE_SECRET` is unset) |
+| `NEWSLETTER_UNSUBSCRIBE_SECRET` | Optional; preferred secret for signing unsubscribe links |
+| `NEWSLETTER_PUBLIC_BASE_URL` or `PUBLIC_APP_URL` | Public site URL for unsubscribe links (e.g. `https://guilty-pleasure-treats.vercel.app`). If unset, `https://$VERCEL_URL` is used on Vercel. |
 | `NEWSLETTER_FROM_EMAIL` or `RESEND_FROM_EMAIL` | Verified sender (domain verified in Resend) |
 | `NEWSLETTER_MAX_SENDS` | Optional; max sends per request (default 150, cap 500) |
 | `BLOB_READ_WRITE_TOKEN` | Required for **Upload Canva design** (stores PNG/JPEG/PDF on Vercel Blob; public URL is embedded in HTML). |

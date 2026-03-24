@@ -86,6 +86,15 @@ async function main() {
     await sql`CREATE INDEX IF NOT EXISTS idx_password_reset_user_id ON password_reset_tokens(user_id)`;
     console.log('password_reset_tokens OK');
 
+    // newsletter_suppressions (marketing opt-out; /api/admin/newsletter excludes these emails)
+    await sql`
+      CREATE TABLE IF NOT EXISTS newsletter_suppressions (
+        email TEXT PRIMARY KEY,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `;
+    console.log('newsletter_suppressions OK');
+
     // orders (checkout, admin orders list, analytics)
     await sql`
       CREATE TABLE IF NOT EXISTS orders (

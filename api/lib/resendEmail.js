@@ -4,6 +4,8 @@
  * Optional: NEWSLETTER_MAX_SENDS (default 150) — max recipients per request (Vercel timeout).
  */
 
+import { injectNewsletterUnsubscribe } from './newsletterUnsubscribeToken.js';
+
 function stripHtml(html) {
   if (!html) return '';
   return String(html)
@@ -94,7 +96,8 @@ export async function sendNewsletterToRecipients(recipients, opts) {
   const sampleErrors = [];
   for (const to of capped) {
     try {
-      await sendResendEmail({ to, subject, html, text, replyTo });
+      const { html: h, text: t } = injectNewsletterUnsubscribe(html, text, to);
+      await sendResendEmail({ to, subject, html: h, text: t, replyTo });
       sent += 1;
     } catch (err) {
       failed += 1;

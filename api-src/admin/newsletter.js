@@ -8,6 +8,7 @@ import { sql, hasDb } from '../../api/lib/db.js';
 import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
 import { setCors, handleOptions } from '../../api/lib/cors.js';
 import { sendNewsletterToRecipients } from '../../api/lib/resendEmail.js';
+import { ensureNewsletterSuppressionsTable } from '../../api/lib/newsletterSuppressions.js';
 
 export default async function handler(req, res) {
   setCors(res);
@@ -25,6 +26,7 @@ export default async function handler(req, res) {
 
   if ((req.method || '').toUpperCase() === 'GET') {
     try {
+      await ensureNewsletterSuppressionsTable(sql);
       const [row] = await sql`
         SELECT COUNT(*)::int AS c FROM (
           SELECT DISTINCT LOWER(TRIM(o.customer_email)) AS email
@@ -37,6 +39,9 @@ export default async function handler(req, res) {
             AND COALESCE(u.is_admin, false) = false
         ) AS sub
         WHERE email IS NOT NULL AND TRIM(email) <> ''
+          AND NOT EXISTS (
+            SELECT 1 FROM newsletter_suppressions ns WHERE ns.email = sub.email
+          )
       `;
       const recipientCount = Number(row?.c ?? 0);
       return res.status(200).json({ recipientCount });
@@ -58,6 +63,7 @@ export default async function handler(req, res) {
     }
 
     try {
+      await ensureNewsletterSuppressionsTable(sql);
       const rows = await sql`
         SELECT email FROM (
           SELECT DISTINCT LOWER(TRIM(o.customer_email)) AS email
@@ -70,6 +76,9 @@ export default async function handler(req, res) {
             AND COALESCE(u.is_admin, false) = false
         ) AS sub
         WHERE email IS NOT NULL AND TRIM(email) <> ''
+          AND NOT EXISTS (
+            SELECT 1 FROM newsletter_suppressions ns WHERE ns.email = sub.email
+          )
       `;
       const list = (rows || []).map((r) => r.email).filter(Boolean);
       if (list.length === 0) {

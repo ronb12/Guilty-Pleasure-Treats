@@ -6326,7 +6326,7 @@ struct AdminNewsletterView: View {
         .sheet(isPresented: $showPreview) {
             NewsletterEmailPreviewSheet(
                 subject: subject,
-                htmlBody: composeEmailHTML(),
+                htmlBody: composeEmailHTML().replacingOccurrences(of: "{{UNSUBSCRIBE_URL}}", with: "#"),
                 textBody: textBody,
                 onDismiss: { showPreview = false }
             )

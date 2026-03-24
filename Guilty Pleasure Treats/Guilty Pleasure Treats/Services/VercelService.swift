@@ -443,6 +443,11 @@ final class VercelService {
         let completedOrders = (json?["completedOrderCount"] as? NSNumber)?.intValue
             ?? (json?["completedOrderCount"] as? Int)
             ?? 0
+        let marketingOptIn: Bool = {
+            if let b = json?["marketingEmailOptIn"] as? Bool { return b }
+            if let n = json?["marketingEmailOptIn"] as? NSNumber { return n.boolValue }
+            return true
+        }()
         return UserProfile(
             uid: uid,
             email: json?["email"] as? String,
@@ -451,8 +456,14 @@ final class VercelService {
             isAdmin: (json?["isAdmin"] as? Bool) ?? false,
             points: (json?["points"] as? Int) ?? 0,
             createdAt: (json?["createdAt"] as? String).flatMap { ISO8601DateFormatter().date(from: $0) },
-            completedOrderCount: completedOrders
+            completedOrderCount: completedOrders,
+            marketingEmailOptIn: marketingOptIn
         )
+    }
+
+    /// Updates marketing newsletter preference (`PATCH /api/users/me`); caller should refresh profile.
+    func updateMarketingEmailOptIn(_ enabled: Bool) async throws {
+        try await patchUserMe(["marketingEmailOptIn": enabled])
     }
 
     func setUserProfile(_ profile: UserProfile) async throws {

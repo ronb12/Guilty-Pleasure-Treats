@@ -15,6 +15,10 @@ struct SettingsView: View {
     @State private var showDeleteAccountConfirmation = false
     @State private var isDeletingAccount = false
     @State private var deleteAccountError: String?
+    @State private var marketingEmailOptIn = true
+    @State private var marketingPrefLoaded = false
+    @State private var marketingSaving = false
+    @State private var marketingPrefError: String?
     
     private var appearance: AppAppearance {
         get { AppAppearance(rawValue: appearanceRaw) ?? .system }
@@ -25,6 +29,9 @@ struct SettingsView: View {
         List {
             appearanceSection
             notificationsSection
+            if auth.currentUser != nil {
+                emailMarketingSection
+            }
             contactSection
             helpSection
             legalSection
@@ -38,6 +45,11 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .inlineNavigationTitle()
         .background(AppConstants.Colors.secondary)
+        .onAppear { syncMarketingPrefFromProfile() }
+        .onChange(of: auth.userProfile?.marketingEmailOptIn) { _, new in
+            guard !marketingSaving, let new else { return }
+            if new != marketingEmailOptIn { marketingEmailOptIn = new }
+        }
         .confirmationDialog("Delete account", isPresented: $showDeleteAccountConfirmation, titleVisibility: .visible) {
             Button("Delete account", role: .destructive) {
                 Task { await deleteAccount() }
@@ -52,6 +64,46 @@ struct SettingsView: View {
             Button("OK") { deleteAccountError = nil }
         } message: {
             if let msg = deleteAccountError { Text(msg) }
+        }
+        .alert("Couldn’t update email preference", isPresented: .constant(marketingPrefError != nil)) {
+            Button("OK") { marketingPrefError = nil }
+        } message: {
+            if let msg = marketingPrefError { Text(msg) }
+        }
+    }
+    
+    private var emailMarketingSection: some View {
+        Section {
+            Toggle("Email newsletters & offers", isOn: $marketingEmailOptIn)
+                .tint(AppConstants.Colors.accent)
+                .disabled(marketingSaving)
+                .onChange(of: marketingEmailOptIn) { _, new in
+                    guard marketingPrefLoaded else { return }
+                    Task { await saveMarketingEmailPref(new) }
+                }
+        } header: {
+            Text("Email")
+        } footer: {
+            Text("Occasional updates from the bakery. Order-related messages may still be sent. You can turn this off anytime, or tap Unsubscribe in any newsletter email.")
+        }
+    }
+    
+    private func syncMarketingPrefFromProfile() {
+        marketingPrefLoaded = false
+        marketingEmailOptIn = auth.userProfile?.marketingEmailOptIn ?? true
+        marketingPrefLoaded = true
+    }
+    
+    private func saveMarketingEmailPref(_ enabled: Bool) async {
+        marketingSaving = true
+        marketingPrefError = nil
+        defer { marketingSaving = false }
+        do {
+            try await VercelService.shared.updateMarketingEmailOptIn(enabled)
+            await auth.refreshProfile()
+        } catch {
+            marketingPrefError = error.localizedDescription
+            marketingEmailOptIn = !enabled
         }
     }
     
