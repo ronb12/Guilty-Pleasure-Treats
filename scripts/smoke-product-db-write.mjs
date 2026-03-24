@@ -19,7 +19,7 @@ try {
   const rows = await sql`
     INSERT INTO products (
       name, description, price, cost, image_url, category,
-      is_featured, is_sold_out, is_vegetarian, stock_quantity, low_stock_threshold
+      is_featured, is_sold_out, is_vegan, stock_quantity, low_stock_threshold
     )
     VALUES (
       'Smoke test (delete me)',
@@ -44,7 +44,7 @@ try {
 } catch (err) {
   console.error('FAILED:', err.message);
   if (err.code === '42703') {
-    console.error('Hint: run scripts/run-missing-tables.js or ALTER TABLE for missing column (e.g. is_vegetarian).');
+    console.error('Hint: run scripts/run-missing-tables.js or ALTER TABLE for missing column (e.g. is_vegan).');
   }
   process.exit(1);
 }

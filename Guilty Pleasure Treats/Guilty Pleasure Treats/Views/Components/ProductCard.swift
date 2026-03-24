@@ -41,8 +41,8 @@ struct ProductCard: View {
                         .foregroundStyle(AppConstants.Colors.textPrimary)
                         .lineLimit(2)
                     Spacer(minLength: 4)
-                    if product.isVegetarian {
-                        Label("Vegetarian", systemImage: "leaf.fill")
+                    if product.isVegan {
+                        Label("Vegan", systemImage: "leaf.fill")
                             .font(.caption2)
                             .foregroundStyle(AppConstants.Colors.accent)
                     }

@@ -187,7 +187,7 @@ final class VercelService {
             "category": product.category,
             "isFeatured": product.isFeatured,
             "isSoldOut": product.isSoldOut,
-            "isVegetarian": product.isVegetarian,
+            "isVegan": product.isVegan,
             "stockQuantity": product.stockQuantity as Any,
             "lowStockThreshold": product.lowStockThreshold as Any,
         ]
@@ -232,7 +232,7 @@ final class VercelService {
             "category": product.category,
             "isFeatured": product.isFeatured,
             "isSoldOut": product.isSoldOut,
-            "isVegetarian": product.isVegetarian,
+            "isVegan": product.isVegan,
             "stockQuantity": product.stockQuantity as Any,
             "lowStockThreshold": product.lowStockThreshold as Any,
         ]

@@ -69,7 +69,7 @@ A single reference for all features in the **Guilty Pleasure Treats** mobile app
 
 ### Products & menu
 - **Product list** — View all products
-- **Add product** — Name, description, price, cost, category, featured, vegetarian, image, stock, low-stock threshold
+- **Add product** — Name, description, price, cost, category, featured, vegan, image, stock, low-stock threshold
 - **Edit product** — Update product details and image
 - **Delete product** — Remove product
 - **Set sold out** — Mark product as sold out or available

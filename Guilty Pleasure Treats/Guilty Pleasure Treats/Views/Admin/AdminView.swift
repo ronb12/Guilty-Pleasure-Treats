@@ -730,7 +730,7 @@ struct AddProductView: View {
     @State private var costText = ""
     @State private var category = ProductCategory.cupcakes.rawValue
     @State private var isFeatured = false
-    @State private var isVegetarian = false
+    @State private var isVegan = false
     @State private var stockText = ""
     @State private var lowStockText = ""
     @State private var sizeRows: [AdminProductSizeRow] = []
@@ -785,7 +785,7 @@ struct AddProductView: View {
                     }
                 }
                 Toggle("Featured", isOn: $isFeatured)
-                Toggle("Vegetarian", isOn: $isVegetarian)
+                Toggle("Vegan", isOn: $isVegan)
                 TextField("Stock (optional)", text: $stockText)
                     #if os(iOS)
                     .keyboardType(.numberPad)
@@ -858,7 +858,7 @@ struct AddProductView: View {
                                 cost: costOpt,
                                 category: category,
                                 isFeatured: isFeatured,
-                                isVegetarian: isVegetarian,
+                                isVegan: isVegan,
                                 image: selectedImage,
                                 stockQuantity: stock,
                                 lowStockThreshold: low,
@@ -906,7 +906,7 @@ struct EditProductView: View {
     @State private var category: String
     @State private var isFeatured: Bool
     @State private var isSoldOut: Bool
-    @State private var isVegetarian: Bool
+    @State private var isVegan: Bool
     @State private var stockText: String
     @State private var lowStockText: String
     @State private var sizeRows: [AdminProductSizeRow]
@@ -934,7 +934,7 @@ struct EditProductView: View {
         _category = State(initialValue: product.category)
         _isFeatured = State(initialValue: product.isFeatured)
         _isSoldOut = State(initialValue: product.isSoldOut)
-        _isVegetarian = State(initialValue: product.isVegetarian)
+        _isVegan = State(initialValue: product.isVegan)
         _stockText = State(initialValue: product.stockQuantity.map { String($0) } ?? "")
         _lowStockText = State(initialValue: product.lowStockThreshold.map { String($0) } ?? "")
         _sizeRows = State(initialValue: (product.sizeOptions ?? []).map {
@@ -987,7 +987,7 @@ struct EditProductView: View {
                 }
                 Toggle("Featured", isOn: $isFeatured)
                 Toggle("Sold out", isOn: $isSoldOut)
-                Toggle("Vegetarian", isOn: $isVegetarian)
+                Toggle("Vegan", isOn: $isVegan)
                 TextField("Stock (optional)", text: $stockText)
                     #if os(iOS)
                     .keyboardType(.numberPad)
@@ -1070,7 +1070,7 @@ struct EditProductView: View {
                             updated.category = category
                             updated.isFeatured = isFeatured
                             updated.isSoldOut = isSoldOut
-                            updated.isVegetarian = isVegetarian
+                            updated.isVegan = isVegan
                             updated.stockQuantity = Int(stockText.trimmingCharacters(in: .whitespaces))
                             updated.lowStockThreshold = Int(lowStockText.trimmingCharacters(in: .whitespaces))
                             let sizeOpts = adminProductSizeOptions(from: sizeRows)

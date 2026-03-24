@@ -16,19 +16,19 @@ struct MenuView: View {
     @StateObject private var viewModel = MenuViewModel()
     @StateObject private var cart = CartManager.shared
     @ObservedObject private var favorites = FavoritesManager.shared
-    @State private var showOnlyVegetarian = false
+    @State private var showOnlyVegan = false
     @State private var searchText = ""
     /// nil = All categories; otherwise filter to this category.
     @State private var selectedCategoryFilter: String?
     /// When set, navigate to product detail (avoids NavigationLink tap issues in ScrollView).
     @State private var selectedProduct: Product?
 
-    /// All products from all categories (for vegetarian section / filter).
+    /// All products from all categories (for vegan section / filter).
     private var allProducts: [Product] {
         viewModel.productsByCategory.values.flatMap { $0 }
     }
 
-    private var vegetarianProducts: [Product] {
+    private var veganProducts: [Product] {
         allProducts.filter(\.isVegan)
     }
 
@@ -39,7 +39,7 @@ struct MenuView: View {
             .components(separatedBy: .whitespaces)
             .filter { !$0.isEmpty }
         guard !query.isEmpty else { return [] }
-        let base = showOnlyVegetarian ? vegetarianProducts : allProducts
+        let base = showOnlyVegan ? veganProducts : allProducts
         let categoryFiltered: [Product]
         if let cat = selectedCategoryFilter {
             categoryFiltered = base.filter { $0.category == cat }
@@ -125,8 +125,8 @@ struct MenuView: View {
     @ViewBuilder
     private var menuScrollableBody: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Toggle(isOn: $showOnlyVegetarian) {
-                Label("Show only vegetarian", systemImage: "leaf.fill")
+            Toggle(isOn: $showOnlyVegan) {
+                Label("Vegan only", systemImage: "leaf.fill")
                     .font(.subheadline)
                     .foregroundStyle(AppConstants.Colors.textPrimary)
             }
@@ -185,17 +185,17 @@ struct MenuView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 24)
             } else {
-                let baseForFavorites = categoryFilteredProducts(showOnlyVegetarian ? vegetarianProducts : allProducts)
+                let baseForFavorites = categoryFilteredProducts(showOnlyVegan ? veganProducts : allProducts)
                 let favoriteProducts = favorites.favoriteProducts(from: baseForFavorites)
                 if !favoriteProducts.isEmpty {
                     categorySection(title: "Favorites", products: favoriteProducts, showFavoriteButton: true, onTapProduct: { selectedProduct = $0 })
                 }
-                if !showOnlyVegetarian, !vegetarianProducts.isEmpty, selectedCategoryFilter == nil {
-                    categorySection(title: "Vegetarian", products: vegetarianProducts, showFavoriteButton: true, onTapProduct: { selectedProduct = $0 })
+                if !showOnlyVegan, !veganProducts.isEmpty, selectedCategoryFilter == nil {
+                    categorySection(title: "Vegan", products: veganProducts, showFavoriteButton: true, onTapProduct: { selectedProduct = $0 })
                 }
                 ForEach(displayCategoryNames, id: \.self) { categoryName in
                     if let products = viewModel.productsByCategory[categoryName] {
-                        let filtered = showOnlyVegetarian ? products.filter(\.isVegan) : products
+                        let filtered = showOnlyVegan ? products.filter(\.isVegan) : products
                         if !filtered.isEmpty {
                             categorySection(title: categoryName, products: filtered, showFavoriteButton: true, onTapProduct: { selectedProduct = $0 })
                         }

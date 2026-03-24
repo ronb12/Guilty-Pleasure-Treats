@@ -106,6 +106,14 @@ node scripts/run-missing-tables.js
 npm run neon:run-schema
 ```
 
+**Non-default database or branch** (e.g. database name `Guilty Pleasure Treats`):
+
+```bash
+export NEON_DATABASE_NAME='Guilty Pleasure Treats'
+export NEON_BRANCH='br-delicate-dust-akt1zfg1'   # optional; omit to use CLI default branch
+npm run neon:migrate:cli
+```
+
 One-liner (after `npx neonctl auth`):
 
 ```bash
@@ -126,7 +134,7 @@ node scripts/run-missing-tables.js
 | Login                   | `npx neonctl auth` |
 | Open psql               | `npx neonctl connection-string --role-name neondb_owner --psql` (or `npm run neon:connect`) |
 | Get connection string   | `npx neonctl connection-string --role-name neondb_owner` |
-| **Run DB migrations** (this repo) | `npm run neon:migrate:cli` (uses CLI connection string + `scripts/run-missing-tables.js`) |
+| **Run DB migrations** (this repo) | `npm run neon:migrate:cli` (uses CLI connection string + `scripts/run-missing-tables.js`; set `NEON_DATABASE_NAME` / `NEON_BRANCH` if not using the default DB) |
 | List projects           | `npx neonctl projects list` |
 | List branches           | `npx neonctl branches list` |
 | Set project/branch      | `npx neonctl set-context` |

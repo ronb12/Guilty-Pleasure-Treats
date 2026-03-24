@@ -56,8 +56,8 @@ struct ProductDetailView: View {
                             .foregroundStyle(AppConstants.Colors.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 8)
-                        if product.isVegetarian {
-                            Label("Vegetarian", systemImage: "leaf.fill")
+                        if product.isVegan {
+                            Label("Vegan", systemImage: "leaf.fill")
                                 .font(.caption)
                                 .foregroundStyle(AppConstants.Colors.accent)
                         }

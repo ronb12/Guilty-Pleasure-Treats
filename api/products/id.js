@@ -55,7 +55,7 @@ function rowToProduct(row) {
     category: row.category,
     isFeatured: pgBool(row.is_featured),
     isSoldOut: soldOutFromRow(row),
-    isVegetarian: pgBool(row.is_vegetarian),
+    isVegan: pgBool(row.is_vegan),
     stockQuantity: row.stock_quantity ?? null,
     lowStockThreshold: row.low_stock_threshold ?? null,
     sizeOptions: rowSizeOptions(row),
@@ -115,7 +115,7 @@ export default async function handler(req, res) {
     const category = String(body.category ?? '').trim();
     const isFeatured = bodyBool(body.isFeatured);
     let isSoldOut = bodyBool(body.isSoldOut);
-    const isVegetarian = bodyBool(body.isVegetarian);
+    const isVegan = bodyBool(body.isVegan ?? body.isVegetarian);
     const stockQuantity = body.stockQuantity != null ? Number(body.stockQuantity) : null;
     const lowStockThreshold = body.lowStockThreshold != null ? Number(body.lowStockThreshold) : null;
     const cost = body.cost != null && body.cost !== '' ? Number(body.cost) : null;
@@ -158,7 +158,7 @@ export default async function handler(req, res) {
         category = ${category},
         is_featured = ${isFeatured},
         is_sold_out = ${isSoldOut},
-        is_vegetarian = ${isVegetarian},
+        is_vegan = ${isVegan},
         stock_quantity = ${stockQuantity},
         low_stock_threshold = ${lowStockThreshold},
         is_available = ${isAvailable},
@@ -177,7 +177,7 @@ export default async function handler(req, res) {
         category = ${category},
         is_featured = ${isFeatured},
         is_sold_out = ${isSoldOut},
-        is_vegetarian = ${isVegetarian},
+        is_vegan = ${isVegan},
         stock_quantity = ${stockQuantity},
         low_stock_threshold = ${lowStockThreshold},
         is_available = ${isAvailable},
@@ -196,7 +196,7 @@ export default async function handler(req, res) {
       const missingSizeOpts =
         err?.code === '42703' && String(err.message || '').includes('size_options');
       const missingVeg =
-        err?.code === '42703' && String(err.message || '').includes('is_vegetarian');
+        err?.code === '42703' && String(err.message || '').includes('is_vegan');
       const missingAvail =
         err?.code === '42703' && String(err.message || '').includes('is_available');
       if (missingSizeOpts || missingVeg || missingAvail) {
@@ -205,7 +205,7 @@ export default async function handler(req, res) {
             await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS size_options JSONB DEFAULT '[]'::jsonb`;
           }
           if (missingVeg) {
-            await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegetarian BOOLEAN NOT NULL DEFAULT false`;
+            await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegan BOOLEAN NOT NULL DEFAULT false`;
           }
           if (missingAvail) {
             await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_available BOOLEAN NOT NULL DEFAULT true`;
@@ -223,7 +223,7 @@ export default async function handler(req, res) {
         return res.status(500).json({
           error: 'Database schema out of date',
           details: err.message,
-          hint: 'Run scripts/run-missing-tables.js or add missing columns on Neon (e.g. is_vegetarian).',
+          hint: 'Run scripts/run-missing-tables.js or add missing columns on Neon (e.g. is_vegan).',
         });
       }
       console.error('[products/id] PATCH', err);

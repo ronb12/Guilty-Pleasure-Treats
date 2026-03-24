@@ -31,8 +31,8 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
     var category: String
     var isFeatured: Bool
     var isSoldOut: Bool
-    /// True when the dessert is vegetarian (no gelatin, etc.).
-    var isVegetarian: Bool
+    /// True when the dessert is vegan (plant-based; shown as “Vegan” in the app).
+    var isVegan: Bool
     /// Optional stock quantity; nil = no inventory tracking.
     var stockQuantity: Int?
     /// When stock ≤ this value, show low-stock alert in admin.
@@ -52,7 +52,9 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
         case category
         case isFeatured
         case isSoldOut
-        case isVegetarian
+        case isVegan
+        /// Older API responses used `isVegetarian` for the same flag.
+        case legacyIsVegetarian = "isVegetarian"
         case stockQuantity
         case lowStockThreshold
         case createdAt
@@ -71,7 +73,13 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
         category = try c.decode(String.self, forKey: .category)
         isFeatured = Self.decodeFlexibleBool(c, key: .isFeatured)
         isSoldOut = Self.decodeFlexibleBool(c, key: .isSoldOut)
-        isVegetarian = Self.decodeFlexibleBool(c, key: .isVegetarian)
+        if c.contains(.isVegan) {
+            isVegan = Self.decodeFlexibleBool(c, key: .isVegan)
+        } else if c.contains(.legacyIsVegetarian) {
+            isVegan = Self.decodeFlexibleBool(c, key: .legacyIsVegetarian)
+        } else {
+            isVegan = false
+        }
         stockQuantity = Self.decodeFlexibleOptionalInt(c, key: .stockQuantity)
         lowStockThreshold = Self.decodeFlexibleOptionalInt(c, key: .lowStockThreshold)
         createdAt = Product.parseISO8601(try c.decodeIfPresent(String.self, forKey: .createdAt))
@@ -152,7 +160,7 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
         category: String,
         isFeatured: Bool = false,
         isSoldOut: Bool = false,
-        isVegetarian: Bool = false,
+        isVegan: Bool = false,
         stockQuantity: Int? = nil,
         lowStockThreshold: Int? = nil,
         createdAt: Date? = nil,
@@ -168,7 +176,7 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
         self.category = category
         self.isFeatured = isFeatured
         self.isSoldOut = isSoldOut
-        self.isVegetarian = isVegetarian
+        self.isVegan = isVegan
         self.stockQuantity = stockQuantity
         self.lowStockThreshold = lowStockThreshold
         self.createdAt = createdAt
@@ -244,7 +252,7 @@ struct Product: Identifiable, Codable, Equatable, Hashable {
         hasher.combine(category)
         hasher.combine(isFeatured)
         hasher.combine(isSoldOut)
-        hasher.combine(isVegetarian)
+        hasher.combine(isVegan)
         hasher.combine(stockQuantity)
         hasher.combine(lowStockThreshold)
         hasher.combine(createdAt)

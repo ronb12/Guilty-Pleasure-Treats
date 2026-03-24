@@ -50,7 +50,7 @@ function rowToProduct(row) {
     category: row.category,
     isFeatured: pgBool(row.is_featured),
     isSoldOut: soldOutFromRow(row),
-    isVegetarian: pgBool(row.is_vegetarian),
+    isVegan: pgBool(row.is_vegan),
     stockQuantity: row.stock_quantity ?? null,
     lowStockThreshold: row.low_stock_threshold ?? null,
     sizeOptions: rowSizeOptions(row),
@@ -78,7 +78,7 @@ export default async function handler(req, res) {
     const category = String(body.category ?? '').trim();
     const isFeatured = bodyBool(body.isFeatured);
     const isSoldOut = bodyBool(body.isSoldOut);
-    const isVegetarian = bodyBool(body.isVegetarian);
+    const isVegan = bodyBool(body.isVegan ?? body.isVegetarian);
     const stockQuantity = body.stockQuantity != null ? Number(body.stockQuantity) : null;
     const lowStockThreshold = body.lowStockThreshold != null ? Number(body.lowStockThreshold) : null;
     const cost = body.cost != null && body.cost !== '' ? Number(body.cost) : null;
@@ -91,8 +91,8 @@ export default async function handler(req, res) {
       priceForRow = Math.min(...sizeOpts.map((o) => o.price));
     }
     const insertProduct = () => sql`
-      INSERT INTO products (name, description, price, cost, image_url, category, is_featured, is_sold_out, is_vegetarian, stock_quantity, low_stock_threshold, is_available, size_options)
-      VALUES (${name}, ${description}, ${priceForRow}, ${cost}, ${imageURL}, ${category}, ${isFeatured}, ${isSoldOut}, ${isVegetarian}, ${stockQuantity}, ${lowStockThreshold}, ${isAvailable}, ${sizeJson}::jsonb)
+      INSERT INTO products (name, description, price, cost, image_url, category, is_featured, is_sold_out, is_vegan, stock_quantity, low_stock_threshold, is_available, size_options)
+      VALUES (${name}, ${description}, ${priceForRow}, ${cost}, ${imageURL}, ${category}, ${isFeatured}, ${isSoldOut}, ${isVegan}, ${stockQuantity}, ${lowStockThreshold}, ${isAvailable}, ${sizeJson}::jsonb)
       RETURNING *
     `;
     try {
@@ -104,7 +104,7 @@ export default async function handler(req, res) {
       const missingSizeOpts =
         err?.code === '42703' && String(err.message || '').includes('size_options');
       const missingVeg =
-        err?.code === '42703' && String(err.message || '').includes('is_vegetarian');
+        err?.code === '42703' && String(err.message || '').includes('is_vegan');
       const missingAvail =
         err?.code === '42703' && String(err.message || '').includes('is_available');
       if (missingSizeOpts || missingVeg || missingAvail) {
@@ -113,7 +113,7 @@ export default async function handler(req, res) {
             await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS size_options JSONB DEFAULT '[]'::jsonb`;
           }
           if (missingVeg) {
-            await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegetarian BOOLEAN NOT NULL DEFAULT false`;
+            await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegan BOOLEAN NOT NULL DEFAULT false`;
           }
           if (missingAvail) {
             await sql`ALTER TABLE products ADD COLUMN IF NOT EXISTS is_available BOOLEAN NOT NULL DEFAULT true`;
@@ -131,7 +131,7 @@ export default async function handler(req, res) {
         return res.status(500).json({
           error: 'Database schema out of date',
           details: err.message,
-          hint: 'On Neon, run: ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegetarian BOOLEAN NOT NULL DEFAULT false; or node scripts/run-missing-tables.js',
+          hint: 'On Neon, run: ALTER TABLE products ADD COLUMN IF NOT EXISTS is_vegan BOOLEAN NOT NULL DEFAULT false; or node scripts/run-missing-tables.js',
         });
       }
       console.error('products POST', err);
