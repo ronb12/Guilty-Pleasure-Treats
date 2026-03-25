@@ -96,9 +96,16 @@ function readBody(req) {
     req.on('data', (chunk) => chunks.push(chunk));
     req.on('end', () => {
       const contentType = (req.headers && req.headers['content-type']) || '';
-      if (contentType.includes('application/json') && chunks.length) {
+      const rawBuf = chunks.length ? Buffer.concat(chunks).toString('utf8') : '';
+      if (contentType.includes('application/json') && rawBuf) {
         try {
-          req.body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+          req.body = JSON.parse(rawBuf);
+        } catch {
+          req.body = {};
+        }
+      } else if (contentType.includes('application/x-www-form-urlencoded') && rawBuf) {
+        try {
+          req.body = Object.fromEntries(new URLSearchParams(rawBuf));
         } catch {
           req.body = {};
         }

@@ -4,7 +4,7 @@
  * Optional: NEWSLETTER_MAX_SENDS (default 150) — max recipients per request (Vercel timeout).
  */
 
-import { injectNewsletterUnsubscribe } from './newsletterUnsubscribeToken.js';
+import { injectNewsletterUnsubscribe, buildUnsubscribeUrl } from './newsletterUnsubscribeToken.js';
 
 function stripHtml(html) {
   if (!html) return '';
@@ -14,7 +14,7 @@ function stripHtml(html) {
     .trim();
 }
 
-export async function sendResendEmail({ to, subject, html, text, replyTo }) {
+export async function sendResendEmail({ to, subject, html, text, replyTo, headers }) {
   const key = process.env.RESEND_API_KEY;
   if (!key) {
     const e = new Error('Email sending is not configured. Set RESEND_API_KEY in Vercel.');
@@ -43,6 +43,7 @@ export async function sendResendEmail({ to, subject, html, text, replyTo }) {
       html: html || undefined,
       text: textBody,
       reply_to: replyTo || undefined,
+      headers: headers && Object.keys(headers).length ? headers : undefined,
     }),
   });
   const data = await res.json().catch(() => ({}));
@@ -97,7 +98,15 @@ export async function sendNewsletterToRecipients(recipients, opts) {
   for (const to of capped) {
     try {
       const { html: h, text: t } = injectNewsletterUnsubscribe(html, text, to);
-      await sendResendEmail({ to, subject, html: h, text: t, replyTo });
+      const unsubUrl = buildUnsubscribeUrl(to);
+      const listHeaders =
+        unsubUrl != null
+          ? {
+              'List-Unsubscribe': `<${unsubUrl}>`,
+              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+            }
+          : undefined;
+      await sendResendEmail({ to, subject, html: h, text: t, replyTo, headers: listHeaders });
       sent += 1;
     } catch (err) {
       failed += 1;

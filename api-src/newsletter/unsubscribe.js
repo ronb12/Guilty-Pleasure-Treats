@@ -1,6 +1,6 @@
 /**
- * GET /api/newsletter/unsubscribe?token=… — one-click marketing opt-out (no auth).
- * Inserts into newsletter_suppressions and clears preference for matching users row if any.
+ * GET/POST /api/newsletter/unsubscribe?token=… — marketing opt-out (no auth).
+ * POST supports RFC 8058 one-click (Gmail / bulk sender requirements) with body List-Unsubscribe=One-Click.
  */
 import { sql, hasDb } from '../../api/lib/db.js';
 import { setCors, handleOptions } from '../../api/lib/cors.js';
@@ -30,12 +30,18 @@ export default async function handler(req, res) {
     handleOptions(res);
     return;
   }
-  if ((req.method || '').toUpperCase() !== 'GET') {
+
+  const method = (req.method || '').toUpperCase();
+  if (method !== 'GET' && method !== 'POST') {
     res.setHeader('Content-Type', 'application/json');
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   if (!hasDb() || !sql) {
+    if (method === 'POST') {
+      res.status(503).end();
+      return;
+    }
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res
       .status(503)
@@ -47,6 +53,10 @@ export default async function handler(req, res) {
   const email = parseUnsubscribeToken(rawTok, secret);
 
   if (!secret || !email) {
+    if (method === 'POST') {
+      res.status(400).end();
+      return;
+    }
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res
       .status(400)
@@ -65,6 +75,10 @@ export default async function handler(req, res) {
       VALUES (${email})
       ON CONFLICT (email) DO NOTHING
     `;
+    if (method === 'POST') {
+      res.status(204).end();
+      return;
+    }
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     return res
       .status(200)
@@ -76,9 +90,11 @@ export default async function handler(req, res) {
       );
   } catch (err) {
     console.error('[newsletter/unsubscribe]', err);
+    if (method === 'POST') {
+      res.status(500).end();
+      return;
+    }
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res
-      .status(500)
-      .send(htmlPage('Something went wrong', 'Please try again later or contact the bakery.'));
+    return res.status(500).send(htmlPage('Something went wrong', 'Please try again later or contact the bakery.'));
   }
 }

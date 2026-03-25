@@ -19,8 +19,15 @@ enum NewsletterHTMLTemplate {
     private static let appSecondaryHex = "#FEF7FA"
     /// AppTextPrimary — body text (RGB 0.24, 0.13, 0.16)
     private static let appTextPrimaryHex = "#3D2129"
-    /// Darker pink for gradients (derived from accent for contrast)
-    private static let appAccentDarkHex = "#C73D84"
+
+    /// Header background must be a safe hex for `bgcolor` + CSS (no gradients — Gmail strips them).
+    private static func sanitizedHeaderBgHex(_ raw: String) -> String {
+        let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let re = try? NSRegularExpression(pattern: "^#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$"),
+              re.firstMatch(in: t, range: NSRange(t.startIndex..., in: t)) != nil
+        else { return appAccentHex }
+        return t
+    }
 
     static func escape(_ s: String) -> String {
         s.replacingOccurrences(of: "&", with: "&amp;")
@@ -68,10 +75,10 @@ enum NewsletterHTMLTemplate {
     ) -> String {
         let name = escape(storeName)
         let pre = escape(preheader)
-        // Mid gradient stop: optional override; otherwise AppAccent (must stay readable with white title text).
+        // Solid header color only — email clients (especially Gmail) often strip linear-gradient and external fonts.
         let trimmedAccent = accentHex?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let accentMidRaw = trimmedAccent.isEmpty ? appAccentHex : trimmedAccent
-        let accentMid = escape(accentMidRaw)
+        let headerBgHex = sanitizedHeaderBgHex(trimmedAccent.isEmpty ? appAccentHex : trimmedAccent)
+        let accentMid = escape(headerBgHex)
         let mail = contactEmail.map { escape($0) } ?? ""
         let paras = bodyParagraphs.map { p in
             let t = escape(p).replacingOccurrences(of: "\n", with: "<br />")
@@ -87,9 +94,9 @@ enum NewsletterHTMLTemplate {
             contactFooter = ""
         }
 
-        // Compact header: icon beside title (shorter than stacked icon → name → tagline).
-        let titleStyle = "margin:0;font-family:'Dancing Script',Georgia,'Times New Roman',serif;font-size:30px;line-height:1.1;color:#ffffff;font-weight:600;letter-spacing:0.04em;text-shadow:0 2px 10px rgba(61,33,41,0.35);"
-        let taglineStyle = "margin:3px 0 0;font-family:'Playfair Display',Georgia,serif;font-size:13px;line-height:1.35;font-style:italic;color:rgba(255,255,255,0.95);letter-spacing:0.04em;"
+        // Web-safe fonts only (no Google Fonts `<link>` — many clients block it; preview then matches inbox).
+        let titleStyle = "margin:0;font-family:Georgia,'Times New Roman',serif;font-size:28px;line-height:1.15;color:#ffffff;font-weight:700;letter-spacing:0.06em;text-transform:none;"
+        let taglineStyle = "margin:4px 0 0;font-family:Georgia,'Times New Roman',serif;font-size:13px;line-height:1.35;font-style:italic;color:#ffffff;letter-spacing:0.03em;opacity:0.95;"
         let headerInner: String
         if let raw = iconImageURL?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
             let iu = escape(raw)
@@ -116,7 +123,7 @@ enum NewsletterHTMLTemplate {
 
         return """
         <!DOCTYPE html>
-        <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>\(name)</title><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Dancing+Script:wght@600;700&family=Playfair+Display:ital@0;1&display=swap" rel="stylesheet"></head>
+        <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>\(name)</title></head>
         <body style="margin:0;padding:0;background-color:\(appPrimaryHex);">
         <div style="display:none;max-height:0;overflow:hidden;">\(pre)</div>
         <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background-color:\(appPrimaryHex);">
@@ -124,10 +131,10 @@ enum NewsletterHTMLTemplate {
             <td align="center" style="padding:20px 12px;">
               <table role="presentation" cellpadding="0" cellspacing="0" width="600" style="max-width:600px;width:100%;background-color:\(appSecondaryHex);border-radius:4px;overflow:hidden;border:1px solid #f5d0e4;box-shadow:0 20px 48px rgba(232,66,148,0.18);">
                 <tr>
-                  <td style="height:2px;line-height:2px;font-size:0;background:linear-gradient(90deg,\(appAccentHex) 0%,\(appPrimaryHex) 50%,\(appAccentHex) 100%);">&nbsp;</td>
+                  <td bgcolor="\(headerBgHex)" style="height:3px;line-height:3px;font-size:0;background-color:\(accentMid);">&nbsp;</td>
                 </tr>
                 <tr>
-                  <td style="padding:14px 22px 16px;background:linear-gradient(155deg,\(accentMid) 0%,\(appAccentDarkHex) 100%);">
+                  <td bgcolor="\(headerBgHex)" style="padding:14px 22px 16px;background-color:\(accentMid);">
                     \(headerInner)
                   </td>
                 </tr>
