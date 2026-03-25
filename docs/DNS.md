@@ -20,6 +20,10 @@ No change needed for the marketing site if Vercel shows the domain as **Valid Co
 
 You can confirm with `dig TXT guiltypleasuretreats.com +short` and `dig TXT _dmarc.guiltypleasuretreats.com +short`.
 
+### BIMI (Gmail / Yahoo inbox logo)
+
+Optional **TXT** at **`default._bimi`** so providers can associate a **hosted SVG** with your brand. See **`docs/BIMI.md`** (DMARC enforcement + VMC are usually required for **Gmail** to show the logo).
+
 ---
 
 ## Email sending (Resend)
