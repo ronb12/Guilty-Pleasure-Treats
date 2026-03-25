@@ -38,7 +38,7 @@ curl -sI https://guiltypleasuretreats.com/bimi-logo.svg | head -3
 
 Google generally expects:
 
-1. **Strong DMARC** — policy **`p=quarantine`** or **`p=reject`**. This is now set on **`_dmarc`** for `guiltypleasuretreats.com` (see **`docs/DNS.md`**). Watch **`rua=`** aggregate reports for authentication failures before considering **`p=reject`**.
+1. **Strong DMARC** — policy **`p=quarantine`** or **`p=reject`** (required for typical Gmail BIMI avatar). The domain currently uses **`p=none`** with **`rua=`** so you can **review aggregate reports** first; only move to **`p=quarantine`** when reports show **consistent SPF/DKIM pass and alignment** for all mail from `@guiltypleasuretreats.com` (Resend + anything else), or Gmail may filter newsletters.
 2. **Verified Mark Certificate (VMC)** — issued by an authorized CA (e.g. DigiCert, Entrust), tied to a **registered trademark** matching the SVG. You **cannot** generate this in-repo; purchase the VMC, host the **`.pem`** file over **HTTPS** with the **Content-Type** your CA specifies, then add it to BIMI as **`a=`**.
 3. **Logo file** — square **SVG** tied to that trademark; replace **`website/bimi-logo.svg`** with the **exact** artwork from the VMC package when your CA provides it.
 
