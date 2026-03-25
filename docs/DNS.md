@@ -16,7 +16,7 @@ No change needed for the marketing site if Vercel shows the domain as **Valid Co
 | Record | Value |
 |--------|--------|
 | **TXT** at apex (`@`) | `v=spf1 include:amazonses.com ~all` |
-| **TXT** at `_dmarc` | `v=DMARC1; p=none;` (trailing `;` matches Resend’s optional row) |
+| **TXT** at `_dmarc` | `v=DMARC1; p=quarantine; adkim=r; aspf=r; rua=mailto:info@guiltypleasuretreats.com;` (enforced; aggregate reports to **info@**) |
 
 You can confirm with `dig TXT guiltypleasuretreats.com +short` and `dig TXT _dmarc.guiltypleasuretreats.com +short`.
 

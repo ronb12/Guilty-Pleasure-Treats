@@ -38,11 +38,21 @@ curl -sI https://guiltypleasuretreats.com/bimi-logo.svg | head -3
 
 Google generally expects:
 
-1. **Strong DMARC** — policy **`p=quarantine`** or **`p=reject`** (not only `p=none`), with alignment for your sending domain. Moving from `p=none` affects **all** mail that uses `@guiltypleasuretreats.com`; plan with your mail stack (Resend is aligned if SPF/DKIM pass for the From domain).
-2. **Verified Mark Certificate (VMC)** — issued by an authorized CA, tied to a **registered trademark** that matches the logo in the SVG. You add the certificate URL in the BIMI record as the `a=` tag. This is **paid** and not something the repo can generate.
-3. **Logo file** — must stay a **square**, **SVG** acceptable to BIMI; when you get a VMC, replace `website/bimi-logo.svg` with the **exact** artwork tied to that mark.
+1. **Strong DMARC** — policy **`p=quarantine`** or **`p=reject`**. This is now set on **`_dmarc`** for `guiltypleasuretreats.com` (see **`docs/DNS.md`**). Watch **`rua=`** aggregate reports for authentication failures before considering **`p=reject`**.
+2. **Verified Mark Certificate (VMC)** — issued by an authorized CA (e.g. DigiCert, Entrust), tied to a **registered trademark** matching the SVG. You **cannot** generate this in-repo; purchase the VMC, host the **`.pem`** file over **HTTPS** with the **Content-Type** your CA specifies, then add it to BIMI as **`a=`**.
+3. **Logo file** — square **SVG** tied to that trademark; replace **`website/bimi-logo.svg`** with the **exact** artwork from the VMC package when your CA provides it.
 
-Until DMARC is enforced and a VMC is published, some providers may **not** show the inbox logo even though DNS is correct.
+### After you have the VMC PEM URL
+
+1. Delete the existing **`default._bimi`** TXT in Vercel DNS (or your DNS UI), then add one line that includes **both** `l=` and **`a=`**:
+
+```text
+v=BIMI1; l=https://guiltypleasuretreats.com/bimi-logo.svg; a=https://guiltypleasuretreats.com/vmc.pem;
+```
+
+2. Replace **`a=`** with your real public HTTPS URL to the PEM. Redeploy if you add the file under **`website/`**.
+
+Without a valid **`a=`** and CA-issued PEM, Gmail will typically **not** show the inbox avatar, even with DMARC enforced.
 
 ## Other providers
 
