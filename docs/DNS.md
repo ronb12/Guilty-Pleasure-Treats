@@ -11,6 +11,15 @@
 
 No change needed for the marketing site if Vercel shows the domain as **Valid Configuration**.
 
+### Apex SPF + DMARC (recommended for `@guiltypleasuretreats.com` mail alignment)
+
+| Record | Value |
+|--------|--------|
+| **TXT** at apex (`@`) | `v=spf1 include:amazonses.com ~all` |
+| **TXT** at `_dmarc` | `v=DMARC1; p=none;` (trailing `;` matches Resend’s optional row) |
+
+You can confirm with `dig TXT guiltypleasuretreats.com +short` and `dig TXT _dmarc.guiltypleasuretreats.com +short`.
+
 ---
 
 ## Email sending (Resend)
@@ -24,10 +33,40 @@ On the **`send`** subdomain:
 
 If Resend still doesn’t verify **MX** (wrong region), replace the MX target with the exact host shown in **Resend → Domains** (e.g. `eu-west-1`).
 
-### DKIM (you must finish — unique per domain)
+**Vercel CLI (MX):** use hostname and priority as separate arguments, e.g.  
+`vercel dns add guiltypleasuretreats.com '@' MX feedback-smtp.us-east-1.amazonses.com 10`
+
+### Resend **Inbound** (Enable Receiving)
+
+If you turn on **Receiving** for the root domain in Resend, add **apex** MX (name `@`):
+
+- **MX** `10 inbound-smtp.us-east-1.amazonaws.com` (or the exact host Resend shows for your region)
+
+Example:
+
+```bash
+vercel dns add guiltypleasuretreats.com '@' MX inbound-smtp.us-east-1.amazonaws.com 10
+```
+
+That record **captures all inbound mail** for `@guiltypleasuretreats.com` in Resend. Do **not** add it if you need Google Workspace or another host’s MX on the apex; use a **subdomain** for Resend receiving instead.
+
+### DKIM (unique per domain — add last)
+
+Your Vercel/production **`RESEND_API_KEY` is usually send-only**, so it cannot call `GET /domains` to read the DKIM string. Pick one path:
+
+**A — One command (temporary full-access API key)**  
+In Resend → API Keys, create a key with **full** permissions, then (same shell as `vercel login`):
+
+```bash
+RESEND_API_KEY=re_xxxxx_full_access ./scripts/sync-resend-dkim-vercel.sh
+```
+
+Revoke the full-access key after the record is created.
+
+**B — Dashboard + CLI**
 
 1. **Resend** → **Domains** → `guiltypleasuretreats.com` → copy the **TXT** value for **`resend._domainkey`**.
-2. Run from the repo (same machine as `vercel login`):
+2. Run from the repo:
 
 ```bash
 ./scripts/add-resend-dkim-vercel.sh 'p=YOUR_FULL_VALUE_FROM_RESEND'
@@ -41,11 +80,9 @@ vercel dns add guiltypleasuretreats.com resend._domainkey TXT 'p=YOUR_FULL_VALUE
 
 3. Click **Verify DNS Records** in Resend.
 
-**Note:** A **full-access** Resend API key can list domain DNS via their API; typical **send-only** keys cannot — use the dashboard for the DKIM string.
-
 **Wildcard:** If `*` still resolves `send` to Vercel **A** records, that’s OK for mail — **MX/TXT on `send`** take precedence for those types.
 
-**Optional (after verify):** DMARC TXT at `_dmarc` — Resend’s dashboard has guidance.
+**Optional:** DMARC TXT at `_dmarc` — Resend often shows `v=DMARC1; p=none;`.
 
 ---
 
