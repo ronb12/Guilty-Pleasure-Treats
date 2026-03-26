@@ -2,6 +2,12 @@
   "version": 2,
   "buildCommand": "npm run vercel:sync",
   "outputDirectory": "website",
+  "crons": [
+    {
+      "path": "/api/cron/poll-usps-tracking",
+      "schedule": "25 * * * *"
+    }
+  ],
   "env": {
     "NODE_OPTIONS": "--no-deprecation"
   },

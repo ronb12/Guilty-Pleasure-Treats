@@ -22,6 +22,10 @@ function ok(label) {
 const { normalizeTrackingCarrier, carrierTrackingUrl, parcelTrackingFieldsFromRow } = await import(
   path.join(root, 'api', 'lib', 'parcelTrackingUrls.js')
 );
+const { trackingDetailIndicatesDelivered } = await import(
+  path.join(root, 'api', 'lib', 'completeOrderIfTrackingDelivered.js')
+);
+const { summaryTextFromUspsTrackingPayload } = await import(path.join(root, 'api', 'lib', 'uspsTrackingApi.js'));
 
 // --- normalizeTrackingCarrier
 if (normalizeTrackingCarrier('UPS') !== 'ups') fail('normalize UPS');
@@ -63,25 +67,65 @@ const empty = parcelTrackingFieldsFromRow({});
 if (empty.trackingUrl !== null) fail('empty row url null');
 ok('parcelTrackingFieldsFromRow');
 
+// --- trackingDetailIndicatesDelivered
+if (!trackingDetailIndicatesDelivered('Delivered to recipient')) fail('should detect delivered');
+if (!trackingDetailIndicatesDelivered('  DELIVERED, Front Door ')) fail('should detect delivered casing');
+if (!trackingDetailIndicatesDelivered('Your shipment delivery complete')) fail('delivery complete');
+if (!trackingDetailIndicatesDelivered('In transit to local hub. Delivered.')) fail('delivered should win over in transit');
+if (trackingDetailIndicatesDelivered('Out for delivery')) fail('out for delivery should not complete');
+if (trackingDetailIndicatesDelivered('Attempted delivery')) fail('attempted should not complete');
+if (trackingDetailIndicatesDelivered('In transit')) fail('in transit alone should not complete');
+if (trackingDetailIndicatesDelivered('Not delivered')) fail('not delivered should not complete');
+if (trackingDetailIndicatesDelivered('')) fail('empty should not complete');
+ok('trackingDetailIndicatesDelivered');
+
+// --- USPS Tracking API payload shape (summary / detail)
+const uspsSum = summaryTextFromUspsTrackingPayload({
+  TrackResults: {
+    TrackInfo: { TrackSummary: 'Delivered, Left with Individual.' },
+  },
+});
+if (!uspsSum.includes('Delivered')) fail(`USPS summary parse: ${uspsSum}`);
+const uspsDet = summaryTextFromUspsTrackingPayload({
+  statusSummary: 'Out for Delivery',
+  status: 'Out for Delivery',
+});
+if (!uspsDet.includes('Delivery')) fail(`USPS detail parse: ${uspsDet}`);
+ok('summaryTextFromUspsTrackingPayload');
+
 // --- Router: webhook + orders detail
 const routerPath = path.join(root, 'api', '[[...path]].js');
 const router = fs.readFileSync(routerPath, 'utf8');
 if (!router.includes("'webhooks/carrier-tracking'")) fail('router missing webhooks/carrier-tracking key');
 if (!router.includes('webhooks/carrier-tracking.js')) fail('router missing webhooks module map');
+if (!router.includes("'cron/poll-usps-tracking'")) fail('router missing cron poll-usps-tracking key');
 ok('api/[[...path]].js routing');
+
+const pollUspsPath = path.join(root, 'api-src', 'cron', 'poll-usps-tracking.js');
+if (!fs.existsSync(pollUspsPath)) fail(`missing ${pollUspsPath}`);
+const pollUspsSrc = fs.readFileSync(pollUspsPath, 'utf8');
+if (!pollUspsSrc.includes('fetchUspsTrackingSummaryText')) fail('poll-usps-tracking should call USPS API');
+ok('api-src/cron/poll-usps-tracking.js');
 
 const webhookPath = path.join(root, 'api-src', 'webhooks', 'carrier-tracking.js');
 if (!fs.existsSync(webhookPath)) fail(`missing ${webhookPath}`);
 const webhookSrc = fs.readFileSync(webhookPath, 'utf8');
 if (!webhookSrc.includes('CARRIER_TRACKING_WEBHOOK_SECRET')) fail('webhook missing secret env');
 if (!webhookSrc.includes('crypto.timingSafeEqual')) fail('webhook should use timing-safe compare');
+if (!webhookSrc.includes('completeShippingOrderIfTrackingDelivered')) fail('webhook should auto-complete on delivered text');
 ok('api-src/webhooks/carrier-tracking.js');
 
 const orderIdPath = path.join(root, 'api-src', 'orders', 'id.js');
 const orderIdSrc = fs.readFileSync(orderIdPath, 'utf8');
 if (!orderIdSrc.includes('tracking_carrier')) fail('orders/id missing tracking in SELECT/PATCH');
 if (!orderIdSrc.includes('parcelTrackingFieldsFromRow')) fail('orders/id missing parcel helper');
+if (!orderIdSrc.includes('shippingReadyTrackingRule')) fail('orders/id missing shipping ready tracking rule');
+if (!orderIdSrc.includes('completeShippingOrderIfTrackingDelivered')) fail('orders/id missing auto-complete from tracking');
 ok('api-src/orders/id.js');
+
+const shipRulePath = path.join(root, 'api', 'lib', 'shippingReadyTrackingRule.cjs');
+if (!fs.existsSync(shipRulePath)) fail(`missing ${shipRulePath}`);
+ok('api/lib/shippingReadyTrackingRule.cjs');
 
 // --- Swift client
 const vercelServicePath = path.join(

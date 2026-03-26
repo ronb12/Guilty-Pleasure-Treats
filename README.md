@@ -28,9 +28,14 @@ Set these in the Vercel project (or `.env.local` for `vercel dev`) as needed:
 | `POSTGRES_URL` or `DATABASE_URL` | Neon Postgres connection string |
 | `STRIPE_SECRET_KEY` | Optional override; secret can also be stored via **Admin → Business Settings** in the app |
 | `CARRIER_TRACKING_WEBHOOK_SECRET` | Optional. Shared secret for `POST /api/webhooks/carrier-tracking` (header `X-Carrier-Tracking-Secret` or `Authorization: Bearer …`). Updates `tracking_*` on an order by `orderId`. |
+| `USPS_CLIENT_ID`, `USPS_CLIENT_SECRET` | Optional. [USPS Developer Portal](https://developers.usps.com/getting-started) app credentials (Consumer Key & Secret). Enables hourly **`GET /api/cron/poll-usps-tracking`** for **USPS** shipments (official API; no paid aggregator). |
+| `USPS_API_BASE` | Optional. Default `https://apis.usps.com`. Use `https://apis-tem.usps.com` for USPS test (TEM). |
+| `PARCEL_TRACKING_POLL_SECRET` or `CRON_SECRET` | Optional. `Authorization: Bearer …` must match one of these to call the USPS poll endpoint (Vercel Cron can use `CRON_SECRET`). |
 | Others | JWT/auth, Apple Sign In, Blob upload, etc., per your deployment |
 
-**Parcel tracking:** Orders expose `trackingCarrier` (`ups` \| `fedex` \| `usps`), `trackingNumber`, optional `trackingStatusDetail`, and a computed `trackingUrl` for the carrier’s public tracking page. Admins set fields via `PATCH /api/orders/:id` (app **Admin → Orders → order → Shipment → Edit**). Automated systems can call the webhook above with JSON like `{ "orderId": "<uuid>", "trackingCarrier": "ups", "trackingNumber": "1Z999…", "trackingStatusDetail": "Out for delivery" }`. Add DB columns with `node scripts/run-missing-tables.js` (or rely on `ensureOrdersOptionalColumns` on first orders request).
+**Parcel tracking:** Orders expose `trackingCarrier` (`ups` \| `fedex` \| `usps`), `trackingNumber`, optional `trackingStatusDetail`, and a computed `trackingUrl`. Use **Admin → Orders → Shipment → Edit** or the **webhook** (e.g. `{ "orderId": "<uuid>", "trackingCarrier": "usps", "trackingNumber": "9400…", … }`). When status text looks like a final delivery, **Shipping** orders can **auto-complete** (loyalty + push).
+
+**USPS auto-poll:** With USPS + cron env vars set, `vercel.json` runs **`/api/cron/poll-usps-tracking`** hourly for open **Shipping** orders where **carrier is usps**, updates `trackingStatusDetail` from the USPS **Tracking** API summary, then applies the same delivery auto-complete logic. **UPS/FedEx** stay manual or webhook-only. Add DB columns with `node scripts/run-missing-tables.js` (or rely on `ensureOrdersOptionalColumns` on first orders request).
 
 **Apple Push (APNs):** Server pushes (orders, order status, loyalty points on completion, contact and thread replies, store messages, events, low inventory, custom cake requests, new reviews, etc.) send only when **all** of these are set in Vercel: `APNS_KEY_P8` (full `.p8` key file contents), `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_BUNDLE_ID`. Use `APNS_SANDBOX=true` for development builds against Apple’s sandbox. If any required value is missing, pushes are skipped; `GET /api/health` reports `apnsConfigured: false`.
 

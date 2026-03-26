@@ -32,6 +32,8 @@ struct OrderDetailView: View {
     @Environment(\.openURL) private var openURL
     @State private var liveOrder: Order?
     @State private var showStatusPicker = false
+    /// After saving parcel info, apply this status (shipping orders must have tracking before "Ready for Pickup").
+    @State private var pendingStatusAfterTracking: OrderStatus?
     @State private var showCancelRequestSheet = false
     @State private var showParcelEditor = false
     @State private var parcelCarrierDraft = ""
@@ -100,7 +102,7 @@ struct OrderDetailView: View {
         .confirmationDialog("Update status", isPresented: $showStatusPicker) {
             ForEach(OrderStatus.allCases, id: \.self) { status in
                 Button(status.rawValue) {
-                    onUpdateStatus?(displayOrder, status)
+                    proposeStatusUpdate(status)
                 }
             }
             Button("Cancel", role: .cancel) {}
@@ -145,6 +147,7 @@ struct OrderDetailView: View {
                         Button("Cancel") {
                             showParcelEditor = false
                             parcelSaveError = nil
+                            pendingStatusAfterTracking = nil
                         }
                     }
                     ToolbarItem(placement: .confirmationAction) {
@@ -172,6 +175,16 @@ struct OrderDetailView: View {
         if let fresh = try? await api.fetchOrder(orderId: oid) {
             liveOrder = fresh
         }
+    }
+
+    private func proposeStatusUpdate(_ status: OrderStatus) {
+        if isAdmin, status == .ready, displayOrder.fulfillmentEnum == .shipping,
+           !displayOrder.hasParcelTrackingForShipping {
+            pendingStatusAfterTracking = status
+            openParcelEditor()
+            return
+        }
+        onUpdateStatus?(displayOrder, status)
     }
 
     private func openParcelEditor() {
@@ -205,6 +218,13 @@ struct OrderDetailView: View {
             await refreshOrderFromServer()
             showParcelEditor = false
             onParcelTrackingChanged?()
+            if let pending = pendingStatusAfterTracking {
+                pendingStatusAfterTracking = nil
+                let o = liveOrder ?? displayOrder
+                if o.hasParcelTrackingForShipping {
+                    onUpdateStatus?(o, pending)
+                }
+            }
         } catch {
             parcelSaveError = FriendlyErrorMessage.message(for: error)
         }

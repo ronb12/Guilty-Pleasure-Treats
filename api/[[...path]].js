@@ -57,6 +57,7 @@ function modulePathFor(key) {
     'customers/id': 'customers/id.js',
     'push/register': 'push/register.js',
     'webhooks/carrier-tracking': 'webhooks/carrier-tracking.js',
+    'cron/poll-usps-tracking': 'cron/poll-usps-tracking.js',
     'analytics/summary': 'analytics/summary.js',
     'admin/newsletter': 'admin/newsletter.js',
     'newsletter/unsubscribe': 'newsletter/unsubscribe.js',
@@ -258,6 +259,8 @@ function getPathKey(req) {
     key = 'push/register';
   } else if (segs[0] === 'webhooks' && segs[1] === 'carrier-tracking') {
     key = 'webhooks/carrier-tracking';
+  } else if (segs[0] === 'cron' && segs[1] === 'poll-usps-tracking') {
+    key = 'cron/poll-usps-tracking';
   } else if (segs[0] === 'analytics' && segs[1] === 'summary') {
     key = 'analytics/summary';
   } else if (segs[0] === 'reviews') {

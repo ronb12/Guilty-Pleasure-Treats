@@ -919,6 +919,11 @@ final class AdminViewModel: ObservableObject {
     
     func updateOrderStatus(order: Order, status: OrderStatus) async {
         guard let orderId = order.id else { return }
+        if status == .ready, order.fulfillmentEnum == .shipping, !order.hasParcelTrackingForShipping {
+            errorMessage =
+                "Add a carrier and tracking number before marking a shipping order ready. Open the order and tap Parcel tracking."
+            return
+        }
         do {
             try await api.updateOrderStatus(orderId: orderId, status: status)
             // Loyalty earn is server-side when status becomes Completed (idempotent per order).

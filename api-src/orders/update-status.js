@@ -2,10 +2,17 @@
  * PATCH /api/orders/update-status — update order status and/or pickup_time (admin or owner).
  * Body: { orderId: string (uuid), status?: string, pickup_time?: iso date string, ready_by?: iso date string }
  * Status: pending | confirmed | in_progress | ready | completed | cancelled
+ * Shipping fulfillment: status `ready` requires tracking_carrier + tracking_number already on the order (save via PATCH /api/orders/:id tracking fields first).
  */
 const { withCors } = require('../../api/lib/cors');
 const { getAuth } = require('../../api/lib/auth');
 const { sql } = require('../../api/lib/db');
+const {
+  isReadyPickupStatus,
+  isShippingFulfillmentType,
+  hasValidParcelTracking,
+  shippingReadyRequiresTrackingError,
+} = require('../../api/lib/shippingReadyTrackingRule.cjs');
 
 const ALLOWED_STATUSES = ['pending', 'confirmed', 'in_progress', 'ready', 'completed', 'cancelled'];
 
@@ -29,10 +36,22 @@ async function handler(req, res) {
   if (status && !ALLOWED_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status' });
 
   try {
-    const [order] = await sql`SELECT id, user_id FROM orders WHERE id = ${orderId}`;
+    const [order] = await sql`
+      SELECT id, user_id, fulfillment_type, tracking_carrier, tracking_number
+      FROM orders WHERE id = ${orderId}
+    `;
     if (!order) return res.status(404).json({ error: 'Order not found' });
     const isAdmin = auth.isAdmin === true;
     if (order.user_id !== auth.userId && !isAdmin) return res.status(403).json({ error: 'Forbidden' });
+
+    if (
+      status &&
+      isReadyPickupStatus(status) &&
+      isShippingFulfillmentType(order.fulfillment_type) &&
+      !hasValidParcelTracking(order.tracking_carrier, order.tracking_number)
+    ) {
+      return res.status(400).json(shippingReadyRequiresTrackingError());
+    }
 
     if (status) await sql`UPDATE orders SET status = ${status}, updated_at = NOW() WHERE id = ${orderId}`;
     if (pickup_time !== undefined) await sql`UPDATE orders SET pickup_time = ${pickup_time ? new Date(pickup_time) : null} WHERE id = ${orderId}`;

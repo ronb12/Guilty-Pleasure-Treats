@@ -7,12 +7,17 @@
  *
  * Body JSON: { "orderId": "<uuid>", "trackingCarrier"?: "ups"|"fedex"|"usps",
  *              "trackingNumber"?: string, "trackingStatusDetail"?: string }
+ *
+ * Shipping orders: if trackingStatusDetail looks like a final delivery (e.g. contains "Delivered"),
+ * status is set to Completed and loyalty + customer push run (same as manual complete).
+ * Response includes `orderCompleted: true` when that happened.
  */
 import crypto from 'crypto';
 import { sql, hasDb } from '../../api/lib/db.js';
 import { setCors, handleOptions } from '../../api/lib/cors.js';
 import { ensureOrdersOptionalColumns } from '../lib/ordersSchema.js';
 import { parcelTrackingFieldsFromRow } from '../../api/lib/parcelTrackingUrls.js';
+import { completeShippingOrderIfTrackingDelivered } from '../../api/lib/completeOrderIfTrackingDelivered.js';
 
 function timingSafeEqualStrings(a, b) {
   const x = Buffer.from(String(a ?? ''), 'utf8');
@@ -107,12 +112,20 @@ export default async function handler(req, res) {
       WHERE id = ${orderId}
     `;
 
+    let orderAutoCompleted = false;
+    try {
+      const r = await completeShippingOrderIfTrackingDelivered(sql, orderId, detail);
+      orderAutoCompleted = r.completed === true;
+    } catch (e) {
+      console.warn('[webhooks/carrier-tracking] auto-complete', e?.message ?? e);
+    }
+
     const [row] = await sql`
       SELECT id, tracking_carrier, tracking_number, tracking_status_detail, tracking_updated_at
       FROM orders WHERE id = ${orderId}
     `;
     const fields = parcelTrackingFieldsFromRow(row || {});
-    return res.status(200).json({ ok: true, orderId, ...fields });
+    return res.status(200).json({ ok: true, orderId, orderCompleted: orderAutoCompleted, ...fields });
   } catch (err) {
     if (err?.code === '42703') {
       return res.status(503).json({ error: 'Database missing tracking columns; run migrations' });

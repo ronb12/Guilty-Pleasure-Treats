@@ -163,6 +163,13 @@ struct Order: Identifiable, Codable, Equatable {
     var statusEnum: OrderStatus? { OrderStatus(rawValue: status) }
     var fulfillmentEnum: FulfillmentType? { FulfillmentType(rawValue: fulfillmentType) }
 
+    /// True when both carrier and tracking number are set (required server-side before marking a shipping order ready).
+    var hasParcelTrackingForShipping: Bool {
+        guard let c = trackingCarrier?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty else { return false }
+        guard let n = trackingNumber?.trimmingCharacters(in: .whitespacesAndNewlines), !n.isEmpty else { return false }
+        return true
+    }
+
     // MARK: - Totals breakdown (shipping/delivery + tip are folded into `total`, not separate DB columns)
 
     /// Tip from checkout, in dollars (`tip_cents` from API).

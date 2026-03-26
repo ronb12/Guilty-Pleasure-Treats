@@ -11,6 +11,14 @@ import {
 } from '../../api/lib/awardLoyaltyOnOrderCompleted.js';
 import { ensureOrdersOptionalColumns } from '../lib/ordersSchema.js';
 import { parcelTrackingFieldsFromRow } from '../../api/lib/parcelTrackingUrls.js';
+import {
+  isReadyPickupStatus,
+  isShippingFulfillmentType,
+  hasValidParcelTracking,
+  effectiveTrackingAfterPatch,
+  shippingReadyRequiresTrackingError,
+} from '../../api/lib/shippingReadyTrackingRule.js';
+import { completeShippingOrderIfTrackingDelivered } from '../../api/lib/completeOrderIfTrackingDelivered.js';
 
 function rowToOrder(row) {
   if (!row) return null;
@@ -91,9 +99,12 @@ export default async function handler(req, res) {
   if ((req.method || '').toUpperCase() === 'PATCH') {
     try {
       await ensureOrdersOptionalColumns(sql);
-      const [order] = await sql`SELECT id, user_id FROM orders WHERE id = ${id}`;
-      if (!order) return res.status(404).json({ error: 'Order not found' });
-      const orderUserId = order.user_id?.toString?.() ?? order.user_id;
+      const [orderRow] = await sql`
+        SELECT id, user_id, fulfillment_type, tracking_carrier, tracking_number
+        FROM orders WHERE id = ${id}
+      `;
+      if (!orderRow) return res.status(404).json({ error: 'Order not found' });
+      const orderUserId = orderRow.user_id?.toString?.() ?? orderRow.user_id;
       const sessionUserId = session.userId?.toString?.() ?? session.userId;
       if (orderUserId !== sessionUserId && session.isAdmin !== true) return res.status(403).json({ error: 'Forbidden' });
 
@@ -107,6 +118,16 @@ export default async function handler(req, res) {
         'tracking_status_detail' in body;
       if (trackingInBody && session.isAdmin !== true) {
         return res.status(403).json({ error: 'Forbidden' });
+      }
+      if (
+        body.status != null &&
+        isReadyPickupStatus(body.status) &&
+        isShippingFulfillmentType(orderRow.fulfillment_type)
+      ) {
+        const eff = effectiveTrackingAfterPatch(body, orderRow);
+        if (!hasValidParcelTracking(eff.carrier, eff.number)) {
+          return res.status(400).json(shippingReadyRequiresTrackingError());
+        }
       }
       let didUpdate = false;
       if (body.status != null) {
@@ -166,6 +187,11 @@ export default async function handler(req, res) {
             WHERE id = ${id}
           `;
           didUpdate = true;
+          try {
+            await completeShippingOrderIfTrackingDelivered(sql, id, detail);
+          } catch (e) {
+            console.warn('[orders/id] auto-complete from tracking', e?.message ?? e);
+          }
         }
       }
       if (!didUpdate) return res.status(400).json({ error: 'No updates provided' });
