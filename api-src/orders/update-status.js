@@ -7,12 +7,6 @@
 const { withCors } = require('../../api/lib/cors');
 const { getAuth } = require('../../api/lib/auth');
 const { sql } = require('../../api/lib/db');
-const {
-  isReadyPickupStatus,
-  isShippingFulfillmentType,
-  hasValidParcelTracking,
-  shippingReadyRequiresTrackingError,
-} = require('../../api/lib/shippingReadyTrackingRule.cjs');
 
 const ALLOWED_STATUSES = ['pending', 'confirmed', 'in_progress', 'ready', 'completed', 'cancelled'];
 
@@ -36,6 +30,13 @@ async function handler(req, res) {
   if (status && !ALLOWED_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status' });
 
   try {
+    const {
+      isReadyPickupStatus,
+      isShippingFulfillmentType,
+      hasValidParcelTracking,
+      shippingReadyRequiresTrackingError,
+    } = await import('../../api/lib/shippingReadyTrackingRule.js');
+
     const [order] = await sql`
       SELECT id, user_id, fulfillment_type, tracking_carrier, tracking_number
       FROM orders WHERE id = ${orderId}

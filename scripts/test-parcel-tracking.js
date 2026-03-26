@@ -123,9 +123,11 @@ if (!orderIdSrc.includes('shippingReadyTrackingRule')) fail('orders/id missing s
 if (!orderIdSrc.includes('completeShippingOrderIfTrackingDelivered')) fail('orders/id missing auto-complete from tracking');
 ok('api-src/orders/id.js');
 
-const shipRulePath = path.join(root, 'api', 'lib', 'shippingReadyTrackingRule.cjs');
+const shipRulePath = path.join(root, 'api', 'lib', 'shippingReadyTrackingRule.js');
 if (!fs.existsSync(shipRulePath)) fail(`missing ${shipRulePath}`);
-ok('api/lib/shippingReadyTrackingRule.cjs');
+const shipRuleSrc = fs.readFileSync(shipRulePath, 'utf8');
+if (!shipRuleSrc.includes('export function isReadyPickupStatus')) fail('shippingReadyTrackingRule.js should export ESM helpers');
+ok('api/lib/shippingReadyTrackingRule.js');
 
 // --- Swift client
 const vercelServicePath = path.join(
