@@ -6,7 +6,7 @@ import { sql, hasDb } from '../lib/db.js';
 import { getTokenFromRequest, getSession } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
 import { pgBool, soldOutFromRow } from '../pgBool.js';
-import { ensureLoyaltyRewardsTable } from '../lib/loyaltyRewardsSchema.js';
+import { ensureLoyaltyRewardsTable } from '../../api/lib/loyaltyRewardsSchema.js';
 
 function rowSizeOptions(row) {
   const v = row.size_options;

@@ -5,7 +5,7 @@
 import { sql, hasDb } from '../../api/lib/db.js';
 import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
 import { setCors, handleOptions } from '../../api/lib/cors.js';
-import { ensureLoyaltyRewardsTable } from '../lib/loyaltyRewardsSchema.js';
+import { ensureLoyaltyRewardsTable } from '../../api/lib/loyaltyRewardsSchema.js';
 import { ensureNewsletterSuppressionsTable, normalizeMarketingEmail } from '../../api/lib/newsletterSuppressions.js';
 
 function userResponse(row) {
