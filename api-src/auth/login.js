@@ -43,21 +43,23 @@ export default async function handler(req, res) {
   }
 
   try {
-    let result = await neonAuthSignIn(email, password);
+    let result = null;
 
-    // If Neon Auth fails, try public.users (password_hash) so dashboard-set passwords work
-    if ((!result || !result.token || !result.user) && hasDb() && sql) {
+    // Prefer public.users password_hash when present (admin / legacy) so login works even if
+    // Neon Auth rejects (wrong Neon password, Auth domain issues) or prod DB differs from Neon Auth store.
+    if (hasDb() && sql) {
       const dbUsers = await awaitNeonRows(
         sql`
         SELECT id, email, display_name, phone, is_admin, points, password_hash
         FROM users
-        WHERE LOWER(email) = ${email.toLowerCase()} AND password_hash IS NOT NULL
+        WHERE LOWER(email) = ${email.toLowerCase()}
         LIMIT 1
       `,
-        'login_db_password_user'
+        'login_db_user_lookup'
       );
       const userRow = dbUsers[0];
-      if (userRow && (await verifyPassword(password, userRow.password_hash))) {
+      const hash = userRow?.password_hash != null ? String(userRow.password_hash).trim() : '';
+      if (userRow && hash.length >= 10 && (await verifyPassword(password, hash))) {
         const session = await createSession(userRow.id);
         if (session) {
           result = {
@@ -73,6 +75,10 @@ export default async function handler(req, res) {
           };
         }
       }
+    }
+
+    if (!result || !result.token || !result.user) {
+      result = await neonAuthSignIn(email, password);
     }
 
     // Optional: admin fallback when Neon Auth rejects and no public.users password match
