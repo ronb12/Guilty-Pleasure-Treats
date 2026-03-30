@@ -132,6 +132,37 @@ struct PromoQuickTemplate: Identifiable, Equatable {
             firstOrderOnly: false
         ),
     ]
+
+    /// Shown under the template picker so admins see what the preset applies.
+    var adminDetailDescription: String {
+        var lines: [String] = [subtitle, ""]
+        lines.append("Suggested code: \(suggestedCode)")
+        let typeLabel = discountType.trimmingCharacters(in: .whitespacesAndNewlines)
+        if typeLabel == PromotionDiscountType.none.rawValue {
+            lines.append("Type: No automatic discount (tracking / manual perks)")
+        } else if typeLabel == PromotionDiscountType.percent.rawValue {
+            lines.append("Type: Percent off — \(value)%")
+        } else if typeLabel == PromotionDiscountType.fixed.rawValue {
+            lines.append("Type: Fixed amount — $\(value) off subtotal")
+        } else {
+            lines.append("Type: \(typeLabel) — value: \(value)")
+        }
+        let minSub = minSubtotal.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !minSub.isEmpty {
+            lines.append("Minimum cart: $\(minSub)")
+        }
+        let minQ = minTotalQuantityTextSanitized
+        if !minQ.isEmpty {
+            lines.append("Minimum total items in cart: \(minQ)")
+        }
+        lines.append(firstOrderOnly ? "First order only: Yes (customer must be signed in)" : "First order only: No")
+        lines.append("Product scope: Use “Applies to” below — whole cart unless you pick one item (required for free-item promos).")
+        return lines.joined(separator: "\n")
+    }
+
+    private var minTotalQuantityTextSanitized: String {
+        minQty.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 // MARK: - Loyalty rewards (10)
@@ -226,4 +257,17 @@ struct LoyaltyRewardQuickTemplate: Identifiable, Equatable {
             sortOrder: 9
         ),
     ]
+
+    /// Shown under the template picker so admins see what the preset applies.
+    var adminDetailDescription: String {
+        """
+        \(subtitle)
+
+        • Display name: \(suggestedName)
+        • Points required: \(pointsRequired)
+        • List order: \(sortOrder) (lower appears first in the app)
+
+        Choose the free catalog product below — the customer receives that menu item at $0 when they redeem.
+        """
+    }
 }

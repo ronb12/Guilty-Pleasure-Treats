@@ -3021,6 +3021,34 @@ private struct AddLoyaltyRewardView: View {
         viewModel.products.filter { ($0.id ?? "").isEmpty == false }
     }
 
+    private var loyaltyPointsPickerBinding: Binding<String> {
+        Binding(
+            get: { AdminOfferForm.loyaltyPointsTag(pointsText: pointsText) },
+            set: { new in
+                if new == AdminOfferForm.customTag { return }
+                pointsText = new
+            }
+        )
+    }
+
+    private var loyaltySortPickerBinding: Binding<String> {
+        Binding(
+            get: { AdminOfferForm.sortOrderTag(sortOrderText: sortOrderText) },
+            set: { new in
+                if new == AdminOfferForm.customTag { return }
+                sortOrderText = new
+            }
+        )
+    }
+
+    private var loyaltyShowCustomPoints: Bool {
+        AdminOfferForm.loyaltyPointsTag(pointsText: pointsText) == AdminOfferForm.customTag
+    }
+
+    private var loyaltyShowCustomSort: Bool {
+        AdminOfferForm.sortOrderTag(sortOrderText: sortOrderText) == AdminOfferForm.customTag
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -3043,48 +3071,102 @@ private struct AddLoyaltyRewardView: View {
                         guard !newId.isEmpty, let t = LoyaltyRewardQuickTemplate.all.first(where: { $0.id == newId }) else { return }
                         applyLoyaltyQuickTemplate(t)
                     }
+                    if let t = LoyaltyRewardQuickTemplate.all.first(where: { $0.id == selectedLoyaltyQuickTemplateId }) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("What this preset does", systemImage: "sparkles")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(AppConstants.Colors.accent)
+                            Text(t.title)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(AppConstants.Colors.textPrimary)
+                            Text(t.adminDetailDescription)
+                                .font(.caption)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
+                                .multilineTextAlignment(.leading)
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 4)
+                    }
                 } header: {
-                    Text("Quick start")
+                    Text("Preset")
                 } footer: {
-                    Text("Choose a preset from the menu to fill name, points, and sort order. Pick the free product below (defaults to first menu item if needed).")
+                    Text("Pick a preset to see a summary and to fill points, order, and name. Then choose the free product.")
                         .font(.caption)
                 }
                 Section {
                     TextField("Display name", text: $name)
                 } header: {
                     Text("Name")
+                } footer: {
+                    Text("Shown in the app rewards list. Presets fill this — you can edit the text.")
+                        .font(.caption)
                 }
                 Section {
-                    TextField("Points required", text: $pointsText)
-                        #if os(iOS)
-                        .keyboardType(.numberPad)
-                        #endif
+                    Picker("Points to redeem", selection: loyaltyPointsPickerBinding) {
+                        ForEach(AdminOfferForm.loyaltyPoints, id: \.self) { p in
+                            Text("\(p) points").tag(p)
+                        }
+                        Text("Custom…").tag(AdminOfferForm.customTag)
+                    }
+                    .pickerStyle(.menu)
+                    if loyaltyShowCustomPoints {
+                        TextField("Points required", text: $pointsText)
+                            #if os(iOS)
+                            .keyboardType(.numberPad)
+                            #endif
+                    }
                 } header: {
-                    Text("Points")
+                    Text("Cost")
+                } footer: {
+                    Text("How many loyalty points the customer must spend to redeem this reward.")
+                        .font(.caption)
                 }
                 Section {
-                    Picker("Product", selection: $productId) {
-                        Text("Select…").tag("")
+                    Picker("Free menu item", selection: $productId) {
+                        Text("Select a product…").tag("")
                         ForEach(productsWithIds, id: \.stablePickerId) { p in
                             Text(p.name).tag(p.id ?? "")
                         }
                     }
+                    .pickerStyle(.menu)
                 } header: {
-                    Text("Free product")
+                    Text("Reward")
                 } footer: {
-                    Text("Customer gets this catalog item at $0 when they redeem.")
+                    Text("The customer receives this catalog item at $0 when they redeem.")
                         .font(.caption)
                 }
                 Section {
-                    TextField("Sort order", text: $sortOrderText)
-                        #if os(iOS)
-                        .keyboardType(.numberPad)
-                        #endif
+                    Picker("List position", selection: loyaltySortPickerBinding) {
+                        ForEach(AdminOfferForm.sortOrders, id: \.self) { s in
+                            Text("Order \(s)").tag(s)
+                        }
+                        Text("Custom…").tag(AdminOfferForm.customTag)
+                    }
+                    .pickerStyle(.menu)
+                    if loyaltyShowCustomSort {
+                        TextField("Sort order (0 = first)", text: $sortOrderText)
+                            #if os(iOS)
+                            .keyboardType(.numberPad)
+                            #endif
+                    }
                 } header: {
-                    Text("Order")
+                    Text("Ordering")
+                } footer: {
+                    Text("Lower numbers appear earlier in the rewards list.")
+                        .font(.caption)
                 }
                 Section {
-                    Toggle("Active (show in app)", isOn: $isActive)
+                    Picker("Visibility", selection: $isActive) {
+                        Text("Visible in app").tag(true)
+                        Text("Hidden").tag(false)
+                    }
+                    .pickerStyle(.menu)
+                } header: {
+                    Text("Status")
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -3149,6 +3231,34 @@ private struct EditLoyaltyRewardView: View {
         viewModel.products.filter { ($0.id ?? "").isEmpty == false }
     }
 
+    private var editLoyaltyPointsPickerBinding: Binding<String> {
+        Binding(
+            get: { AdminOfferForm.loyaltyPointsTag(pointsText: pointsText) },
+            set: { new in
+                if new == AdminOfferForm.customTag { return }
+                pointsText = new
+            }
+        )
+    }
+
+    private var editLoyaltySortPickerBinding: Binding<String> {
+        Binding(
+            get: { AdminOfferForm.sortOrderTag(sortOrderText: sortOrderText) },
+            set: { new in
+                if new == AdminOfferForm.customTag { return }
+                sortOrderText = new
+            }
+        )
+    }
+
+    private var editLoyaltyShowCustomPoints: Bool {
+        AdminOfferForm.loyaltyPointsTag(pointsText: pointsText) == AdminOfferForm.customTag
+    }
+
+    private var editLoyaltyShowCustomSort: Bool {
+        AdminOfferForm.sortOrderTag(sortOrderText: sortOrderText) == AdminOfferForm.customTag
+    }
+
     init(reward: LoyaltyRewardItem, viewModel: AdminViewModel, onDismiss: @escaping () -> Void) {
         self.reward = reward
         self.viewModel = viewModel
@@ -3174,34 +3284,72 @@ private struct EditLoyaltyRewardView: View {
                     TextField("Display name", text: $name)
                 } header: {
                     Text("Name")
+                } footer: {
+                    Text("Shown in the app rewards list.")
+                        .font(.caption)
                 }
                 Section {
-                    TextField("Points required", text: $pointsText)
-                        #if os(iOS)
-                        .keyboardType(.numberPad)
-                        #endif
+                    Picker("Points to redeem", selection: editLoyaltyPointsPickerBinding) {
+                        ForEach(AdminOfferForm.loyaltyPoints, id: \.self) { p in
+                            Text("\(p) points").tag(p)
+                        }
+                        Text("Custom…").tag(AdminOfferForm.customTag)
+                    }
+                    .pickerStyle(.menu)
+                    if editLoyaltyShowCustomPoints {
+                        TextField("Points required", text: $pointsText)
+                            #if os(iOS)
+                            .keyboardType(.numberPad)
+                            #endif
+                    }
                 } header: {
-                    Text("Points")
+                    Text("Cost")
+                } footer: {
+                    Text("Points the customer spends to redeem.")
+                        .font(.caption)
                 }
                 Section {
-                    Picker("Product", selection: $productId) {
+                    Picker("Free menu item", selection: $productId) {
+                        Text("Select a product…").tag("")
                         ForEach(productsWithIds, id: \.stablePickerId) { p in
                             Text(p.name).tag(p.id ?? "")
                         }
                     }
+                    .pickerStyle(.menu)
                 } header: {
-                    Text("Free product")
+                    Text("Reward")
+                } footer: {
+                    Text("Catalog item given at $0 when redeemed.")
+                        .font(.caption)
                 }
                 Section {
-                    TextField("Sort order", text: $sortOrderText)
-                        #if os(iOS)
-                        .keyboardType(.numberPad)
-                        #endif
+                    Picker("List position", selection: editLoyaltySortPickerBinding) {
+                        ForEach(AdminOfferForm.sortOrders, id: \.self) { s in
+                            Text("Order \(s)").tag(s)
+                        }
+                        Text("Custom…").tag(AdminOfferForm.customTag)
+                    }
+                    .pickerStyle(.menu)
+                    if editLoyaltyShowCustomSort {
+                        TextField("Sort order", text: $sortOrderText)
+                            #if os(iOS)
+                            .keyboardType(.numberPad)
+                            #endif
+                    }
                 } header: {
-                    Text("Order")
+                    Text("Ordering")
+                } footer: {
+                    Text("Lower numbers appear first.")
+                        .font(.caption)
                 }
                 Section {
-                    Toggle("Active (show in app)", isOn: $isActive)
+                    Picker("Visibility", selection: $isActive) {
+                        Text("Visible in app").tag(true)
+                        Text("Hidden").tag(false)
+                    }
+                    .pickerStyle(.menu)
+                } header: {
+                    Text("Status")
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -3243,93 +3391,6 @@ private extension Product {
     var stablePickerId: String { id ?? name }
 }
 
-/// Scrollable list for promo “Applies to” instead of a compact menu (long product lists).
-private struct AdminPromoAppliesToPickerPage: View {
-    @Binding var selection: String
-    let products: [Product]
-    var orphanedProductId: String?
-    @Environment(\.dismiss) private var dismiss
-
-    private var normalizedSelection: String {
-        selection.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func matches(_ productId: String) -> Bool {
-        normalizedSelection == productId.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    var body: some View {
-        List {
-            Section {
-                Button {
-                    selection = ""
-                    dismiss()
-                } label: {
-                    HStack {
-                        Text("Any product (whole cart)")
-                            .foregroundStyle(AppConstants.Colors.textPrimary)
-                        Spacer()
-                        if normalizedSelection.isEmpty {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(AppConstants.Colors.accent)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-            if let orphan = orphanedProductId?.trimmingCharacters(in: .whitespacesAndNewlines), !orphan.isEmpty {
-                Section {
-                    Button {
-                        selection = orphan
-                        dismiss()
-                    } label: {
-                        HStack(alignment: .top) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Unknown product — keep or replace")
-                                    .foregroundStyle(AppConstants.Colors.textPrimary)
-                                Text(orphan)
-                                    .font(.caption)
-                                    .foregroundStyle(AppConstants.Colors.textSecondary)
-                            }
-                            Spacer()
-                            if matches(orphan) {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(AppConstants.Colors.accent)
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                } footer: {
-                    Text("This ID is not on your current menu. Pick a product below to reassign.")
-                        .font(.caption)
-                }
-            }
-            Section {
-                ForEach(products, id: \.stablePickerId) { p in
-                    let pid = p.id ?? ""
-                    Button {
-                        selection = pid
-                        dismiss()
-                    } label: {
-                        HStack {
-                            Text(p.name)
-                                .foregroundStyle(AppConstants.Colors.textPrimary)
-                            Spacer()
-                            if matches(pid) {
-                                Image(systemName: "checkmark")
-                                    .foregroundStyle(AppConstants.Colors.accent)
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .navigationTitle("Applies to")
-        .inlineNavigationTitle()
-    }
-}
-
 struct AddPromotionView: View {
     @ObservedObject var viewModel: AdminViewModel
     @Environment(\.dismiss) private var dismiss
@@ -3351,13 +3412,53 @@ struct AddPromotionView: View {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
-    private var addPromoAppliesToSummary: String {
-        let t = appliesToProductId.trimmingCharacters(in: .whitespacesAndNewlines)
-        if t.isEmpty { return "Whole cart" }
-        if let name = sortedMenuProductsForPromo.first(where: { ($0.id ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == t })?.name, !name.isEmpty {
-            return name
-        }
-        return t
+    private var promoValuePickerBinding: Binding<String> {
+        Binding(
+            get: { AdminOfferForm.promoValueTag(discountType: discountType, valueText: valueText) },
+            set: { new in
+                if new == AdminOfferForm.customTag { return }
+                valueText = new
+            }
+        )
+    }
+
+    private var minCartPickerBinding: Binding<String> {
+        Binding(
+            get: { AdminOfferForm.minCartTag(minSubtotalText: minSubtotalText) },
+            set: { new in
+                switch new {
+                case AdminOfferForm.minNoneTag: minSubtotalText = ""
+                case AdminOfferForm.customTag: break
+                default: minSubtotalText = new
+                }
+            }
+        )
+    }
+
+    private var minQtyPickerBinding: Binding<String> {
+        Binding(
+            get: { AdminOfferForm.minQtyTag(minTotalQuantityText: minTotalQuantityText) },
+            set: { new in
+                switch new {
+                case AdminOfferForm.minNoneTag: minTotalQuantityText = ""
+                case AdminOfferForm.customTag: break
+                default: minTotalQuantityText = new
+                }
+            }
+        )
+    }
+
+    private var showCustomPromoValueField: Bool {
+        discountType != PromotionDiscountType.none.rawValue
+            && AdminOfferForm.promoValueTag(discountType: discountType, valueText: valueText) == AdminOfferForm.customTag
+    }
+
+    private var showCustomMinCart: Bool {
+        AdminOfferForm.minCartTag(minSubtotalText: minSubtotalText) == AdminOfferForm.customTag
+    }
+
+    private var showCustomMinQty: Bool {
+        AdminOfferForm.minQtyTag(minTotalQuantityText: minTotalQuantityText) == AdminOfferForm.customTag
     }
     
     var body: some View {
@@ -3382,107 +3483,172 @@ struct AddPromotionView: View {
                         guard !newId.isEmpty, let t = PromoQuickTemplate.all.first(where: { $0.id == newId }) else { return }
                         applyPromoQuickTemplate(t)
                     }
+                    if let t = PromoQuickTemplate.all.first(where: { $0.id == selectedPromoQuickTemplateId }) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("What this preset does", systemImage: "sparkles")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(AppConstants.Colors.accent)
+                            Text(t.title)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(AppConstants.Colors.textPrimary)
+                            Text(t.adminDetailDescription)
+                                .font(.caption)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
+                                .multilineTextAlignment(.leading)
+                                .textSelection(.enabled)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 4)
+                    }
                 } header: {
-                    Text("Quick start")
+                    Text("Preset")
                 } footer: {
-                    Text("Choose a preset from the menu to fill suggested fields. Change the code if it’s already taken. For “Free menu item”, open Applies to and choose the product.")
+                    Text("Pick a preset to see a full summary here. Fields below update automatically — change the code if it’s already taken. For “Free menu item”, choose that product under Product scope.")
                         .font(.caption)
                 }
                 Section {
-                    TextField("Code", text: $code)
+                    TextField("Promo code", text: $code)
                         .multilineTextAlignment(.leading)
+                        #if os(iOS)
+                        .textInputAutocapitalization(.characters)
+                        #endif
                 } header: {
                     Text("Code")
+                } footer: {
+                    Text("Customers enter this code at checkout. Use letters and numbers; avoid spaces.")
+                        .font(.caption)
                 }
                 Section {
-                    NavigationLink {
-                        AdminPromoAppliesToPickerPage(
-                            selection: $appliesToProductId,
-                            products: sortedMenuProductsForPromo,
-                            orphanedProductId: nil
-                        )
-                    } label: {
-                        HStack {
-                            Text("Applies to")
-                            Spacer()
-                            Text(addPromoAppliesToSummary)
-                                .foregroundStyle(AppConstants.Colors.textSecondary)
-                                .multilineTextAlignment(.trailing)
-                                .lineLimit(2)
+                    Picker("Applies to", selection: $appliesToProductId) {
+                        Text("Whole cart — all products").tag("")
+                        ForEach(sortedMenuProductsForPromo, id: \.stablePickerId) { p in
+                            Text(p.name).tag(p.id ?? "")
                         }
                     }
+                    .pickerStyle(.menu)
                 } header: {
                     Text("Product scope")
                 } footer: {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Tap to open the full product list (scrollable). Choose one item to limit the discount, or whole cart for a cart-wide promo.")
+                        Text("Whole cart = discount can apply to any items. Pick one product to limit the promo to that menu item (required for free-item deals).")
                             .font(.caption)
-                        Text("Free product: under Applies to pick that menu item, then set Type to Percent off and Value to 100. The customer must add that product to the cart; the discount removes its price for those line items.")
+                        Text("Free item: choose the product here, set Type to Percent off, Amount to 100%.")
                             .font(.caption)
                             .foregroundStyle(AppConstants.Colors.textSecondary)
                         if sortedMenuProductsForPromo.isEmpty {
-                            Text("No catalog products with IDs loaded yet. Open the Products tab once, or pull to refresh, then try again.")
+                            Text("No catalog products loaded. Open the Products tab or pull to refresh.")
                                 .font(.caption)
                                 .foregroundStyle(.orange)
                         }
                     }
                 }
                 Section {
-                    Picker("Type", selection: $discountType) {
+                    Picker("Discount type", selection: $discountType) {
                         ForEach(PromotionDiscountType.allCases) { t in
                             Text(t.rawValue).tag(t.rawValue)
                         }
                     }
+                    .pickerStyle(.menu)
                 } header: {
-                    Text("Type")
+                    Text("Discount")
                 } footer: {
-                    Text("Percent off at 100 on a scoped product = that product is free (see Product scope tip). Fixed amount caps at the discounted subtotal.")
+                    Text("Percent off at 100% on one product = that item is free. Fixed amount cannot exceed the discounted subtotal.")
                         .font(.caption)
                         .foregroundStyle(AppConstants.Colors.textSecondary)
                 }
                 if discountType != PromotionDiscountType.none.rawValue {
                     Section {
-                        TextField("Value", text: $valueText)
-                            #if os(iOS)
-                            .keyboardType(.decimalPad)
-                            #endif
-                            .multilineTextAlignment(.leading)
+                        if discountType == PromotionDiscountType.percent.rawValue {
+                            Picker("Amount", selection: promoValuePickerBinding) {
+                                ForEach(AdminOfferForm.percentValues, id: \.self) { v in
+                                    Text("\(v)% off").tag(v)
+                                }
+                                Text("Custom amount…").tag(AdminOfferForm.customTag)
+                            }
+                            .pickerStyle(.menu)
+                        } else {
+                            Picker("Amount", selection: promoValuePickerBinding) {
+                                ForEach(AdminOfferForm.fixedDollarValues, id: \.self) { v in
+                                    Text("$\(v) off").tag(v)
+                                }
+                                Text("Custom amount…").tag(AdminOfferForm.customTag)
+                            }
+                            .pickerStyle(.menu)
+                        }
+                        if showCustomPromoValueField {
+                            TextField(discountType == PromotionDiscountType.percent.rawValue ? "Percent (e.g. 12.5)" : "Dollars off (e.g. 7.50)", text: $valueText)
+                                #if os(iOS)
+                                .keyboardType(.decimalPad)
+                                #endif
+                                .multilineTextAlignment(.leading)
+                        }
                     } header: {
-                        Text("Value")
+                        Text("Amount")
                     } footer: {
-                        Text("Use 100 with Percent off and a product under Applies to for a free item.")
+                        Text("Use 100% with Percent off and a single product under Product scope for a free item.")
                             .font(.caption)
                             .foregroundStyle(AppConstants.Colors.textSecondary)
                     }
                 } else {
                     Section {
-                        Text("No discount amount — the code is still validated and stored on the order (useful for tracking or perks applied manually).")
+                        Text("No automatic discount — the code is still validated and stored on the order.")
                             .font(.caption)
                             .foregroundStyle(AppConstants.Colors.textSecondary)
                     } header: {
-                        Text("Value")
+                        Text("Amount")
                     }
                 }
                 Section {
-                    TextField("Minimum cart ($), optional", text: $minSubtotalText)
-                        #if os(iOS)
-                        .keyboardType(.decimalPad)
-                        #endif
-                    TextField("Minimum total items, optional", text: $minTotalQuantityText)
-                        #if os(iOS)
-                        .keyboardType(.numberPad)
-                        #endif
-                    Toggle("First order only (signed-in, no prior orders)", isOn: $firstOrderOnly)
+                    Picker("Minimum cart", selection: minCartPickerBinding) {
+                        Text("No minimum").tag(AdminOfferForm.minNoneTag)
+                        ForEach(AdminOfferForm.minCartDollars, id: \.self) { v in
+                            Text("$\(v) or more").tag(v)
+                        }
+                        Text("Custom minimum…").tag(AdminOfferForm.customTag)
+                    }
+                    .pickerStyle(.menu)
+                    if showCustomMinCart {
+                        TextField("Minimum cart ($)", text: $minSubtotalText)
+                            #if os(iOS)
+                            .keyboardType(.decimalPad)
+                            #endif
+                    }
+                    Picker("Minimum items in cart", selection: minQtyPickerBinding) {
+                        Text("No minimum").tag(AdminOfferForm.minNoneTag)
+                        ForEach(AdminOfferForm.minItemCounts, id: \.self) { n in
+                            Text("\(n)+ items").tag(n)
+                        }
+                        Text("Custom minimum…").tag(AdminOfferForm.customTag)
+                    }
+                    .pickerStyle(.menu)
+                    if showCustomMinQty {
+                        TextField("Minimum total line items", text: $minTotalQuantityText)
+                            #if os(iOS)
+                            .keyboardType(.numberPad)
+                            #endif
+                    }
+                    Picker("Eligible customers", selection: $firstOrderOnly) {
+                        Text("Any customer").tag(false)
+                        Text("First completed order only (signed in)").tag(true)
+                    }
+                    .pickerStyle(.menu)
                 } header: {
-                    Text("Reward rules")
+                    Text("Rules")
                 } footer: {
-                    Text("Leave minimums blank for no threshold. First-order offers require checkout while signed in.")
+                    Text("First-order promos require checkout while signed in. Leave minimums at No minimum when not needed.")
                         .font(.caption)
                 }
                 Section {
-                    Toggle("Active", isOn: $isActive)
+                    Picker("Visibility", selection: $isActive) {
+                        Text("Active — customers can use this code").tag(true)
+                        Text("Hidden — not shown in app").tag(false)
+                    }
+                    .pickerStyle(.menu)
                 } header: {
-                    Text("Active")
+                    Text("Status")
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -3490,6 +3656,15 @@ struct AddPromotionView: View {
             .macOSGroupedFormStyle()
             .navigationTitle("New Promotion")
             .onAppear { viewModel.clearMessages() }
+            .onChange(of: discountType) { _, new in
+                if new == PromotionDiscountType.none.rawValue {
+                    valueText = ""
+                } else if new == PromotionDiscountType.percent.rawValue, valueText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    valueText = "10"
+                } else if new == PromotionDiscountType.fixed.rawValue, valueText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    valueText = "5"
+                }
+            }
             .task { await viewModel.loadProducts() }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -3571,14 +3746,53 @@ struct EditPromotionView: View {
         return inMenu ? nil : t
     }
 
-    private var editPromoAppliesToSummary: String {
-        let t = appliesToProductId.trimmingCharacters(in: .whitespacesAndNewlines)
-        if t.isEmpty { return "Whole cart" }
-        if orphanedPromoProductId != nil { return "Unknown product" }
-        if let name = sortedMenuProductsForPromoEdit.first(where: { ($0.id ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == t })?.name, !name.isEmpty {
-            return name
-        }
-        return t
+    private var editPromoValuePickerBinding: Binding<String> {
+        Binding(
+            get: { AdminOfferForm.promoValueTag(discountType: discountType, valueText: valueText) },
+            set: { new in
+                if new == AdminOfferForm.customTag { return }
+                valueText = new
+            }
+        )
+    }
+
+    private var editMinCartPickerBinding: Binding<String> {
+        Binding(
+            get: { AdminOfferForm.minCartTag(minSubtotalText: minSubtotalText) },
+            set: { new in
+                switch new {
+                case AdminOfferForm.minNoneTag: minSubtotalText = ""
+                case AdminOfferForm.customTag: break
+                default: minSubtotalText = new
+                }
+            }
+        )
+    }
+
+    private var editMinQtyPickerBinding: Binding<String> {
+        Binding(
+            get: { AdminOfferForm.minQtyTag(minTotalQuantityText: minTotalQuantityText) },
+            set: { new in
+                switch new {
+                case AdminOfferForm.minNoneTag: minTotalQuantityText = ""
+                case AdminOfferForm.customTag: break
+                default: minTotalQuantityText = new
+                }
+            }
+        )
+    }
+
+    private var editShowCustomPromoValue: Bool {
+        discountType != PromotionDiscountType.none.rawValue
+            && AdminOfferForm.promoValueTag(discountType: discountType, valueText: valueText) == AdminOfferForm.customTag
+    }
+
+    private var editShowCustomMinCart: Bool {
+        AdminOfferForm.minCartTag(minSubtotalText: minSubtotalText) == AdminOfferForm.customTag
+    }
+
+    private var editShowCustomMinQty: Bool {
+        AdminOfferForm.minQtyTag(minTotalQuantityText: minTotalQuantityText) == AdminOfferForm.customTag
     }
     
     init(promotion: Promotion, viewModel: AdminViewModel) {
@@ -3613,100 +3827,145 @@ struct EditPromotionView: View {
                     }
                 }
                 Section {
-                    TextField("Code", text: $code)
+                    TextField("Promo code", text: $code)
                         .multilineTextAlignment(.leading)
+                        #if os(iOS)
+                        .textInputAutocapitalization(.characters)
+                        #endif
                 } header: {
                     Text("Code")
+                } footer: {
+                    Text("Customers enter this code at checkout.")
+                        .font(.caption)
                 }
                 Section {
-                    NavigationLink {
-                        AdminPromoAppliesToPickerPage(
-                            selection: $appliesToProductId,
-                            products: sortedMenuProductsForPromoEdit,
-                            orphanedProductId: orphanedPromoProductId
-                        )
-                    } label: {
-                        HStack {
-                            Text("Applies to")
-                            Spacer()
-                            Text(editPromoAppliesToSummary)
-                                .foregroundStyle(AppConstants.Colors.textSecondary)
-                                .multilineTextAlignment(.trailing)
-                                .lineLimit(2)
+                    Picker("Applies to", selection: $appliesToProductId) {
+                        Text("Whole cart — all products").tag("")
+                        if let orphan = orphanedPromoProductId, !orphan.isEmpty {
+                            Text("Unknown product — choose a replacement below").tag(orphan)
+                        }
+                        ForEach(sortedMenuProductsForPromoEdit, id: \.stablePickerId) { p in
+                            Text(p.name).tag(p.id ?? "")
                         }
                     }
+                    .pickerStyle(.menu)
                 } header: {
                     Text("Product scope")
                 } footer: {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Tap for the full scrollable product list. Restrict to one menu item, or whole cart for a cart-wide promo.")
+                        Text("If you see “Unknown product”, pick a current menu item. Whole cart applies the promo to any items.")
                             .font(.caption)
-                        Text("Free product: under Applies to pick that menu item, then set Type to Percent off and Value to 100. The customer must add that product to the cart; the discount removes its price for those line items.")
-                            .font(.caption)
-                            .foregroundStyle(AppConstants.Colors.textSecondary)
                         if sortedMenuProductsForPromoEdit.isEmpty {
-                            Text("No catalog products with IDs loaded. Refresh products, then reopen this promo.")
+                            Text("No catalog products loaded. Refresh products, then reopen this promo.")
                                 .font(.caption)
                                 .foregroundStyle(.orange)
                         }
                     }
                 }
                 Section {
-                    Picker("Type", selection: $discountType) {
+                    Picker("Discount type", selection: $discountType) {
                         ForEach(PromotionDiscountType.allCases) { t in
                             Text(t.rawValue).tag(t.rawValue)
                         }
                     }
+                    .pickerStyle(.menu)
                 } header: {
-                    Text("Type")
+                    Text("Discount")
                 } footer: {
-                    Text("Percent off at 100 on a scoped product = that product is free (see Product scope tip). Fixed amount caps at the discounted subtotal.")
+                    Text("Percent off at 100% on one product = that item is free.")
                         .font(.caption)
                         .foregroundStyle(AppConstants.Colors.textSecondary)
                 }
                 if discountType != PromotionDiscountType.none.rawValue {
                     Section {
-                        TextField("Value", text: $valueText)
-                            #if os(iOS)
-                            .keyboardType(.decimalPad)
-                            #endif
-                            .multilineTextAlignment(.leading)
+                        if discountType == PromotionDiscountType.percent.rawValue {
+                            Picker("Amount", selection: editPromoValuePickerBinding) {
+                                ForEach(AdminOfferForm.percentValues, id: \.self) { v in
+                                    Text("\(v)% off").tag(v)
+                                }
+                                Text("Custom amount…").tag(AdminOfferForm.customTag)
+                            }
+                            .pickerStyle(.menu)
+                        } else {
+                            Picker("Amount", selection: editPromoValuePickerBinding) {
+                                ForEach(AdminOfferForm.fixedDollarValues, id: \.self) { v in
+                                    Text("$\(v) off").tag(v)
+                                }
+                                Text("Custom amount…").tag(AdminOfferForm.customTag)
+                            }
+                            .pickerStyle(.menu)
+                        }
+                        if editShowCustomPromoValue {
+                            TextField(discountType == PromotionDiscountType.percent.rawValue ? "Percent" : "Dollars off", text: $valueText)
+                                #if os(iOS)
+                                .keyboardType(.decimalPad)
+                                #endif
+                                .multilineTextAlignment(.leading)
+                        }
                     } header: {
-                        Text("Value")
+                        Text("Amount")
                     } footer: {
-                        Text("Use 100 with Percent off and a product under Applies to for a free item.")
+                        Text("Use 100% with Percent off and a single product under Product scope for a free item.")
                             .font(.caption)
                             .foregroundStyle(AppConstants.Colors.textSecondary)
                     }
                 } else {
                     Section {
-                        Text("No discount amount — code is still validated and stored on the order.")
+                        Text("No automatic discount — code is still validated and stored on the order.")
                             .font(.caption)
                             .foregroundStyle(AppConstants.Colors.textSecondary)
                     } header: {
-                        Text("Value")
+                        Text("Amount")
                     }
                 }
                 Section {
-                    TextField("Minimum cart ($), optional", text: $minSubtotalText)
-                        #if os(iOS)
-                        .keyboardType(.decimalPad)
-                        #endif
-                    TextField("Minimum total items, optional", text: $minTotalQuantityText)
-                        #if os(iOS)
-                        .keyboardType(.numberPad)
-                        #endif
-                    Toggle("First order only (signed-in, no prior orders)", isOn: $firstOrderOnly)
+                    Picker("Minimum cart", selection: editMinCartPickerBinding) {
+                        Text("No minimum").tag(AdminOfferForm.minNoneTag)
+                        ForEach(AdminOfferForm.minCartDollars, id: \.self) { v in
+                            Text("$\(v) or more").tag(v)
+                        }
+                        Text("Custom minimum…").tag(AdminOfferForm.customTag)
+                    }
+                    .pickerStyle(.menu)
+                    if editShowCustomMinCart {
+                        TextField("Minimum cart ($)", text: $minSubtotalText)
+                            #if os(iOS)
+                            .keyboardType(.decimalPad)
+                            #endif
+                    }
+                    Picker("Minimum items in cart", selection: editMinQtyPickerBinding) {
+                        Text("No minimum").tag(AdminOfferForm.minNoneTag)
+                        ForEach(AdminOfferForm.minItemCounts, id: \.self) { n in
+                            Text("\(n)+ items").tag(n)
+                        }
+                        Text("Custom minimum…").tag(AdminOfferForm.customTag)
+                    }
+                    .pickerStyle(.menu)
+                    if editShowCustomMinQty {
+                        TextField("Minimum total line items", text: $minTotalQuantityText)
+                            #if os(iOS)
+                            .keyboardType(.numberPad)
+                            #endif
+                    }
+                    Picker("Eligible customers", selection: $firstOrderOnly) {
+                        Text("Any customer").tag(false)
+                        Text("First completed order only (signed in)").tag(true)
+                    }
+                    .pickerStyle(.menu)
                 } header: {
-                    Text("Reward rules")
+                    Text("Rules")
                 } footer: {
-                    Text("Clear minimum fields to remove thresholds. Server enforces the same rules at checkout.")
+                    Text("Clear minimums with “No minimum”. First-order rules require signed-in checkout.")
                         .font(.caption)
                 }
                 Section {
-                    Toggle("Active", isOn: $isActive)
+                    Picker("Visibility", selection: $isActive) {
+                        Text("Active — customers can use this code").tag(true)
+                        Text("Hidden — not shown in app").tag(false)
+                    }
+                    .pickerStyle(.menu)
                 } header: {
-                    Text("Active")
+                    Text("Status")
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -3714,6 +3973,15 @@ struct EditPromotionView: View {
             .macOSGroupedFormStyle()
             .navigationTitle("Edit Promotion")
             .onAppear { viewModel.clearMessages() }
+            .onChange(of: discountType) { _, new in
+                if new == PromotionDiscountType.none.rawValue {
+                    valueText = ""
+                } else if new == PromotionDiscountType.percent.rawValue, valueText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    valueText = "10"
+                } else if new == PromotionDiscountType.fixed.rawValue, valueText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    valueText = "5"
+                }
+            }
             .task { await viewModel.loadProducts() }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -3753,7 +4021,6 @@ struct EditPromotionView: View {
             }
             .macOSEditSheetPadding()
             .macOSReduceSheetTitleGap()
-            .task { await viewModel.loadProducts() }
         }
     }
 }

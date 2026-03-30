@@ -1,4 +1,4 @@
-import { sql, hasDb } from './db.js';
+import { sql, hasDb, awaitNeonRows } from './db.js';
 import bcrypt from 'bcryptjs';
 import { randomUUID } from 'crypto';
 import { verifyNeonJWT, getOrCreateUserFromNeonPayload } from './neonAuth.js';
@@ -52,7 +52,7 @@ function isJWT(token) {
   return parts.length === 3 && parts.every((p) => p.length > 0);
 }
 
-export async function getSession(sessionId) {
+async function getSessionImpl(sessionId) {
   if (!sessionId) return null;
   try {
     if (isJWT(sessionId)) {
@@ -72,13 +72,16 @@ export async function getSession(sessionId) {
       };
     }
     if (!hasDb() || !sql) return null;
-    const rows = await sql`
+    const rows = await awaitNeonRows(
+      sql`
       SELECT s.id, s.user_id, s.expires_at, u.email, u.display_name, u.phone, u.is_admin, u.points
       FROM sessions s
       JOIN users u ON u.id = s.user_id
       WHERE s.id = ${sessionId} AND s.expires_at > NOW()
       LIMIT 1
-    `;
+    `,
+      'getSession'
+    );
     const row = rows[0];
     if (!row) return null;
     return {
@@ -95,6 +98,14 @@ export async function getSession(sessionId) {
     console.error('[auth] getSession', err?.message ?? err);
     return null;
   }
+}
+
+/** Resolves to session or null; never rejects (avoids unhandled Neon fetch failures crashing the process). */
+export async function getSession(sessionId) {
+  return await getSessionImpl(sessionId).catch((err) => {
+    console.error('[auth] getSession rejected', err?.message ?? err);
+    return null;
+  });
 }
 
 export async function deleteSession(sessionId) {
@@ -118,8 +129,7 @@ export function getTokenFromRequest(req) {
   return null;
 }
 
-/** Convenience: get { userId, isAdmin } from request (for handlers that need auth). */
-export async function getAuth(req) {
+async function getAuthImpl(req) {
   try {
     const token = getTokenFromRequest(req);
     if (!token) return null;
@@ -130,4 +140,12 @@ export async function getAuth(req) {
     console.error('[auth] getAuth', err?.message ?? err);
     return null;
   }
+}
+
+/** Never rejects — safe for serverless when Neon returns fetch failed. */
+export async function getAuth(req) {
+  return await getAuthImpl(req).catch((err) => {
+    console.error('[auth] getAuth rejected', err?.message ?? err);
+    return null;
+  });
 }
