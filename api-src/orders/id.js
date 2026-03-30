@@ -29,6 +29,7 @@ function rowToOrder(row) {
     customerName: row.customer_name ?? '',
     customerPhone: row.customer_phone ?? '',
     customerEmail: row.customer_email ?? null,
+    customerAllergies: row.customer_allergies != null && String(row.customer_allergies).trim() !== '' ? String(row.customer_allergies).trim() : null,
     deliveryAddress: row.delivery_address ?? null,
     items: items.map((i) => ({
       id: i?.id ?? i?.productId ?? '',
@@ -78,7 +79,7 @@ export default async function handler(req, res) {
     try {
       await ensureOrdersOptionalColumns(sql);
       const [row] = await sql`
-        SELECT id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
+        SELECT id, user_id, customer_name, customer_phone, customer_email, customer_allergies, delivery_address, items,
                subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
                stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
                custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents,

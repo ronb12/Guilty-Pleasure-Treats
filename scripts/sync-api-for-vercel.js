@@ -8,9 +8,11 @@
  * 2. Chunked read/write fallback (no copyfile, no mmap) if stream times out
  * Retries each file up to 3 times to avoid transient timeouts.
  */
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 const apiSrc = path.join(root, 'api-src');
 const apiDir = path.join(root, 'api');

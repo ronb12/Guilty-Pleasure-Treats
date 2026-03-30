@@ -15,6 +15,7 @@ struct LoginView: View {
     @State private var password = ""
     @State private var displayName = ""
     @State private var phone = ""
+    @State private var foodAllergies = ""
     @State private var isSignUp = false
     @State private var isLoading = false
     @State private var isAppleSigningIn = false
@@ -104,6 +105,7 @@ struct LoginView: View {
             if isSignUp {
                 nameField
                 phoneField
+                allergiesSection
             }
             PrimaryButton(
                 title: isSignUp ? "Create Account" : "Sign In",
@@ -177,6 +179,24 @@ struct LoginView: View {
                 .keyboardType(.phonePad)
                 .textContentType(.telephoneNumber)
                 #endif
+        }
+    }
+    
+    private var allergiesSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Food allergies (optional)")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(AppConstants.Colors.textPrimary)
+            TextField("e.g. peanuts, dairy", text: $foodAllergies, axis: .vertical)
+                .textFieldStyle(LoginTextFieldStyle())
+                #if os(iOS)
+                .textInputAutocapitalization(.never)
+                #endif
+                .lineLimit(3...6)
+            Text("We'll save this to your profile and attach it to orders. Our kitchen cannot guarantee absence of cross-contact.")
+                .font(.caption2)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -293,11 +313,13 @@ struct LoginView: View {
         defer { isLoading = false }
         do {
             if isSignUp {
+                let allergiesNote = foodAllergies.trimmingCharacters(in: .whitespacesAndNewlines)
                 try await auth.signUp(
                     email: email,
                     password: password,
                     displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
-                    phone: phone.trimmingCharacters(in: .whitespacesAndNewlines)
+                    phone: phone.trimmingCharacters(in: .whitespacesAndNewlines),
+                    foodAllergies: allergiesNote.isEmpty ? nil : allergiesNote
                 )
             } else {
                 try await auth.signIn(email: email, password: password)

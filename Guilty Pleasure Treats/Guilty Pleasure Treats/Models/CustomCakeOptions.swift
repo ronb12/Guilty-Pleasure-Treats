@@ -47,4 +47,8 @@ struct CustomCakeOptionsResponse: Codable, Equatable {
     var flavors: [CakeFlavorOption]
     var frostings: [FrostingOption]
     var toppings: [ToppingOption]?
+    /// Icing / accent colors (label-only options; optional in builder).
+    var colors: [CakeFlavorOption]?
+    /// Fillings (label-only options; optional in builder).
+    var fillings: [CakeFlavorOption]?
 }

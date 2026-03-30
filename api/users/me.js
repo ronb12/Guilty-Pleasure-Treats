@@ -8,6 +8,15 @@ import { setCors, handleOptions } from '../../api/lib/cors.js';
 import { ensureLoyaltyRewardsTable } from '../../api/lib/loyaltyRewardsSchema.js';
 import { ensureNewsletterSuppressionsTable, normalizeMarketingEmail } from '../../api/lib/newsletterSuppressions.js';
 
+async function ensureUserFoodAllergiesColumn(sql) {
+  if (!sql) return;
+  try {
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS food_allergies TEXT`;
+  } catch (e) {
+    if (e?.code !== '42P01') console.warn('[users/me] food_allergies column', e?.message ?? e);
+  }
+}
+
 function userResponse(row) {
   if (!row) return null;
   const marketing =
@@ -17,6 +26,7 @@ function userResponse(row) {
     email: row.email ?? null,
     displayName: row.display_name ?? null,
     phone: row.phone ?? null,
+    foodAllergies: row.food_allergies != null && String(row.food_allergies).trim() !== '' ? String(row.food_allergies).trim() : null,
     isAdmin: Boolean(row.is_admin),
     points: Number(row.points ?? 0),
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
@@ -41,9 +51,10 @@ export default async function handler(req, res) {
 
   if ((req.method || '').toUpperCase() === 'GET') {
     try {
+      await ensureUserFoodAllergiesColumn(sql);
       await ensureNewsletterSuppressionsTable(sql);
       const [row] = await sql`
-        SELECT u.id, u.email, u.display_name, u.phone, u.is_admin, u.points, u.created_at,
+        SELECT u.id, u.email, u.display_name, u.phone, u.food_allergies, u.is_admin, u.points, u.created_at,
           CASE
             WHEN TRIM(COALESCE(u.email, '')) = '' THEN true
             ELSE NOT EXISTS (
@@ -66,6 +77,37 @@ export default async function handler(req, res) {
       }
       return res.status(200).json({ ...userResponse(row), completedOrderCount });
     } catch (err) {
+      if (err?.code === '42703') {
+        try {
+          await ensureNewsletterSuppressionsTable(sql);
+          const [row] = await sql`
+            SELECT u.id, u.email, u.display_name, u.phone, u.is_admin, u.points, u.created_at,
+              CASE
+                WHEN TRIM(COALESCE(u.email, '')) = '' THEN true
+                ELSE NOT EXISTS (
+                  SELECT 1 FROM newsletter_suppressions ns
+                  WHERE ns.email = LOWER(TRIM(u.email))
+                )
+              END AS marketing_email_opt_in
+            FROM users u
+            WHERE u.id::text = ${sessionUserId} LIMIT 1
+          `;
+          if (!row) return res.status(404).json({ error: 'User not found' });
+          let completedOrderCount = 0;
+          try {
+            const [cnt] = await sql`
+              SELECT COUNT(*)::int AS c FROM orders WHERE user_id::text = ${sessionUserId}
+            `;
+            completedOrderCount = Number(cnt?.c ?? 0);
+          } catch (e) {
+            if (e?.code !== '42P01') console.error('[users/me] order count', e);
+          }
+          const base = userResponse({ ...row, food_allergies: null });
+          return res.status(200).json({ ...base, completedOrderCount });
+        } catch (e2) {
+          console.error('[users/me] GET fallback', e2);
+        }
+      }
       console.error('[users/me] GET', err);
       return res.status(500).json({ error: 'Failed to load profile' });
     }
@@ -74,6 +116,7 @@ export default async function handler(req, res) {
   if ((req.method || '').toUpperCase() === 'PATCH') {
     const body = req.body || {};
     try {
+      await ensureUserFoodAllergiesColumn(sql);
       let targetId = sessionUserId;
       const addPoints = body.addPoints != null ? Number(body.addPoints) : null;
       const redeemPoints = body.redeemPoints != null ? Number(body.redeemPoints) : null;
@@ -88,13 +131,14 @@ export default async function handler(req, res) {
       }
 
       const [current] = await sql`
-        SELECT id, email, display_name, phone, is_admin, points, created_at FROM users WHERE id::text = ${targetId} LIMIT 1
+        SELECT id, email, display_name, phone, food_allergies, is_admin, points, created_at FROM users WHERE id::text = ${targetId} LIMIT 1
       `;
       if (!current) return res.status(404).json({ error: 'User not found' });
 
       let nextPoints = Number(current.points ?? 0);
       let nextDisplay = current.display_name;
       let nextPhone = current.phone;
+      let nextAllergies = current.food_allergies ?? null;
 
       if (body.displayName !== undefined && targetId === sessionUserId) {
         nextDisplay = body.displayName == null ? null : String(body.displayName).trim() || null;
@@ -102,6 +146,11 @@ export default async function handler(req, res) {
 
       if (body.phone !== undefined && targetId === sessionUserId) {
         nextPhone = body.phone == null || body.phone === '' ? null : String(body.phone).trim();
+      }
+
+      if (Object.prototype.hasOwnProperty.call(body, 'foodAllergies') && targetId === sessionUserId) {
+        const raw = body.foodAllergies;
+        nextAllergies = raw == null || String(raw).trim() === '' ? null : String(raw).trim().slice(0, 2000);
       }
 
       if (body.marketingEmailOptIn !== undefined && targetId === sessionUserId) {
@@ -159,9 +208,9 @@ export default async function handler(req, res) {
 
       const [row] = await sql`
         UPDATE users
-        SET display_name = ${nextDisplay}, phone = ${nextPhone}, points = ${nextPoints}, updated_at = NOW()
+        SET display_name = ${nextDisplay}, phone = ${nextPhone}, food_allergies = ${nextAllergies}, points = ${nextPoints}, updated_at = NOW()
         WHERE id::text = ${targetId}
-        RETURNING id, email, display_name, phone, is_admin, points, created_at,
+        RETURNING id, email, display_name, phone, food_allergies, is_admin, points, created_at,
           CASE
             WHEN TRIM(COALESCE(email, '')) = '' THEN true
             ELSE NOT EXISTS (

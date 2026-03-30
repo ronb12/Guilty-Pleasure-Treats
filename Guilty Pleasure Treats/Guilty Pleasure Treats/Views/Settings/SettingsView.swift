@@ -19,6 +19,9 @@ struct SettingsView: View {
     @State private var marketingPrefLoaded = false
     @State private var marketingSaving = false
     @State private var marketingPrefError: String?
+    @State private var allergyDraft = ""
+    @State private var allergySaving = false
+    @State private var allergyError: String?
     
     private var appearance: AppAppearance {
         get { AppAppearance(rawValue: appearanceRaw) ?? .system }
@@ -31,6 +34,7 @@ struct SettingsView: View {
             notificationsSection
             if auth.currentUser != nil {
                 emailMarketingSection
+                foodAllergiesSection
             }
             contactSection
             helpSection
@@ -45,7 +49,15 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .inlineNavigationTitle()
         .background(AppConstants.Colors.secondary)
-        .onAppear { syncMarketingPrefFromProfile() }
+        .onAppear {
+            syncMarketingPrefFromProfile()
+            syncAllergyDraftFromProfile()
+        }
+        .onChange(of: auth.userProfile?.foodAllergies) { _, new in
+            guard !allergySaving else { return }
+            let next = new ?? ""
+            if next != allergyDraft { allergyDraft = next }
+        }
         .onChange(of: auth.userProfile?.marketingEmailOptIn) { _, new in
             guard !marketingSaving, let new else { return }
             if new != marketingEmailOptIn { marketingEmailOptIn = new }
@@ -70,6 +82,11 @@ struct SettingsView: View {
         } message: {
             if let msg = marketingPrefError { Text(msg) }
         }
+        .alert("Couldn’t save allergies", isPresented: .constant(allergyError != nil)) {
+            Button("OK") { allergyError = nil }
+        } message: {
+            if let msg = allergyError { Text(msg) }
+        }
     }
     
     private var emailMarketingSection: some View {
@@ -92,6 +109,39 @@ struct SettingsView: View {
         marketingPrefLoaded = false
         marketingEmailOptIn = auth.userProfile?.marketingEmailOptIn ?? true
         marketingPrefLoaded = true
+    }
+    
+    private var foodAllergiesSection: some View {
+        Section {
+            TextField("e.g. peanuts, tree nuts, dairy", text: $allergyDraft, axis: .vertical)
+                #if os(iOS)
+                .lineLimit(4...8)
+                #endif
+            Button(allergySaving ? "Saving…" : "Save food allergies") {
+                Task { await saveFoodAllergiesDraft() }
+            }
+            .disabled(allergySaving)
+        } header: {
+            Text("Food allergies")
+        } footer: {
+            Text("Optional. Shown on your orders for the kitchen. We can’t guarantee an allergen-free environment.")
+        }
+    }
+    
+    private func syncAllergyDraftFromProfile() {
+        allergyDraft = auth.userProfile?.foodAllergies ?? ""
+    }
+    
+    private func saveFoodAllergiesDraft() async {
+        allergySaving = true
+        allergyError = nil
+        defer { allergySaving = false }
+        do {
+            let trimmed = allergyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+            try await auth.saveFoodAllergies(trimmed.isEmpty ? nil : trimmed)
+        } catch {
+            allergyError = error.localizedDescription
+        }
     }
     
     private func saveMarketingEmailPref(_ enabled: Bool) async {

@@ -27,4 +27,36 @@ struct Event: Identifiable, Codable {
         case location
         case createdAt = "created_at"
     }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        if let s = try? c.decode(String.self, forKey: .id) {
+            id = s
+        } else if let i = try? c.decode(Int.self, forKey: .id) {
+            id = String(i)
+        } else if let i = try? c.decode(Int64.self, forKey: .id) {
+            id = String(i)
+        } else {
+            id = ""
+        }
+        title = try c.decode(String.self, forKey: .title)
+        eventDescription = try c.decodeIfPresent(String.self, forKey: .eventDescription)
+        startAt = try c.decodeIfPresent(Date.self, forKey: .startAt)
+        endAt = try c.decodeIfPresent(Date.self, forKey: .endAt)
+        imageURL = try c.decodeIfPresent(String.self, forKey: .imageURL)
+        location = try c.decodeIfPresent(String.self, forKey: .location)
+        createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(title, forKey: .title)
+        try c.encodeIfPresent(eventDescription, forKey: .eventDescription)
+        try c.encodeIfPresent(startAt, forKey: .startAt)
+        try c.encodeIfPresent(endAt, forKey: .endAt)
+        try c.encodeIfPresent(imageURL, forKey: .imageURL)
+        try c.encodeIfPresent(location, forKey: .location)
+        try c.encodeIfPresent(createdAt, forKey: .createdAt)
+    }
 }

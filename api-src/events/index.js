@@ -3,13 +3,13 @@
  * POST /api/events - create event (admin only). Body: title, description?, start_at?, end_at?, image_url?, location?. Sends push to customers.
  */
 import { sql, hasDb } from '../lib/db.js';
-import { getAuth } from '../lib/auth.js';
+import { getTokenFromRequest, getSession } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
 
 function rowToEvent(row) {
   if (!row) return null;
   return {
-    id: row.id,
+    id: row.id?.toString?.() ?? String(row.id ?? ''),
     title: row.title,
     description: row.description ?? null,
     start_at: row.start_at ? new Date(row.start_at).toISOString() : null,
@@ -31,7 +31,20 @@ export default async function handler(req, res) {
   if ((req.method || '').toUpperCase() === 'GET') {
     if (!hasDb() || !sql) return res.status(200).json([]);
     try {
-      const rows = await sql`
+      const token = getTokenFromRequest(req);
+      const session = token ? await getSession(token) : null;
+      const allEvents =
+        session?.isAdmin === true &&
+        (String(req.query?.all ?? req.query?.admin ?? '').trim() === '1' ||
+          String(req.query?.all ?? '').toLowerCase() === 'true');
+      const rows = allEvents
+        ? await sql`
+        SELECT id, title, description, start_at, end_at, image_url, location, created_at
+        FROM events
+        ORDER BY start_at ASC NULLS LAST, created_at DESC
+        LIMIT 500
+      `
+        : await sql`
         SELECT id, title, description, start_at, end_at, image_url, location, created_at
         FROM events
         WHERE start_at IS NULL OR start_at >= NOW()
@@ -47,8 +60,9 @@ export default async function handler(req, res) {
   }
 
   if ((req.method || '').toUpperCase() === 'POST') {
-    const auth = getAuth(req);
-    if (!auth?.userId || !auth?.isAdmin) return res.status(403).json({ error: 'Admin required' });
+    const token = getTokenFromRequest(req);
+    const session = token ? await getSession(token) : null;
+    if (!session?.userId || session.isAdmin !== true) return res.status(403).json({ error: 'Admin required' });
     if (!hasDb() || !sql) return res.status(503).json({ error: 'Service unavailable' });
 
     const body = req.body || {};

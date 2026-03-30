@@ -29,15 +29,22 @@ export default async function handler(req, res) {
   }
 
   const body = req.body || {};
-  const b64 = body.base64;
+  let b64 = body.base64;
   if (!b64 || typeof b64 !== 'string') {
     return res.status(400).json({ error: 'base64 is required' });
   }
+  b64 = b64.trim();
+  const dataUrl = b64.match(/^data:([^;]+);base64,(.+)$/i);
+  if (dataUrl) b64 = dataUrl[2];
+  b64 = b64.replace(/\s/g, '');
   let buf;
   try {
     buf = Buffer.from(b64, 'base64');
   } catch {
     return res.status(400).json({ error: 'Invalid base64' });
+  }
+  if (!buf.length) {
+    return res.status(400).json({ error: 'Invalid base64 (empty after decode)' });
   }
   if (buf.length > 4_200_000) {
     return res.status(400).json({ error: 'File too large (max ~4MB)' });

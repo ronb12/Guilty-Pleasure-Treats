@@ -104,6 +104,7 @@ struct CheckoutView: View {
                 if let p, !p.isEmpty { viewModel.customerPhone = p }
             }
             Task {
+                await viewModel.loadCheckoutPromotions()
                 if let settings = try? await VercelService.shared.fetchBusinessSettings() {
                     await MainActor.run {
                         CartManager.shared.applyBusinessSettingsFromServer(settings)
@@ -313,6 +314,21 @@ struct CheckoutView: View {
     private var promoSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             sectionLabel("Promo code")
+            if !viewModel.checkoutPromotions.isEmpty {
+                Picker("Select an offer", selection: $viewModel.promoPickerSelection) {
+                    Text("None").tag("")
+                    ForEach(viewModel.checkoutPromotions, id: \.listingId) { promo in
+                        Text(promo.code.uppercased()).tag(promo.code.uppercased())
+                    }
+                }
+                .pickerStyle(.menu)
+                .onChange(of: viewModel.promoPickerSelection) { _, new in
+                    Task { await viewModel.selectPromoFromPicker(new) }
+                }
+                Text("Or type a code below if you have one that isn’t listed.")
+                    .font(.caption2)
+                    .foregroundStyle(AppConstants.Colors.textSecondary)
+            }
             HStack {
                 TextField("Enter code", text: $viewModel.promoCode)
                     .textFieldStyle(.roundedBorder)

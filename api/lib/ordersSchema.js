@@ -5,6 +5,7 @@
 export async function ensureOrdersOptionalColumns(sql) {
   if (!sql) return;
   const alters = [
+    () => sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_allergies TEXT`,
     () => sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS promo_code TEXT`,
     () => sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tip_cents INT NOT NULL DEFAULT 0`,
     () => sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_carrier TEXT`,

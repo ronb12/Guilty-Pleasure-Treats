@@ -151,3 +151,21 @@ extension PlatformImage {
     }
 }
 #endif
+
+extension PlatformImage {
+    /// Image bytes for admin uploads (`/api/upload` JSON base64). Tries JPEG, then PNG.
+    func imageDataForAdminUpload(compressionQuality: Double = 0.72) -> Data? {
+        #if os(iOS)
+        if let j = jpegData(compressionQuality: compressionQuality), !j.isEmpty { return j }
+        if let p = pngData(), !p.isEmpty { return p }
+        return nil
+        #elseif os(macOS)
+        if let j = jpegData(compressionQuality: compressionQuality), !j.isEmpty { return j }
+        guard let tiff = tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) else { return nil }
+        let png = rep.representation(using: .png, properties: [:])
+        return (png != nil && !png!.isEmpty) ? png : nil
+        #else
+        return nil
+        #endif
+    }
+}

@@ -81,6 +81,12 @@ struct CustomCakeOrderDetailView: View {
             detailRow("Size", order.size)
             detailRow("Flavor", order.flavor)
             detailRow("Frosting", order.frosting)
+            if let c = order.cakeColor?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty {
+                detailRow("Color", c)
+            }
+            if let f = order.cakeFilling?.trimmingCharacters(in: .whitespacesAndNewlines), !f.isEmpty {
+                detailRow("Fill", f)
+            }
             if let tops = order.toppings, !tops.isEmpty {
                 detailRow("Toppings", tops.joined(separator: ", "))
             }

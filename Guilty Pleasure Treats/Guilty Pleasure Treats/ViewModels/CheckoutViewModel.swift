@@ -42,6 +42,10 @@ final class CheckoutViewModel: ObservableObject {
     @Published var promoCode = ""
     @Published var appliedPromotion: Promotion?
     @Published var promoMessage: String?
+    /// Active promos for the store (checkout picker). Loaded on checkout appear.
+    @Published var checkoutPromotions: [Promotion] = []
+    /// Uppercased promo code; empty = no picker selection. Kept in sync with manual apply / clear.
+    @Published var promoPickerSelection: String = ""
     @Published var isLoading = false
     @Published var errorMessage: String?
     /// Raw API/support text (shown with Copy in checkout error banner).
@@ -212,37 +216,106 @@ final class CheckoutViewModel: ObservableObject {
         )
     }
     
+    func loadCheckoutPromotions() async {
+        do {
+            let list = try await api.fetchPromotions()
+            let now = Date()
+            let visible = list
+                .filter { $0.isValidForCustomerDisplay(at: now) }
+                .sorted { $0.code.localizedCaseInsensitiveCompare($1.code) == .orderedAscending }
+            checkoutPromotions = visible
+        } catch {
+            checkoutPromotions = []
+        }
+    }
+    
+    /// Apply a promo already loaded from the catalog (no network).
+    func applyPromotionFromCatalog(_ promo: Promotion) async {
+        promoCode = promo.code
+        await refreshProfileIfNeededForPromo(promo)
+        appliedPromotion = promo
+        syncPromoMessageAfterApplying(promo)
+        if let match = checkoutPromotions.first(where: { $0.code.caseInsensitiveCompare(promo.code) == .orderedSame }) {
+            promoPickerSelection = match.code.uppercased()
+        } else {
+            promoPickerSelection = ""
+        }
+    }
+    
+    /// Picker changed to a catalog code (uppercased tag) or "" for none.
+    func selectPromoFromPicker(_ uppercaseCode: String) async {
+        let v = uppercaseCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        if v.isEmpty {
+            if appliedPromotion != nil || !promoCode.isEmpty {
+                promoCode = ""
+                appliedPromotion = nil
+                promoMessage = nil
+            }
+            promoPickerSelection = ""
+            return
+        }
+        guard let p = checkoutPromotions.first(where: { $0.code.uppercased() == v }) else {
+            promoPickerSelection = ""
+            return
+        }
+        if appliedPromotion?.code.caseInsensitiveCompare(p.code) == .orderedSame,
+           promoCode.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(p.code) == .orderedSame {
+            return
+        }
+        await applyPromotionFromCatalog(p)
+    }
+    
+    private func refreshProfileIfNeededForPromo(_ promo: Promotion) async {
+        if promo.firstOrderOnly, auth.currentUser != nil {
+            await auth.refreshProfile()
+        }
+    }
+    
+    private func syncPromoMessageAfterApplying(_ promo: Promotion) {
+        let subtotal = cart.toOrderItems().reduce(0.0) { $0 + $1.subtotal }
+        let prior = auth.userProfile?.completedOrderCount
+        if let blocker = promo.eligibilityFailureMessage(
+            subtotal: subtotal,
+            totalItemQuantity: cart.itemCount,
+            signedInUser: auth.currentUser != nil,
+            priorCompletedOrderCount: prior
+        ) {
+            promoMessage = blocker
+            return
+        }
+        if promo.discountTypeEnum == .none {
+            promoMessage = "Promo code \(promo.code.uppercased()) is applied to your order."
+        } else {
+            promoMessage = "Discount applied — \(promo.code.uppercased())"
+        }
+    }
+    
     func applyPromoCode() async {
         let code = promoCode.trimmingCharacters(in: .whitespaces)
         guard !code.isEmpty else {
             appliedPromotion = nil
             promoMessage = nil
+            promoPickerSelection = ""
             return
         }
         do {
             if let promo = try await api.fetchPromotion(byCode: code) {
-                if promo.firstOrderOnly, auth.currentUser != nil {
-                    await auth.refreshProfile()
-                }
+                await refreshProfileIfNeededForPromo(promo)
                 appliedPromotion = promo
-                let subtotal = cart.toOrderItems().reduce(0.0) { $0 + $1.subtotal }
-                let prior = auth.userProfile?.completedOrderCount
-                if let blocker = promo.eligibilityFailureMessage(
-                    subtotal: subtotal,
-                    totalItemQuantity: cart.itemCount,
-                    signedInUser: auth.currentUser != nil,
-                    priorCompletedOrderCount: prior
-                ) {
-                    promoMessage = blocker
+                syncPromoMessageAfterApplying(promo)
+                if let match = checkoutPromotions.first(where: { $0.code.caseInsensitiveCompare(promo.code) == .orderedSame }) {
+                    promoPickerSelection = match.code.uppercased()
                 } else {
-                    promoMessage = "Discount applied — \(promo.code.uppercased())"
+                    promoPickerSelection = ""
                 }
             } else {
                 appliedPromotion = nil
+                promoPickerSelection = ""
                 promoMessage = "Invalid or expired code."
             }
         } catch {
             appliedPromotion = nil
+            promoPickerSelection = ""
             promoMessage = FriendlyErrorMessage.message(for: error)
         }
     }
@@ -251,6 +324,7 @@ final class CheckoutViewModel: ObservableObject {
         promoCode = ""
         appliedPromotion = nil
         promoMessage = nil
+        promoPickerSelection = ""
     }
     
     func placeOrder(paymentMethod: PaymentMethod) async -> Bool {
@@ -291,12 +365,14 @@ final class CheckoutViewModel: ObservableObject {
         
         let emailToUse = effectiveEmailForOrder.trimmingCharacters(in: .whitespacesAndNewlines)
         let promoForApi: String? = appliedPromotion.map { $0.code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }.flatMap { $0.isEmpty ? nil : $0 }
+        let allergyNote = auth.userProfile?.foodAllergies?.trimmingCharacters(in: .whitespacesAndNewlines)
         var order = Order(
             id: nil,
             userId: auth.currentUser?.uid,
             customerName: customerName.trimmingCharacters(in: .whitespaces),
             customerPhone: customerPhone.trimmingCharacters(in: .whitespaces),
             customerEmail: emailToUse,
+            customerAllergies: (allergyNote?.isEmpty == false) ? allergyNote : nil,
             deliveryAddress: deliveryAddressString,
             items: orderItems,
             subtotal: subtotalAfterDiscount,

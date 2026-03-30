@@ -29,6 +29,15 @@ struct CustomCakeBuilderView: View {
                 sectionHeader("Frosting")
                 frostingPicker
 
+                if !viewModel.colors.isEmpty {
+                    sectionHeader("Color (optional)")
+                    colorPicker
+                }
+                if !viewModel.fillings.isEmpty {
+                    sectionHeader("Fill (optional)")
+                    fillingPicker
+                }
+
                 sectionHeader("Toppings (optional)")
                 toppingsPicker
                 
@@ -132,6 +141,46 @@ struct CustomCakeBuilderView: View {
                         ) {
                             viewModel.selectedFrosting = frosting
                         }
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(AppConstants.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+        .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 1)
+    }
+
+    private var colorPicker: some View {
+        Group {
+            VStack(spacing: 8) {
+                ForEach(viewModel.colors) { opt in
+                    builderOptionRow(
+                        title: opt.label,
+                        subtitle: nil,
+                        isSelected: viewModel.selectedColor?.id == opt.id
+                    ) {
+                        viewModel.selectedColor = opt
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(AppConstants.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+        .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 1)
+    }
+
+    private var fillingPicker: some View {
+        Group {
+            VStack(spacing: 8) {
+                ForEach(viewModel.fillings) { opt in
+                    builderOptionRow(
+                        title: opt.label,
+                        subtitle: nil,
+                        isSelected: viewModel.selectedFilling?.id == opt.id
+                    ) {
+                        viewModel.selectedFilling = opt
                     }
                 }
             }

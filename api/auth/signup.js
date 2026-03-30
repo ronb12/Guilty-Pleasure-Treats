@@ -28,6 +28,8 @@ export default async function handler(req, res) {
   const password = typeof body.password === 'string' ? body.password : '';
   const displayName = typeof body.displayName === 'string' ? body.displayName.trim() : '';
   const phone = typeof body.phone === 'string' ? body.phone.trim() : '';
+  const foodAllergiesRaw = body.foodAllergies != null ? String(body.foodAllergies).trim() : '';
+  const foodAllergies = foodAllergiesRaw ? foodAllergiesRaw.slice(0, 2000) : null;
 
   if (!email || !password) {
     json(res, 400, { error: 'Email and password are required' });
@@ -58,12 +60,22 @@ export default async function handler(req, res) {
     const userId = result.user.id;
     if (hasDb() && sql && userId) {
       try {
-        await sql`
-          UPDATE users SET phone = ${phone}, updated_at = NOW()
-          WHERE id = ${userId}
-        `;
+        try {
+          await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS food_allergies TEXT`;
+        } catch (_) { /* ignore */ }
+        if (foodAllergies != null) {
+          await sql`
+            UPDATE users SET phone = ${phone}, food_allergies = ${foodAllergies}, updated_at = NOW()
+            WHERE id = ${userId}
+          `;
+        } else {
+          await sql`
+            UPDATE users SET phone = ${phone}, updated_at = NOW()
+            WHERE id = ${userId}
+          `;
+        }
       } catch (e) {
-        console.error('[auth/signup] phone update', e);
+        console.error('[auth/signup] phone/allergies update', e);
       }
     }
 
@@ -71,7 +83,7 @@ export default async function handler(req, res) {
     if (hasDb() && sql && userId) {
       try {
         const rows = await sql`
-          SELECT id, email, display_name, phone, is_admin, points
+          SELECT id, email, display_name, phone, food_allergies, is_admin, points
           FROM users WHERE id = ${userId} LIMIT 1
         `;
         if (rows[0]) u = { ...u, ...rows[0] };
@@ -85,6 +97,7 @@ export default async function handler(req, res) {
         email: u.email ?? null,
         displayName: u.display_name ?? null,
         phone: u.phone ?? phone,
+        foodAllergies: u.food_allergies != null && String(u.food_allergies).trim() !== '' ? String(u.food_allergies).trim() : null,
         isAdmin: Boolean(u.is_admin),
         points: Number(u.points ?? 0),
       },

@@ -21,8 +21,10 @@ struct UserProfile: Codable {
     var completedOrderCount: Int
     /// Marketing newsletter / offers by email (server: not in `newsletter_suppressions`).
     var marketingEmailOptIn: Bool
+    /// Food allergies / dietary restrictions (stored on server; copied to orders at checkout).
+    var foodAllergies: String?
     
-    init(uid: String, email: String? = nil, displayName: String? = nil, phone: String? = nil, isAdmin: Bool = false, points: Int = 0, createdAt: Date? = nil, completedOrderCount: Int = 0, marketingEmailOptIn: Bool = true) {
+    init(uid: String, email: String? = nil, displayName: String? = nil, phone: String? = nil, isAdmin: Bool = false, points: Int = 0, createdAt: Date? = nil, completedOrderCount: Int = 0, marketingEmailOptIn: Bool = true, foodAllergies: String? = nil) {
         self.uid = uid
         self.email = email
         self.displayName = displayName
@@ -32,10 +34,11 @@ struct UserProfile: Codable {
         self.createdAt = createdAt
         self.completedOrderCount = completedOrderCount
         self.marketingEmailOptIn = marketingEmailOptIn
+        self.foodAllergies = foodAllergies
     }
     
     enum CodingKeys: String, CodingKey {
-        case uid, email, displayName, phone, isAdmin, points, createdAt, completedOrderCount, marketingEmailOptIn
+        case uid, email, displayName, phone, isAdmin, points, createdAt, completedOrderCount, marketingEmailOptIn, foodAllergies
     }
     
     init(from decoder: Decoder) throws {
@@ -49,5 +52,6 @@ struct UserProfile: Codable {
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
         completedOrderCount = try c.decodeIfPresent(Int.self, forKey: .completedOrderCount) ?? 0
         marketingEmailOptIn = try c.decodeIfPresent(Bool.self, forKey: .marketingEmailOptIn) ?? true
+        foodAllergies = try c.decodeIfPresent(String.self, forKey: .foodAllergies)
     }
 }

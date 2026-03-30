@@ -412,6 +412,12 @@ struct OrderDetailView: View {
                     .font(.caption)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
             }
+            if let al = displayOrder.customerAllergies?.trimmingCharacters(in: .whitespacesAndNewlines), !al.isEmpty {
+                Text("Allergies / notes: \(al)")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.orange)
+            }
             if let addr = displayOrder.deliveryAddress, !addr.isEmpty {
                 Text(addr.replacingOccurrences(of: "\n", with: ", "))
                     .font(.caption)

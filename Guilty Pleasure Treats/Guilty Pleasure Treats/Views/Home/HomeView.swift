@@ -31,6 +31,9 @@ struct HomeView: View {
                         heroSection
                             .id("top")
                         trustStrip
+                        allergyDisclaimerBanner
+                            .padding(.horizontal, AppConstants.Layout.screenHorizontalPadding)
+                            .padding(.top, 12)
                         
                         VStack(alignment: .leading, spacing: 24) {
                             promotionsSection
@@ -227,6 +230,29 @@ struct HomeView: View {
                 .fill(AppConstants.Colors.accent.opacity(0.12))
                 .frame(height: 1)
         }
+    }
+    
+    /// Visible notice: bakery products may contain or contact common allergens.
+    private var allergyDisclaimerBanner: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Allergies & shared equipment", systemImage: "exclamationmark.triangle.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.orange.opacity(0.95))
+            Text("Our kitchen works with ingredients that may contain or come into contact with common allergens (for example nuts, dairy, eggs, wheat, and soy). Add any allergies to your account and note them at checkout—our team will see them on your order. We cannot guarantee an allergen-free product.")
+                .font(.caption)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.orange.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.orange.opacity(0.22), lineWidth: 1)
+        )
     }
     
     private var quickActionsSection: some View {

@@ -10,6 +10,8 @@ import Foundation
 enum PromotionDiscountType: String, Codable, CaseIterable, Identifiable {
     case percent = "Percent off"
     case fixed = "Fixed amount off"
+    /// No automatic discount; code still validated and stored on the order (tracking / eligibility rules only).
+    case none = "None"
     var id: String { rawValue }
 }
 

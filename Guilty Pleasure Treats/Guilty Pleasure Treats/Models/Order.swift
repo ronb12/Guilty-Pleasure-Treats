@@ -92,6 +92,8 @@ struct Order: Identifiable, Codable, Equatable {
     var customerName: String
     var customerPhone: String
     var customerEmail: String? = nil
+    /// Customer food allergy notes (from profile at checkout). Shown on admin order detail.
+    var customerAllergies: String? = nil
     var deliveryAddress: String? = nil
     var items: [OrderItem]
     var subtotal: Double
@@ -130,6 +132,7 @@ struct Order: Identifiable, Codable, Equatable {
         case customerName
         case customerPhone
         case customerEmail
+        case customerAllergies
         case deliveryAddress
         case items
         case subtotal

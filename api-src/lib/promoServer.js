@@ -9,6 +9,9 @@ function computeDiscountDollars(row, itemsSubtotalDollars) {
   const type = String(row.discount_type ?? '').toLowerCase();
   const value = Number(row.value ?? 0);
   if (!Number.isFinite(value) || value < 0) return null;
+  if (type === 'none' || type.includes('none')) {
+    return 0;
+  }
   if (type.includes('percent')) {
     return sub * (value / 100);
   }

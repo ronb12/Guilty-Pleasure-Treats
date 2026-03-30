@@ -1,12 +1,12 @@
 /**
  * GET /api/settings/custom-cake-options - same as public (sizes, flavors, frostings, toppings from business_settings).
- * PATCH /api/settings/custom-cake-options - admin: replace options. Body: { sizes, flavors, frostings, toppings }.
+ * PATCH /api/settings/custom-cake-options - admin: replace options. Body: { sizes, flavors, frostings, toppings, colors?, fillings? }.
  */
 import { sql, hasDb } from '../lib/db.js';
 import { getTokenFromRequest, getSession } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
 
-const DEFAULT_OPTIONS = { sizes: [], flavors: [], frostings: [], toppings: [] };
+const DEFAULT_OPTIONS = { sizes: [], flavors: [], frostings: [], toppings: [], colors: [], fillings: [] };
 
 function getOptionsFromRow(row) {
   if (!row?.value_json) return DEFAULT_OPTIONS;
@@ -17,6 +17,8 @@ function getOptionsFromRow(row) {
     flavors: Array.isArray(o.flavors) ? o.flavors : DEFAULT_OPTIONS.flavors,
     frostings: Array.isArray(o.frostings) ? o.frostings : DEFAULT_OPTIONS.frostings,
     toppings: Array.isArray(o.toppings) ? o.toppings : DEFAULT_OPTIONS.toppings,
+    colors: Array.isArray(o.colors) ? o.colors : DEFAULT_OPTIONS.colors,
+    fillings: Array.isArray(o.fillings) ? o.fillings : DEFAULT_OPTIONS.fillings,
   };
 }
 
@@ -51,14 +53,16 @@ export default async function handler(req, res) {
     const flavors = Array.isArray(body.flavors) ? body.flavors : [];
     const frostings = Array.isArray(body.frostings) ? body.frostings : [];
     const toppings = Array.isArray(body.toppings) ? body.toppings : [];
-    const valueJson = JSON.stringify({ sizes, flavors, frostings, toppings });
+    const colors = Array.isArray(body.colors) ? body.colors : [];
+    const fillings = Array.isArray(body.fillings) ? body.fillings : [];
+    const valueJson = JSON.stringify({ sizes, flavors, frostings, toppings, colors, fillings });
     try {
       await sql`
         INSERT INTO business_settings (key, value_json, updated_at)
         VALUES ('custom_cake_options', ${valueJson}::jsonb, NOW())
         ON CONFLICT (key) DO UPDATE SET value_json = ${valueJson}::jsonb, updated_at = NOW()
       `;
-      return res.status(200).json({ sizes, flavors, frostings, toppings });
+      return res.status(200).json({ sizes, flavors, frostings, toppings, colors, fillings });
     } catch (err) {
       console.error('[settings/custom-cake-options] PATCH', err);
       return res.status(500).json({ error: 'Failed to save cake options' });

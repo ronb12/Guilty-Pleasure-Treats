@@ -840,8 +840,8 @@ final class AdminViewModel: ObservableObject {
         )
         do {
             let id = try await api.addProduct(product)
-            if let image = image, let jpeg = image.jpegData(compressionQuality: 0.7) {
-                let url = try await api.uploadProductImage(data: jpeg, productId: id)
+            if let image = image, let data = image.imageDataForAdminUpload(compressionQuality: 0.72) {
+                let url = try await api.uploadProductImage(data: data, productId: id)
                 var updated = product
                 updated.id = id
                 updated.imageURL = url
@@ -868,8 +868,8 @@ final class AdminViewModel: ObservableObject {
             return true
         }
         do {
-            if let img = newImage, let id = product.id, let jpeg = img.jpegData(compressionQuality: 0.7) {
-                let url = try await api.uploadProductImage(data: jpeg, productId: id)
+            if let img = newImage, let id = product.id, let data = img.imageDataForAdminUpload(compressionQuality: 0.72) {
+                let url = try await api.uploadProductImage(data: data, productId: id)
                 var updated = product
                 updated.imageURL = url
                 updated.updatedAt = Date()
@@ -1051,7 +1051,7 @@ final class AdminViewModel: ObservableObject {
 
     func loadEvents() async {
         do {
-            events = try await api.fetchEvents()
+            events = try await api.fetchEvents(includeAllForAdmin: true)
         } catch {
             events = []
         }
@@ -1328,6 +1328,14 @@ final class AdminViewModel: ObservableObject {
                 if options.frostings.isEmpty { options.frostings = defaults.frostings }
                 if options.toppings == nil || options.toppings?.isEmpty == true { options.toppings = defaults.toppings }
             }
+            options.sizes = Self.optionsWithStableSortOrder(options.sizes) { CakeSizeOption(optionId: $0.optionId, label: $0.label, price: $0.price, sortOrder: $1) }
+            options.flavors = Self.optionsWithStableSortOrder(options.flavors) { CakeFlavorOption(optionId: $0.optionId, label: $0.label, sortOrder: $1) }
+            options.frostings = Self.optionsWithStableSortOrder(options.frostings) { FrostingOption(optionId: $0.optionId, label: $0.label, sortOrder: $1) }
+            options.toppings = (options.toppings ?? []).enumerated().map { i, t in
+                ToppingOption(optionId: t.optionId, label: t.label, price: t.price, sortOrder: t.sortOrder ?? i)
+            }
+            options.colors = Self.optionsWithStableSortOrder(options.colors ?? []) { CakeFlavorOption(optionId: $0.optionId, label: $0.label, sortOrder: $1) }
+            options.fillings = Self.optionsWithStableSortOrder(options.fillings ?? []) { CakeFlavorOption(optionId: $0.optionId, label: $0.label, sortOrder: $1) }
             customCakeOptions = options
         } catch {
             // On error, show builder defaults so admin can still see and edit the same list as the cake maker.
@@ -1336,6 +1344,10 @@ final class AdminViewModel: ObservableObject {
             print("[Admin] loadCustomCakeOptions failed: \(error)")
             #endif
         }
+    }
+
+    private static func optionsWithStableSortOrder<T>(_ items: [T], map: (T, Int) -> T) -> [T] {
+        items.enumerated().map { i, item in map(item, i) }
     }
 
     /// Same default options as CustomCakeBuilderViewModel.useEnumFallback() so Admin Cake Options matches what appears in the cake maker.
@@ -1352,13 +1364,13 @@ final class AdminViewModel: ObservableObject {
         let toppings = CakeTopping.allCases.enumerated().map { i, t in
             ToppingOption(optionId: nil, label: t.rawValue, price: t.price, sortOrder: i)
         }
-        return CustomCakeOptionsResponse(sizes: sizes, flavors: flavors, frostings: frostings, toppings: toppings)
+        return CustomCakeOptionsResponse(sizes: sizes, flavors: flavors, frostings: frostings, toppings: toppings, colors: [], fillings: [])
     }
 
-    func saveCustomCakeOptions(sizes: [CakeSizeOption], flavors: [CakeFlavorOption], frostings: [FrostingOption], toppings: [ToppingOption]) async {
+    func saveCustomCakeOptions(sizes: [CakeSizeOption], flavors: [CakeFlavorOption], frostings: [FrostingOption], toppings: [ToppingOption], colors: [CakeFlavorOption], fillings: [CakeFlavorOption]) async {
         do {
-            try await api.saveCustomCakeOptions(sizes: sizes, flavors: flavors, frostings: frostings, toppings: toppings)
-            customCakeOptions = CustomCakeOptionsResponse(sizes: sizes, flavors: flavors, frostings: frostings, toppings: toppings)
+            try await api.saveCustomCakeOptions(sizes: sizes, flavors: flavors, frostings: frostings, toppings: toppings, colors: colors, fillings: fillings)
+            customCakeOptions = CustomCakeOptionsResponse(sizes: sizes, flavors: flavors, frostings: frostings, toppings: toppings, colors: colors, fillings: fillings)
             successMessage = "Custom cake options saved."
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)

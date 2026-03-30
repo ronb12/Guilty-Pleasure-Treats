@@ -9,6 +9,8 @@ const DEFAULT_OPTIONS = {
   flavors: [],
   frostings: [],
   toppings: [],
+  colors: [],
+  fillings: [],
 };
 
 export default async function handler(req, res) {
@@ -38,6 +40,8 @@ export default async function handler(req, res) {
       flavors: Array.isArray(options.flavors) ? options.flavors : DEFAULT_OPTIONS.flavors,
       frostings: Array.isArray(options.frostings) ? options.frostings : DEFAULT_OPTIONS.frostings,
       toppings: Array.isArray(options.toppings) ? options.toppings : DEFAULT_OPTIONS.toppings,
+      colors: Array.isArray(options.colors) ? options.colors : DEFAULT_OPTIONS.colors,
+      fillings: Array.isArray(options.fillings) ? options.fillings : DEFAULT_OPTIONS.fillings,
     };
     return res.status(200).json(response);
   } catch (err) {

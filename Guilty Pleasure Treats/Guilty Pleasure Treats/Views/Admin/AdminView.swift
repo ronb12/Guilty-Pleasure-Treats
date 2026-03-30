@@ -1608,6 +1608,7 @@ struct AddManualOrderSheet: View {
     @State private var customerName = ""
     @State private var customerPhone = ""
     @State private var customerEmail = ""
+    @State private var customerAllergies = ""
     @State private var street = ""
     @State private var addressLine2 = ""
     @State private var city = ""
@@ -1697,6 +1698,7 @@ struct AddManualOrderSheet: View {
             orderLabeledField("Phone", placeholder: "(555) 123-4567", text: $customerPhone)
             orderLabeledField("Email (optional)", placeholder: "email@example.com", text: $customerEmail)
                 .autocorrectionDisabled()
+            orderLabeledField("Allergies / dietary notes (optional)", placeholder: "e.g. Nut allergy", text: $customerAllergies)
         }
         .padding(AppConstants.Layout.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1865,6 +1867,9 @@ struct AddManualOrderSheet: View {
                     #endif
                     .autocorrectionDisabled()
                     .multilineTextAlignment(.leading)
+                TextField("Allergies / dietary notes (optional)", text: $customerAllergies, axis: .vertical)
+                    .lineLimit(2...4)
+                    .multilineTextAlignment(.leading)
             }
             Section("Address (optional)") {
                 TextField("Street address", text: $street)
@@ -2014,12 +2019,14 @@ struct AddManualOrderSheet: View {
             zip.trimmingCharacters(in: .whitespaces)
         ]
         let deliveryAddressStr = addressParts.filter { !$0.isEmpty }.joined(separator: "\n")
+        let allergiesTrimmed = customerAllergies.trimmingCharacters(in: .whitespacesAndNewlines)
         let order = Order(
             id: nil,
             userId: nil,
             customerName: customerName.trimmingCharacters(in: .whitespaces),
             customerPhone: customerPhone.trimmingCharacters(in: .whitespaces),
             customerEmail: emailTrimmed.isEmpty ? nil : emailTrimmed,
+            customerAllergies: allergiesTrimmed.isEmpty ? nil : allergiesTrimmed,
             deliveryAddress: deliveryAddressStr.isEmpty ? nil : deliveryAddressStr,
             items: items,
             subtotal: subtotal,
@@ -3155,14 +3162,24 @@ struct AddPromotionView: View {
                 } header: {
                     Text("Type")
                 }
-                Section {
-                    TextField("Value", text: $valueText)
-                        #if os(iOS)
-                        .keyboardType(.decimalPad)
-                        #endif
-                        .multilineTextAlignment(.leading)
-                } header: {
-                    Text("Value")
+                if discountType != PromotionDiscountType.none.rawValue {
+                    Section {
+                        TextField("Value", text: $valueText)
+                            #if os(iOS)
+                            .keyboardType(.decimalPad)
+                            #endif
+                            .multilineTextAlignment(.leading)
+                    } header: {
+                        Text("Value")
+                    }
+                } else {
+                    Section {
+                        Text("No discount amount — the code is still validated and stored on the order (useful for tracking or perks applied manually).")
+                            .font(.caption)
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                    } header: {
+                        Text("Value")
+                    }
                 }
                 Section {
                     TextField("Minimum cart ($), optional", text: $minSubtotalText)
@@ -3207,10 +3224,11 @@ struct AddPromotionView: View {
                             return i
                         }()
                         Task {
+                            let valueForApi = discountType == PromotionDiscountType.none.rawValue ? 0 : val
                             let ok = await viewModel.addPromotion(Promotion(
                                 code: code,
                                 discountType: discountType,
-                                value: val,
+                                value: valueForApi,
                                 isActive: isActive,
                                 minSubtotal: minSub,
                                 minTotalQuantity: minQty,
@@ -3219,7 +3237,10 @@ struct AddPromotionView: View {
                             if ok { dismiss() }
                         }
                     }
-                    .disabled(code.isEmpty || valueText.isEmpty)
+                    .disabled(
+                        code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || (discountType != PromotionDiscountType.none.rawValue && valueText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    )
                 }
             }
             .macOSEditSheetPadding()
@@ -3285,14 +3306,24 @@ struct EditPromotionView: View {
                 } header: {
                     Text("Type")
                 }
-                Section {
-                    TextField("Value", text: $valueText)
-                        #if os(iOS)
-                        .keyboardType(.decimalPad)
-                        #endif
-                        .multilineTextAlignment(.leading)
-                } header: {
-                    Text("Value")
+                if discountType != PromotionDiscountType.none.rawValue {
+                    Section {
+                        TextField("Value", text: $valueText)
+                            #if os(iOS)
+                            .keyboardType(.decimalPad)
+                            #endif
+                            .multilineTextAlignment(.leading)
+                    } header: {
+                        Text("Value")
+                    }
+                } else {
+                    Section {
+                        Text("No discount amount — code is still validated and stored on the order.")
+                            .font(.caption)
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                    } header: {
+                        Text("Value")
+                    }
                 }
                 Section {
                     TextField("Minimum cart ($), optional", text: $minSubtotalText)
@@ -3325,7 +3356,8 @@ struct EditPromotionView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        let val = Double(valueText.replacingOccurrences(of: ",", with: "")) ?? promotion.value
+                        let parsed = Double(valueText.replacingOccurrences(of: ",", with: ""))
+                        let val = parsed ?? promotion.value
                         let minSub: Double? = {
                             let t = minSubtotalText.trimmingCharacters(in: .whitespaces)
                             guard !t.isEmpty, let d = Double(t.replacingOccurrences(of: ",", with: "")), d > 0 else { return nil }
@@ -3339,7 +3371,7 @@ struct EditPromotionView: View {
                         var p = promotion
                         p.code = code.trimmingCharacters(in: .whitespacesAndNewlines)
                         p.discountType = discountType
-                        p.value = val
+                        p.value = discountType == PromotionDiscountType.none.rawValue ? 0 : val
                         p.isActive = isActive
                         p.minSubtotal = minSub
                         p.minTotalQuantity = minQty
@@ -3349,7 +3381,10 @@ struct EditPromotionView: View {
                             if ok { dismiss() }
                         }
                     }
-                    .disabled(code.isEmpty || valueText.isEmpty)
+                    .disabled(
+                        code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || (discountType != PromotionDiscountType.none.rawValue && valueText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    )
                 }
             }
             .macOSEditSheetPadding()
@@ -3363,14 +3398,20 @@ struct AdminCustomCakeOptionsView: View {
     @State private var sizes: [CakeSizeOption] = []
     @State private var flavors: [CakeFlavorOption] = []
     @State private var frostings: [FrostingOption] = []
+    @State private var colors: [CakeFlavorOption] = []
+    @State private var fillings: [CakeFlavorOption] = []
     @State private var toppings: [ToppingOption] = []
     @State private var showSizeSheet = false
     @State private var showFlavorSheet = false
     @State private var showFrostingSheet = false
+    @State private var showColorSheet = false
+    @State private var showFillingSheet = false
     @State private var showToppingSheet = false
     @State private var editingSize: CakeSizeOption?
     @State private var editingFlavor: CakeFlavorOption?
     @State private var editingFrosting: FrostingOption?
+    @State private var editingColor: CakeFlavorOption?
+    @State private var editingFilling: CakeFlavorOption?
     @State private var editingTopping: ToppingOption?
 
     var body: some View {
@@ -3381,7 +3422,7 @@ struct AdminCustomCakeOptionsView: View {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Save") {
                             Task {
-                                await viewModel.saveCustomCakeOptions(sizes: sizes, flavors: flavors, frostings: frostings, toppings: toppings)
+                                await viewModel.saveCustomCakeOptions(sizes: sizes, flavors: flavors, frostings: frostings, toppings: toppings, colors: colors, fillings: fillings)
                             }
                         }
                         .disabled(sizes.isEmpty || flavors.isEmpty || frostings.isEmpty)
@@ -3393,6 +3434,8 @@ struct AdminCustomCakeOptionsView: View {
                         sizes = o.sizes
                         flavors = o.flavors
                         frostings = o.frostings
+                        colors = o.colors ?? []
+                        fillings = o.fillings ?? []
                         toppings = o.toppings ?? []
                     }
                 }
@@ -3401,13 +3444,17 @@ struct AdminCustomCakeOptionsView: View {
                         sizes = o.sizes
                         flavors = o.flavors
                         frostings = o.frostings
+                        colors = o.colors ?? []
+                        fillings = o.fillings ?? []
                         toppings = o.toppings ?? []
                     }
                 }
-                .sheet(isPresented: $showSizeSheet) { sizeSheet }
-                .sheet(isPresented: $showFlavorSheet) { flavorSheet }
-                .sheet(isPresented: $showFrostingSheet) { frostingSheet }
-                .sheet(isPresented: $showToppingSheet) { toppingSheet }
+                .sheet(isPresented: $showSizeSheet) { sizeSheet.id(editingSize?.id ?? "new-size") }
+                .sheet(isPresented: $showFlavorSheet) { flavorSheet.id(editingFlavor?.id ?? "new-flavor") }
+                .sheet(isPresented: $showFrostingSheet) { frostingSheet.id(editingFrosting?.id ?? "new-frosting") }
+                .sheet(isPresented: $showColorSheet) { colorSheet.id(editingColor?.id ?? "new-color") }
+                .sheet(isPresented: $showFillingSheet) { fillingSheet.id(editingFilling?.id ?? "new-filling") }
+                .sheet(isPresented: $showToppingSheet) { toppingSheet.id(editingTopping?.id ?? "new-topping") }
                 .overlay(alignment: .top) { messageOverlay }
         }
     }
@@ -3415,7 +3462,7 @@ struct AdminCustomCakeOptionsView: View {
     private var cakeOptionsList: some View {
         List {
             Section {
-                Text("These options appear in the Custom Cake builder in this order: Cake Size, Cake Flavor, Frosting, Toppings (optional). Tap Save to update.")
+                Text("Options appear in the Custom Cake builder: Size, Flavor, Frosting, Color & Fill (optional lists), Toppings (optional). Tap Save to update.")
                     .font(.caption)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
             }
@@ -3490,6 +3537,52 @@ struct AdminCustomCakeOptionsView: View {
                 }
                 .foregroundStyle(AppConstants.Colors.accent)
             }
+            Section("Color (optional)") {
+                ForEach(colors) { colorOpt in
+                    HStack {
+                        Text(colorOpt.label)
+                        Spacer()
+                        Button("Edit") {
+                            editingColor = colorOpt
+                            showColorSheet = true
+                        }
+                        .foregroundStyle(AppConstants.Colors.accent)
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            colors.removeAll { $0.id == colorOpt.id }
+                        } label: { Label("Delete", systemImage: "trash") }
+                    }
+                }
+                Button("Add color") {
+                    editingColor = nil
+                    showColorSheet = true
+                }
+                .foregroundStyle(AppConstants.Colors.accent)
+            }
+            Section("Fill (optional)") {
+                ForEach(fillings) { fillOpt in
+                    HStack {
+                        Text(fillOpt.label)
+                        Spacer()
+                        Button("Edit") {
+                            editingFilling = fillOpt
+                            showFillingSheet = true
+                        }
+                        .foregroundStyle(AppConstants.Colors.accent)
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button(role: .destructive) {
+                            fillings.removeAll { $0.id == fillOpt.id }
+                        } label: { Label("Delete", systemImage: "trash") }
+                    }
+                }
+                Button("Add fill") {
+                    editingFilling = nil
+                    showFillingSheet = true
+                }
+                .foregroundStyle(AppConstants.Colors.accent)
+            }
             Section("Toppings (optional) (label + price)") {
                 ForEach(toppings) { topping in
                     HStack {
@@ -3549,6 +3642,42 @@ struct AdminCustomCakeOptionsView: View {
                 editingFlavor = nil
             },
             onCancel: { showFlavorSheet = false; editingFlavor = nil }
+        )
+        .macOSAdminSheetSize()
+    }
+
+    private var colorSheet: some View {
+        AdminCakeOptionEditSheet(
+            title: "Color",
+            label: editingColor?.label ?? "",
+            onSave: { label in
+                if let existing = editingColor, let idx = colors.firstIndex(where: { $0.id == existing.id }) {
+                    colors[idx] = CakeFlavorOption(optionId: existing.optionId, label: label, sortOrder: existing.sortOrder)
+                } else {
+                    colors.append(CakeFlavorOption(optionId: nil, label: label, sortOrder: colors.count))
+                }
+                showColorSheet = false
+                editingColor = nil
+            },
+            onCancel: { showColorSheet = false; editingColor = nil }
+        )
+        .macOSAdminSheetSize()
+    }
+
+    private var fillingSheet: some View {
+        AdminCakeOptionEditSheet(
+            title: "Fill",
+            label: editingFilling?.label ?? "",
+            onSave: { label in
+                if let existing = editingFilling, let idx = fillings.firstIndex(where: { $0.id == existing.id }) {
+                    fillings[idx] = CakeFlavorOption(optionId: existing.optionId, label: label, sortOrder: existing.sortOrder)
+                } else {
+                    fillings.append(CakeFlavorOption(optionId: nil, label: label, sortOrder: fillings.count))
+                }
+                showFillingSheet = false
+                editingFilling = nil
+            },
+            onCancel: { showFillingSheet = false; editingFilling = nil }
         )
         .macOSAdminSheetSize()
     }

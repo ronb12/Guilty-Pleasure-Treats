@@ -166,14 +166,20 @@ final class AuthService: ObservableObject {
             phone: user["phone"] as? String,
             isAdmin: (user["isAdmin"] as? Bool) ?? false,
             points: (user["points"] as? Int) ?? 0,
-            createdAt: Date()
+            createdAt: Date(),
+            completedOrderCount: 0,
+            marketingEmailOptIn: true,
+            foodAllergies: user["foodAllergies"] as? String
         )
         authState = .signedIn(VercelUser(uid: uid, email: user["email"] as? String, displayName: user["displayName"] as? String, phone: user["phone"] as? String))
-        Task { @MainActor in await NotificationService.shared.registerPushTokenWithBackend() }
+        Task { @MainActor in
+            await NotificationService.shared.registerPushTokenWithBackend()
+            await refreshProfile()
+        }
     }
 
     /// Create account with email and password. Same pattern as Firebase: one async call, throws on failure with Firebase-style error messages.
-    func signUp(email: String, password: String, displayName: String?, phone: String) async throws {
+    func signUp(email: String, password: String, displayName: String?, phone: String, foodAllergies: String? = nil) async throws {
         guard let url = apiURL(pathComponents: "api", "auth", "signup") else {
             debugLog("[Auth] signUp: vercelBaseURL nil")
             throw VercelNotConfiguredError()
@@ -182,8 +188,11 @@ final class AuthService: ObservableObject {
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        var body: [String: Any] = ["email": email, "password": password]
+        var body: [String: Any] = ["email": email, "password": password, "phone": phone]
         if let n = displayName { body["displayName"] = n }
+        if let a = foodAllergies?.trimmingCharacters(in: .whitespacesAndNewlines), !a.isEmpty {
+            body["foodAllergies"] = a
+        }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, res): (Data, URLResponse)
         do {
@@ -219,7 +228,10 @@ final class AuthService: ObservableObject {
             phone: user["phone"] as? String,
             isAdmin: false,
             points: 0,
-            createdAt: Date()
+            createdAt: Date(),
+            completedOrderCount: 0,
+            marketingEmailOptIn: true,
+            foodAllergies: user["foodAllergies"] as? String
         )
         authState = .signedIn(VercelUser(uid: uid, email: user["email"] as? String, displayName: user["displayName"] as? String, phone: user["phone"] as? String))
         Task { @MainActor in await NotificationService.shared.registerPushTokenWithBackend() }
@@ -312,10 +324,20 @@ final class AuthService: ObservableObject {
             phone: user["phone"] as? String,
             isAdmin: (user["isAdmin"] as? Bool) ?? false,
             points: (user["points"] as? Int) ?? 0,
+            foodAllergies: user["foodAllergies"] as? String,
             createdAt: Date()
         )
         authState = .signedIn(VercelUser(uid: uid, email: user["email"] as? String, displayName: user["displayName"] as? String, phone: user["phone"] as? String))
         Task { @MainActor in await NotificationService.shared.registerPushTokenWithBackend() }
+    }
+
+    /// Update food allergies on the server and refresh local profile.
+    func saveFoodAllergies(_ text: String?) async throws {
+        guard var profile = userProfile else { return }
+        let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines)
+        profile.foodAllergies = (trimmed?.isEmpty == false) ? trimmed : nil
+        try await VercelService.shared.setUserProfile(profile)
+        await refreshProfile()
     }
 
     /// Refresh user profile from API (e.g. after points change).

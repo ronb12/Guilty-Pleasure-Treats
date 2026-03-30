@@ -21,6 +21,7 @@ function rowToOrder(row) {
     customerName: row.customer_name ?? '',
     customerPhone: row.customer_phone ?? '',
     customerEmail: row.customer_email ?? null,
+    customerAllergies: row.customer_allergies != null && String(row.customer_allergies).trim() !== '' ? String(row.customer_allergies).trim() : null,
     deliveryAddress: row.delivery_address ?? null,
     items: items.map((i) => ({
       id: i?.id ?? i?.productId ?? '',
@@ -77,7 +78,7 @@ export default async function handler(req, res) {
       try {
         if (isAdminAll) {
           rows = await sql`
-          SELECT o.id, o.user_id, o.customer_name, o.customer_phone, o.customer_email, o.delivery_address, o.items,
+          SELECT o.id, o.user_id, o.customer_name, o.customer_phone, o.customer_email, o.customer_allergies, o.delivery_address, o.items,
                  o.subtotal, o.tax, o.total, o.fulfillment_type, o.scheduled_pickup_date, o.status,
                  o.stripe_payment_intent_id, o.manual_paid_at, o.created_at, o.updated_at, o.estimated_ready_time,
                  o.custom_cake_order_ids, o.ai_cake_design_ids, o.promo_code, o.tip_cents,
@@ -90,7 +91,7 @@ export default async function handler(req, res) {
         `;
         } else {
           rows = await sql`
-          SELECT o.id, o.user_id, o.customer_name, o.customer_phone, o.customer_email, o.delivery_address, o.items,
+          SELECT o.id, o.user_id, o.customer_name, o.customer_phone, o.customer_email, o.customer_allergies, o.delivery_address, o.items,
                  o.subtotal, o.tax, o.total, o.fulfillment_type, o.scheduled_pickup_date, o.status,
                  o.stripe_payment_intent_id, o.manual_paid_at, o.created_at, o.updated_at, o.estimated_ready_time,
                  o.custom_cake_order_ids, o.ai_cake_design_ids, o.promo_code, o.tip_cents,
@@ -208,6 +209,11 @@ export default async function handler(req, res) {
     }
     const customerEmail = customerEmailRaw.toLowerCase();
     const deliveryAddress = body.deliveryAddress ?? body.delivery_address ?? null;
+    const customerAllergiesRaw = body.customerAllergies ?? body.customer_allergies ?? null;
+    const customerAllergies =
+      customerAllergiesRaw != null && String(customerAllergiesRaw).trim() !== ''
+        ? String(customerAllergiesRaw).trim().slice(0, 2000)
+        : null;
     const scheduledPickupDate = body.scheduledPickupDate ?? body.scheduled_pickup_date ?? null;
     const status = String(body.status ?? 'Pending').trim();
     const stripePaymentIntentId = body.stripePaymentIntentId ?? body.stripe_payment_intent_id ?? null;
@@ -374,7 +380,7 @@ export default async function handler(req, res) {
 
       async function fetchOrderRowById(orderId) {
         const [r] = await sql`
-          SELECT id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
+          SELECT id, user_id, customer_name, customer_phone, customer_email, customer_allergies, delivery_address, items,
                  subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
                  stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
                  custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents,
@@ -428,7 +434,23 @@ export default async function handler(req, res) {
       const tipCentsVal = totals?.tipCentsInferred ?? 0;
       const promoCodeVal = promoCode && promoCode.length > 0 ? promoCode : null;
 
-      const [row] = await sql`
+      let row;
+      try {
+        [row] = await sql`
+        INSERT INTO orders (user_id, customer_name, customer_phone, customer_email, customer_allergies, delivery_address, items,
+          subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status, stripe_payment_intent_id,
+          estimated_ready_time, custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents)
+        VALUES (${userId}, ${customerName}, ${customerPhone}, ${customerEmail ?? null}, ${customerAllergies}, ${deliveryAddressClean}, ${JSON.stringify(itemsJson)},
+          ${computed.subtotal}, ${computed.tax}, ${computed.total}, ${normalizedFulfillmentType}, ${scheduledPickupDate ? new Date(scheduledPickupDate) : null}, ${status}, ${stripePaymentIntentId ?? null},
+          ${estimatedReadyTime ? new Date(estimatedReadyTime) : null}, ${customCakeOrderIds}, ${aiCakeDesignIds}, ${promoCodeVal}, ${tipCentsVal})
+        RETURNING id, user_id, customer_name, customer_phone, customer_email, customer_allergies, delivery_address, items,
+          subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status, stripe_payment_intent_id,
+          manual_paid_at, created_at, updated_at, estimated_ready_time, custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents,
+          tracking_carrier, tracking_number, tracking_status_detail, tracking_updated_at
+      `;
+      } catch (insertErr) {
+        if (insertErr?.code !== '42703') throw insertErr;
+        [row] = await sql`
         INSERT INTO orders (user_id, customer_name, customer_phone, customer_email, delivery_address, items,
           subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status, stripe_payment_intent_id,
           estimated_ready_time, custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents)
@@ -440,6 +462,7 @@ export default async function handler(req, res) {
           manual_paid_at, created_at, updated_at, estimated_ready_time, custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents,
           tracking_carrier, tracking_number, tracking_status_detail, tracking_updated_at
       `;
+      }
       const order = rowToOrder(row);
       if (idemKey) {
         try {

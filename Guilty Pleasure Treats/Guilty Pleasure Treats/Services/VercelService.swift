@@ -262,15 +262,27 @@ final class VercelService {
     }
 
     func uploadProductImage(data: Data, productId: String) async throws -> String {
-        return try await uploadImage(data: data, pathname: "products/\(productId).jpg")
+        let isPng = data.count >= 8 && data[0] == 0x89 && data[1] == 0x50
+        if isPng {
+            return try await uploadImageBase64(data: data, pathname: "products/\(productId).png", contentType: "image/png")
+        }
+        return try await uploadImageBase64(data: data, pathname: "products/\(productId).jpg", contentType: "image/jpeg")
     }
 
     func uploadCustomCakeDesignImage(data: Data, customCakeOrderId: String) async throws -> String {
-        return try await uploadImage(data: data, pathname: "customCakeDesigns/\(customCakeOrderId).jpg")
+        let isPng = data.count >= 8 && data[0] == 0x89 && data[1] == 0x50
+        if isPng {
+            return try await uploadImageBase64(data: data, pathname: "customCakeDesigns/\(customCakeOrderId).png", contentType: "image/png")
+        }
+        return try await uploadImageBase64(data: data, pathname: "customCakeDesigns/\(customCakeOrderId).jpg", contentType: "image/jpeg")
     }
 
     func uploadAICakeDesignImage(data: Data, designId: String) async throws -> String {
-        return try await uploadImage(data: data, pathname: "aiCakeDesigns/\(designId).jpg")
+        let isPng = data.count >= 8 && data[0] == 0x89 && data[1] == 0x50
+        if isPng {
+            return try await uploadImageBase64(data: data, pathname: "aiCakeDesigns/\(designId).png", contentType: "image/png")
+        }
+        return try await uploadImageBase64(data: data, pathname: "aiCakeDesigns/\(designId).jpg", contentType: "image/jpeg")
     }
 
     // MARK: - Orders
@@ -457,7 +469,8 @@ final class VercelService {
             points: (json?["points"] as? Int) ?? 0,
             createdAt: (json?["createdAt"] as? String).flatMap { ISO8601DateFormatter().date(from: $0) },
             completedOrderCount: completedOrders,
-            marketingEmailOptIn: marketingOptIn
+            marketingEmailOptIn: marketingOptIn,
+            foodAllergies: json?["foodAllergies"] as? String
         )
     }
 
@@ -474,6 +487,11 @@ final class VercelService {
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         var patch: [String: Any] = ["displayName": profile.displayName as Any]
         if let p = profile.phone { patch["phone"] = p }
+        if let a = profile.foodAllergies?.trimmingCharacters(in: .whitespacesAndNewlines), !a.isEmpty {
+            patch["foodAllergies"] = a
+        } else {
+            patch["foodAllergies"] = NSNull()
+        }
         req.httpBody = try JSONSerialization.data(withJSONObject: patch)
         let (_, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
@@ -927,6 +945,8 @@ final class VercelService {
             "price": order.price,
         ]
         if let tops = order.toppings, !tops.isEmpty { body["toppings"] = tops }
+        if let c = order.cakeColor?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty { body["cakeColor"] = c }
+        if let f = order.cakeFilling?.trimmingCharacters(in: .whitespacesAndNewlines), !f.isEmpty { body["cakeFilling"] = f }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
@@ -986,7 +1006,7 @@ final class VercelService {
     }
 
     /// Admin: replace all sizes, flavors, frostings, toppings. Requires auth.
-    func saveCustomCakeOptions(sizes: [CakeSizeOption], flavors: [CakeFlavorOption], frostings: [FrostingOption], toppings: [ToppingOption]) async throws {
+    func saveCustomCakeOptions(sizes: [CakeSizeOption], flavors: [CakeFlavorOption], frostings: [FrostingOption], toppings: [ToppingOption], colors: [CakeFlavorOption], fillings: [CakeFlavorOption]) async throws {
         guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
         let url = base.appendingPathComponent("api/settings/custom-cake-options")
         var req = URLRequest(url: url)
@@ -998,6 +1018,8 @@ final class VercelService {
             "flavors": flavors.map { ["label": $0.label, "sortOrder": $0.sortOrder as Any] },
             "frostings": frostings.map { ["label": $0.label, "sortOrder": $0.sortOrder as Any] },
             "toppings": toppings.map { ["label": $0.label, "price": $0.price, "sortOrder": $0.sortOrder as Any] },
+            "colors": colors.map { ["label": $0.label, "sortOrder": $0.sortOrder as Any] },
+            "fillings": fillings.map { ["label": $0.label, "sortOrder": $0.sortOrder as Any] },
         ]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (_, res) = try await session.data(for: req)
@@ -1420,6 +1442,9 @@ final class VercelService {
             "status": order.status,
         ]
         payload["customerEmail"] = order.customerEmail?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if let al = order.customerAllergies?.trimmingCharacters(in: .whitespacesAndNewlines), !al.isEmpty {
+            payload["customerAllergies"] = al
+        }
         if let a = order.deliveryAddress, !a.isEmpty { payload["deliveryAddress"] = a }
         if let d = order.scheduledPickupDate { payload["scheduledPickupDate"] = ISO8601DateFormatter().string(from: d) }
         if let s = order.stripePaymentIntentId { payload["stripePaymentIntentId"] = s }
@@ -1527,10 +1552,23 @@ extension VercelService {
         return try await getRaw(path)
     }
 
-    /// Fetch events. GET /api/events. Returns empty array if endpoint missing.
-    func fetchEvents() async throws -> [Event] {
+    /// Fetch events. GET /api/events. Pass `includeAllForAdmin: true` with admin token to list past events too.
+    func fetchEvents(includeAllForAdmin: Bool = false) async throws -> [Event] {
+        guard let base = baseURL else { throw VercelNotConfiguredError() }
+        var comp = URLComponents(url: base.appendingPathComponent("api/events"), resolvingAgainstBaseURL: false)!
+        if includeAllForAdmin {
+            comp.queryItems = [URLQueryItem(name: "all", value: "1")]
+        }
+        guard let url = comp.url else { throw VercelAPIError(message: "Invalid URL", statusCode: nil) }
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        if includeAllForAdmin, let t = authToken { req.setValue("Bearer \(t)", forHTTPHeaderField: "Authorization") }
         do {
-            return try await get("/api/events")
+            let (data, res) = try await session.data(for: req)
+            guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
+            if http.statusCode == 404 { return [] }
+            try validateResponse(http, data: data)
+            return try decoder.decode([Event].self, from: data)
         } catch {
             if (error as? VercelAPIError)?.statusCode == 404 { return [] }
             throw error

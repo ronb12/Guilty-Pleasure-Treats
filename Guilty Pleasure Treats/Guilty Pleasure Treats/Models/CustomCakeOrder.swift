@@ -73,6 +73,10 @@ struct CustomCakeOrder: Identifiable, Codable {
     var size: String
     var flavor: String
     var frosting: String
+    /// Icing color / accent (optional; from admin-configured list).
+    var cakeColor: String?
+    /// Filling choice (optional).
+    var cakeFilling: String?
     var toppings: [String]?
     var message: String
     var designImageURL: String?
@@ -87,9 +91,15 @@ struct CustomCakeOrder: Identifiable, Codable {
     /// Short summary for cart/order display.
     var summary: String {
         var parts = [size, flavor, frosting]
+        if let c = cakeColor?.trimmingCharacters(in: .whitespacesAndNewlines), !c.isEmpty { parts.append("Color: \(c)") }
+        if let f = cakeFilling?.trimmingCharacters(in: .whitespacesAndNewlines), !f.isEmpty { parts.append("Fill: \(f)") }
         if let tops = toppings, !tops.isEmpty {
             parts.append("+ \(tops.joined(separator: ", "))")
         }
         return parts.filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, userId, size, flavor, frosting, cakeColor, cakeFilling, toppings, message, designImageURL, price, orderId, createdAt
     }
 }

@@ -23,6 +23,8 @@ function rowToCustomCake(row) {
     size: row.size ?? '',
     flavor: row.flavor ?? '',
     frosting: row.frosting ?? '',
+    cakeColor: row.cake_color ?? row.cakeColor ?? null,
+    cakeFilling: row.cake_filling ?? row.cakeFilling ?? null,
     toppings,
     message: row.message ?? '',
     designImageURL: row.design_image_url ?? null,
@@ -52,17 +54,21 @@ export default async function handler(req, res) {
     if (!session?.userId) return res.status(401).json({ error: 'Unauthorized' });
     const isAdmin = session.isAdmin === true;
     try {
+      try {
+        await sql`ALTER TABLE custom_cake_orders ADD COLUMN IF NOT EXISTS cake_color TEXT`;
+        await sql`ALTER TABLE custom_cake_orders ADD COLUMN IF NOT EXISTS cake_filling TEXT`;
+      } catch (_) { /* ignore */ }
       let rows;
       if (isAdmin) {
         rows = await sql`
-          SELECT id, user_id, order_id, size, flavor, frosting, toppings, message, design_image_url, price, created_at
+          SELECT id, user_id, order_id, size, flavor, frosting, cake_color, cake_filling, toppings, message, design_image_url, price, created_at
           FROM custom_cake_orders
           ORDER BY created_at DESC NULLS LAST
           LIMIT 500
         `;
       } else {
         rows = await sql`
-          SELECT id, user_id, order_id, size, flavor, frosting, toppings, message, design_image_url, price, created_at
+          SELECT id, user_id, order_id, size, flavor, frosting, cake_color, cake_filling, toppings, message, design_image_url, price, created_at
           FROM custom_cake_orders
           WHERE user_id::text = ${String(session.userId)}
           ORDER BY created_at DESC NULLS LAST
@@ -76,14 +82,14 @@ export default async function handler(req, res) {
           let rows;
           if (isAdmin) {
             rows = await sql`
-              SELECT id, user_id, order_id, size, flavor, frosting, message, design_image_url, price, created_at
+              SELECT id, user_id, order_id, size, flavor, frosting, toppings, message, design_image_url, price, created_at
               FROM custom_cake_orders
               ORDER BY created_at DESC NULLS LAST
               LIMIT 500
             `;
           } else {
             rows = await sql`
-              SELECT id, user_id, order_id, size, flavor, frosting, message, design_image_url, price, created_at
+              SELECT id, user_id, order_id, size, flavor, frosting, toppings, message, design_image_url, price, created_at
               FROM custom_cake_orders
               WHERE user_id::text = ${String(session.userId)}
               ORDER BY created_at DESC NULLS LAST
@@ -117,24 +123,45 @@ export default async function handler(req, res) {
     const price = body.price != null ? Number(body.price) : 0;
     const designImageURL = body.designImageURL ?? body.design_image_url ?? null;
     const toppingsArr = Array.isArray(body.toppings) ? body.toppings.map((t) => String(t)) : [];
+    const cakeColor =
+      body.cakeColor != null || body.cake_color != null
+        ? String(body.cakeColor ?? body.cake_color ?? '').trim().slice(0, 500) || null
+        : null;
+    const cakeFilling =
+      body.cakeFilling != null || body.cake_filling != null
+        ? String(body.cakeFilling ?? body.cake_filling ?? '').trim().slice(0, 500) || null
+        : null;
     if (!size || !flavor || !frosting) {
       return res.status(400).json({ error: 'size, flavor, and frosting are required' });
     }
     try {
       let row;
       try {
+        try {
+          await sql`ALTER TABLE custom_cake_orders ADD COLUMN IF NOT EXISTS cake_color TEXT`;
+          await sql`ALTER TABLE custom_cake_orders ADD COLUMN IF NOT EXISTS cake_filling TEXT`;
+        } catch (_) { /* ignore */ }
         [row] = await sql`
-          INSERT INTO custom_cake_orders (user_id, size, flavor, frosting, toppings, message, design_image_url, price)
-          VALUES (${uid}, ${size}, ${flavor}, ${frosting}, ${JSON.stringify(toppingsArr)}::jsonb, ${message}, ${designImageURL}, ${price})
-          RETURNING id, user_id, order_id, size, flavor, frosting, toppings, message, design_image_url, price, created_at
+          INSERT INTO custom_cake_orders (user_id, size, flavor, frosting, cake_color, cake_filling, toppings, message, design_image_url, price)
+          VALUES (${uid}, ${size}, ${flavor}, ${frosting}, ${cakeColor}, ${cakeFilling}, ${JSON.stringify(toppingsArr)}::jsonb, ${message}, ${designImageURL}, ${price})
+          RETURNING id, user_id, order_id, size, flavor, frosting, cake_color, cake_filling, toppings, message, design_image_url, price, created_at
         `;
       } catch (insertErr) {
         if (insertErr?.code !== '42703') throw insertErr;
-        [row] = await sql`
-          INSERT INTO custom_cake_orders (user_id, size, flavor, frosting, message, design_image_url, price)
-          VALUES (${uid}, ${size}, ${flavor}, ${frosting}, ${message}, ${designImageURL}, ${price})
-          RETURNING id, user_id, order_id, size, flavor, frosting, message, design_image_url, price, created_at
-        `;
+        try {
+          [row] = await sql`
+            INSERT INTO custom_cake_orders (user_id, size, flavor, frosting, toppings, message, design_image_url, price)
+            VALUES (${uid}, ${size}, ${flavor}, ${frosting}, ${JSON.stringify(toppingsArr)}::jsonb, ${message}, ${designImageURL}, ${price})
+            RETURNING id, user_id, order_id, size, flavor, frosting, toppings, message, design_image_url, price, created_at
+          `;
+        } catch (e2) {
+          if (e2?.code !== '42703') throw e2;
+          [row] = await sql`
+            INSERT INTO custom_cake_orders (user_id, size, flavor, frosting, message, design_image_url, price)
+            VALUES (${uid}, ${size}, ${flavor}, ${frosting}, ${message}, ${designImageURL}, ${price})
+            RETURNING id, user_id, order_id, size, flavor, frosting, message, design_image_url, price, created_at
+          `;
+        }
       }
       const idStr = row?.id?.toString?.() ?? row?.id;
       try {

@@ -19,10 +19,14 @@ final class CustomCakeBuilderViewModel: ObservableObject {
     @Published var sizes: [CakeSizeOption] = []
     @Published var flavors: [CakeFlavorOption] = []
     @Published var frostings: [FrostingOption] = []
+    @Published var colors: [CakeFlavorOption] = []
+    @Published var fillings: [CakeFlavorOption] = []
     @Published var toppings: [ToppingOption] = []
     @Published var selectedSize: CakeSizeOption?
     @Published var selectedFlavor: CakeFlavorOption?
     @Published var selectedFrosting: FrostingOption?
+    @Published var selectedColor: CakeFlavorOption?
+    @Published var selectedFilling: CakeFlavorOption?
     @Published var selectedToppingIds: Set<String> = []
     @Published var message: String = ""
     @Published var designImage: PlatformImage?
@@ -55,10 +59,22 @@ final class CustomCakeBuilderViewModel: ObservableObject {
                 sizes = res.sizes
                 flavors = res.flavors
                 frostings = res.frostings
+                colors = res.colors ?? []
+                fillings = res.fillings ?? []
                 toppings = res.toppings ?? []
                 if selectedSize == nil || !sizes.contains(where: { $0.id == selectedSize?.id }) { selectedSize = sizes.first }
                 if selectedFlavor == nil || !flavors.contains(where: { $0.id == selectedFlavor?.id }) { selectedFlavor = flavors.first }
                 if selectedFrosting == nil || !frostings.contains(where: { $0.id == selectedFrosting?.id }) { selectedFrosting = frostings.first }
+                if colors.isEmpty {
+                    selectedColor = nil
+                } else if selectedColor == nil || !colors.contains(where: { $0.id == selectedColor?.id }) {
+                    selectedColor = colors.first
+                }
+                if fillings.isEmpty {
+                    selectedFilling = nil
+                } else if selectedFilling == nil || !fillings.contains(where: { $0.id == selectedFilling?.id }) {
+                    selectedFilling = fillings.first
+                }
                 return
             }
         } catch { }
@@ -78,6 +94,10 @@ final class CustomCakeBuilderViewModel: ObservableObject {
         toppings = CakeTopping.allCases.enumerated().map { i, t in
             ToppingOption(optionId: nil, label: t.rawValue, price: t.price, sortOrder: i)
         }
+        colors = []
+        fillings = []
+        selectedColor = nil
+        selectedFilling = nil
         if selectedSize == nil { selectedSize = sizes.first }
         if selectedFlavor == nil { selectedFlavor = flavors.first }
         if selectedFrosting == nil { selectedFrosting = frostings.first }
@@ -94,12 +114,16 @@ final class CustomCakeBuilderViewModel: ObservableObject {
         defer { isLoading = false }
         
         let toppingLabels = selectedToppings.map(\.label)
+        let colorLabel = selectedColor?.label.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fillLabel = selectedFilling?.label.trimmingCharacters(in: .whitespacesAndNewlines)
         var order = CustomCakeOrder(
             id: nil,
             userId: auth.currentUser?.uid,
             size: size.label,
             flavor: flavor.label,
             frosting: frosting.label,
+            cakeColor: (colorLabel?.isEmpty == false) ? colorLabel : nil,
+            cakeFilling: (fillLabel?.isEmpty == false) ? fillLabel : nil,
             toppings: toppingLabels.isEmpty ? nil : toppingLabels,
             message: message.trimmingCharacters(in: .whitespaces),
             designImageURL: nil,
@@ -112,8 +136,8 @@ final class CustomCakeBuilderViewModel: ObservableObject {
             let docId = try await api.saveCustomCakeOrder(order)
             order.id = docId
             
-            if let image = designImage, let jpeg = image.jpegData(compressionQuality: 0.8) {
-                let url = try await api.uploadCustomCakeDesignImage(data: jpeg, customCakeOrderId: docId)
+            if let image = designImage, let data = image.imageDataForAdminUpload(compressionQuality: 0.8) {
+                let url = try await api.uploadCustomCakeDesignImage(data: data, customCakeOrderId: docId)
                 order.designImageURL = url
                 try await api.updateCustomCakeOrder(order)
             }
