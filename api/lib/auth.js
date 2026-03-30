@@ -100,12 +100,14 @@ async function getSessionImpl(sessionId) {
   }
 }
 
-/** Resolves to session or null; never rejects (avoids unhandled Neon fetch failures crashing the process). */
+/** Resolves to session or null; never rejects (avoids unhandled Neon fetch failures crashing serverless). */
 export async function getSession(sessionId) {
-  return await getSessionImpl(sessionId).catch((err) => {
+  try {
+    return await getSessionImpl(sessionId);
+  } catch (err) {
     console.error('[auth] getSession rejected', err?.message ?? err);
     return null;
-  });
+  }
 }
 
 export async function deleteSession(sessionId) {
@@ -142,12 +144,17 @@ async function getAuthImpl(req) {
   }
 }
 
-/** Never rejects — safe for serverless when Neon returns fetch failed. */
+/** Never rejects — safe for serverless when Neon returns fetch failed. Always await at call sites. */
 export async function getAuth(req) {
-  return await getAuthImpl(req).catch((err) => {
-    console.error('[auth] getAuth rejected', err?.message ?? err);
+  try {
+    return await getAuthImpl(req).catch((err) => {
+      console.error('[auth] getAuth rejected', err?.message ?? err);
+      return null;
+    });
+  } catch (err) {
+    console.error('[auth] getAuth outer', err?.message ?? err);
     return null;
-  });
+  }
 }
 
 /**

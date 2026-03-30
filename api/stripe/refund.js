@@ -13,7 +13,7 @@ async function handler(req, res) {
   if (req.method === 'OPTIONS') return withCors(req, res, () => res.status(204).end());
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const auth = getAuth(req);
+  const auth = await getAuth(req);
   if (!auth?.userId) return res.status(401).json({ error: 'Unauthorized' });
   if (auth.isAdmin !== true) return res.status(403).json({ error: 'Admin only' });
 

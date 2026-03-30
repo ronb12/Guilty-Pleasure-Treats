@@ -16,7 +16,7 @@ export default async function handler(req, res) {
   }
   res.setHeader('Content-Type', 'application/json');
 
-  const auth = getAuth(req);
+  const auth = await getAuth(req);
   if (!auth?.userId || !auth?.isAdmin) return res.status(403).json({ error: 'Admin required' });
   if (!hasDb() || !sql) return res.status(503).json({ error: 'Service unavailable' });
   if ((req.method || '').toUpperCase() !== 'POST') return res.status(405).json({ error: 'Method not allowed' });

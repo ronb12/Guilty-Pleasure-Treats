@@ -31,7 +31,7 @@ export default async function handler(req, res) {
   if ((req.method || '').toUpperCase() === 'GET') {
     if (!hasDb() || !sql) return res.status(200).json([]);
     const orderId = (req.query?.orderId ?? '').toString().trim() || null;
-    const auth = getAuth(req);
+    const auth = await getAuth(req);
 
     try {
       if (orderId && auth?.userId) {
@@ -62,7 +62,7 @@ export default async function handler(req, res) {
   }
 
   if ((req.method || '').toUpperCase() === 'POST') {
-    const auth = getAuth(req);
+    const auth = await getAuth(req);
     if (!auth?.userId) return res.status(401).json({ error: 'Sign in to leave a review' });
     if (!hasDb() || !sql) return res.status(503).json({ error: 'Service unavailable' });
 

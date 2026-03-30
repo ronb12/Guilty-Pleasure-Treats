@@ -63,6 +63,15 @@ export async function getOrCreateUserFromNeonPayload(payload) {
 }
 
 async function getOrCreateUserFromNeonPayloadImpl(payload) {
+  try {
+    return await getOrCreateUserFromNeonPayloadImplBody(payload);
+  } catch (e) {
+    console.error('[neonAuth] getOrCreateUserFromNeonPayloadImpl', e?.message ?? e);
+    return null;
+  }
+}
+
+async function getOrCreateUserFromNeonPayloadImplBody(payload) {
   const neonId = String(payload.sub);
   const email = payload.email ? String(payload.email).trim().toLowerCase() : null;
   const name = payload.name || payload.displayName || null;

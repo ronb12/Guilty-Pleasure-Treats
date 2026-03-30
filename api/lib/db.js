@@ -21,7 +21,7 @@ if (connectionString) {
 
 /** Optional longer timeout for cold starts / flaky edge (merged into neon fetch). */
 function neonFetchOptions() {
-  const ms = Number(process.env.NEON_FETCH_TIMEOUT_MS || '25000');
+  const ms = Number(process.env.NEON_FETCH_TIMEOUT_MS || '45000');
   if (!Number.isFinite(ms) || ms <= 0) return {};
   try {
     if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
@@ -49,7 +49,8 @@ export function hasDb() {
  */
 export async function awaitNeonRows(queryPromise, label = 'query') {
   try {
-    return await queryPromise;
+    const result = await Promise.resolve(queryPromise);
+    return Array.isArray(result) ? result : [];
   } catch (err) {
     console.error(`[db] ${label}`, err?.message ?? err);
     return [];
