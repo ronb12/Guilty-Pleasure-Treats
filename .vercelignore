@@ -1,0 +1,15 @@
+# iOS app — not deployed to Vercel (API + static `website/` only)
+Guilty Pleasure Treats
+
+# Local / editor
+.cursor
+.DS_Store
+*.log
+
+# Dependencies (usually ignored by default; explicit is safe)
+node_modules
+
+# Secrets / local env (never upload)
+.env
+.env.*
+!.env.example
