@@ -187,19 +187,19 @@ final class CheckoutViewModel: ObservableObject {
     
     var discountAmount: Double {
         guard let promo = appliedPromotion else { return 0 }
-        let subtotal = cart.toOrderItems().reduce(0.0) { $0 + $1.subtotal }
-        let qty = cart.itemCount
+        let items = cart.toOrderItems()
+        let base = promo.promoEligibleSubtotal(orderItems: items)
         let signedIn = auth.currentUser != nil
         let prior = auth.userProfile?.completedOrderCount
-        if promo.eligibilityFailureMessage(subtotal: subtotal, totalItemQuantity: qty, signedInUser: signedIn, priorCompletedOrderCount: prior) != nil {
+        if promo.eligibilityFailureMessage(orderItems: items, signedInUser: signedIn, priorCompletedOrderCount: prior) != nil {
             return 0
         }
         switch promo.discountTypeEnum {
-        case .percent:
-            return subtotal * (promo.value / 100)
-        case .fixed:
-            return min(promo.value, subtotal)
-        case .none:
+        case .some(.percent):
+            return base * (promo.value / 100)
+        case .some(.fixed):
+            return min(promo.value, base)
+        case .some(.none), nil:
             return 0
         }
     }
@@ -207,10 +207,9 @@ final class CheckoutViewModel: ObservableObject {
     /// When a code is applied but cart / account doesn’t meet reward rules (matches server).
     var promoEligibilityBlocker: String? {
         guard let promo = appliedPromotion else { return nil }
-        let subtotal = cart.toOrderItems().reduce(0.0) { $0 + $1.subtotal }
+        let items = cart.toOrderItems()
         return promo.eligibilityFailureMessage(
-            subtotal: subtotal,
-            totalItemQuantity: cart.itemCount,
+            orderItems: items,
             signedInUser: auth.currentUser != nil,
             priorCompletedOrderCount: auth.userProfile?.completedOrderCount
         )
@@ -272,21 +271,21 @@ final class CheckoutViewModel: ObservableObject {
     }
     
     private func syncPromoMessageAfterApplying(_ promo: Promotion) {
-        let subtotal = cart.toOrderItems().reduce(0.0) { $0 + $1.subtotal }
+        let items = cart.toOrderItems()
         let prior = auth.userProfile?.completedOrderCount
         if let blocker = promo.eligibilityFailureMessage(
-            subtotal: subtotal,
-            totalItemQuantity: cart.itemCount,
+            orderItems: items,
             signedInUser: auth.currentUser != nil,
             priorCompletedOrderCount: prior
         ) {
             promoMessage = blocker
             return
         }
-        if promo.discountTypeEnum == .none {
-            promoMessage = "Promo code \(promo.code.uppercased()) is applied to your order."
-        } else {
+        switch promo.discountTypeEnum {
+        case .some(.percent), .some(.fixed):
             promoMessage = "Discount applied — \(promo.code.uppercased())"
+        case .some(.none), nil:
+            promoMessage = "Promo code \(promo.code.uppercased()) is applied to your order."
         }
     }
     

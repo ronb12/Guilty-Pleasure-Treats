@@ -324,8 +324,8 @@ final class AuthService: ObservableObject {
             phone: user["phone"] as? String,
             isAdmin: (user["isAdmin"] as? Bool) ?? false,
             points: (user["points"] as? Int) ?? 0,
-            foodAllergies: user["foodAllergies"] as? String,
-            createdAt: Date()
+            createdAt: Date(),
+            foodAllergies: user["foodAllergies"] as? String
         )
         authState = .signedIn(VercelUser(uid: uid, email: user["email"] as? String, displayName: user["displayName"] as? String, phone: user["phone"] as? String))
         Task { @MainActor in await NotificationService.shared.registerPushTokenWithBackend() }

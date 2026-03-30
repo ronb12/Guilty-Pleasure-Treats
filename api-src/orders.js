@@ -294,7 +294,7 @@ export default async function handler(req, res) {
           try {
             promoRows = await sql`
               SELECT discount_type, value, valid_from, valid_to, is_active,
-                     min_subtotal, min_total_quantity, first_order_only
+                     min_subtotal, min_total_quantity, first_order_only, product_id
               FROM promotions
               WHERE UPPER(TRIM(code)) = ${promoCode}
               LIMIT 1
@@ -336,6 +336,7 @@ export default async function handler(req, res) {
 
           const promoEval = evaluatePromotion(pr, itemsSubtotalDollars, {
             totalQuantity,
+            lineItems: itemsJson,
             userId: userId || null,
             priorOrderCount,
           });

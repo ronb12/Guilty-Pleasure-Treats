@@ -20,6 +20,7 @@ async function applyPromotionPatch(sql, id, fields) {
     minSubIn,
     minQtyIn,
     firstOrderIn,
+    productIdIn,
   } = fields;
 
   if (code != null) {
@@ -48,10 +49,15 @@ async function applyPromotionPatch(sql, id, fields) {
   if (firstOrderIn !== undefined) {
     await sql`UPDATE promotions SET first_order_only = ${Boolean(firstOrderIn)}, updated_at = NOW() WHERE id = ${id}::uuid`;
   }
+  if (productIdIn !== undefined) {
+    const pid =
+      productIdIn == null || String(productIdIn).trim() === '' ? null : String(productIdIn).trim();
+    await sql`UPDATE promotions SET product_id = ${pid}, updated_at = NOW() WHERE id = ${id}::uuid`;
+  }
 
   const [row] = await sql`
     SELECT id, code, discount_type, value, valid_from, valid_to, is_active, created_at,
-           min_subtotal, min_total_quantity, first_order_only
+           min_subtotal, min_total_quantity, first_order_only, product_id
     FROM promotions WHERE id = ${id}::uuid
   `;
   return rowToPromotion(row) ?? { id };
@@ -71,6 +77,7 @@ function rowToPromotion(row) {
     minSubtotal: row.min_subtotal != null ? Number(row.min_subtotal) : null,
     minTotalQuantity: row.min_total_quantity != null ? Number(row.min_total_quantity) : null,
     firstOrderOnly: Boolean(row.first_order_only),
+    productId: row.product_id != null && String(row.product_id).trim() !== '' ? String(row.product_id).trim() : null,
   };
 }
 
@@ -91,7 +98,7 @@ export default async function handler(req, res) {
       await ensurePromotionsOptionalColumns(sql);
       const [row] = await sql`
         SELECT id, code, discount_type, value, valid_from, valid_to, is_active, created_at,
-               min_subtotal, min_total_quantity, first_order_only
+               min_subtotal, min_total_quantity, first_order_only, product_id
         FROM promotions WHERE id = ${id}::uuid
       `;
       if (!row) return res.status(404).json({ error: 'Promotion not found' });
@@ -139,6 +146,10 @@ export default async function handler(req, res) {
     const firstOrderIn = body.firstOrderOnly !== undefined || body.first_order_only !== undefined
       ? (body.firstOrderOnly ?? body.first_order_only)
       : undefined;
+    const productIdIn =
+      body.productId !== undefined || body.product_id !== undefined
+        ? (body.productId ?? body.product_id)
+        : undefined;
 
     const patchFields = {
       code,
@@ -150,6 +161,7 @@ export default async function handler(req, res) {
       minSubIn,
       minQtyIn,
       firstOrderIn,
+      productIdIn,
     };
 
     try {

@@ -5,6 +5,7 @@
 import { sql, hasDb } from '../lib/db.js';
 import { getTokenFromRequest, getSession } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
+import { ensureEventsTable } from '../lib/eventsSchema.js';
 
 function rowToEvent(row) {
   if (!row) return null;
@@ -31,6 +32,7 @@ export default async function handler(req, res) {
   if ((req.method || '').toUpperCase() === 'GET') {
     if (!hasDb() || !sql) return res.status(200).json([]);
     try {
+      await ensureEventsTable(sql);
       const token = getTokenFromRequest(req);
       const session = token ? await getSession(token) : null;
       const allEvents =
@@ -65,6 +67,13 @@ export default async function handler(req, res) {
     if (!session?.userId || session.isAdmin !== true) return res.status(403).json({ error: 'Admin required' });
     if (!hasDb() || !sql) return res.status(503).json({ error: 'Service unavailable' });
 
+    try {
+      await ensureEventsTable(sql);
+    } catch (migErr) {
+      console.error('[events] ensureEventsTable', migErr);
+      return res.status(503).json({ error: 'Database setup failed for events.' });
+    }
+
     const body = req.body || {};
     const title = String(body.title ?? '').trim();
     if (!title) return res.status(400).json({ error: 'title is required' });
@@ -94,9 +103,11 @@ export default async function handler(req, res) {
 
       return res.status(201).json(rowToEvent(row));
     } catch (err) {
-      if (err?.code === '42P01') return res.status(503).json({ error: 'Service unavailable' });
       console.error('[events] POST', err);
-      return res.status(500).json({ error: 'Failed to create event' });
+      return res.status(500).json({
+        error: 'Failed to create event',
+        details: process.env.NODE_ENV === 'development' ? err?.message || String(err) : undefined,
+      });
     }
   }
 

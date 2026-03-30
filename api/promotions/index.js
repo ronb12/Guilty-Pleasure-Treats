@@ -21,6 +21,7 @@ function rowToPromotion(row) {
     minSubtotal: row.min_subtotal != null ? Number(row.min_subtotal) : null,
     minTotalQuantity: row.min_total_quantity != null ? Number(row.min_total_quantity) : null,
     firstOrderOnly: Boolean(row.first_order_only),
+    productId: row.product_id != null && String(row.product_id).trim() !== '' ? String(row.product_id).trim() : null,
   };
 }
 
@@ -38,7 +39,7 @@ export default async function handler(req, res) {
       await ensurePromotionsOptionalColumns(sql);
       const rows = await sql`
         SELECT id, code, discount_type, value, valid_from, valid_to, is_active, created_at,
-               min_subtotal, min_total_quantity, first_order_only
+               min_subtotal, min_total_quantity, first_order_only, product_id
         FROM promotions
         ORDER BY created_at DESC NULLS LAST
         LIMIT 200
@@ -69,16 +70,19 @@ export default async function handler(req, res) {
     const firstOrderOnly = body.firstOrderOnly === true || body.first_order_only === true;
     const minSubDb = minSub != null && Number.isFinite(minSub) && minSub > 0 ? minSub : null;
     const minQtyDb = minQty != null && Number.isFinite(minQty) && minQty > 0 ? minQty : null;
+    const rawPid = body.productId ?? body.product_id;
+    const productIdDb =
+      rawPid != null && String(rawPid).trim() !== '' ? String(rawPid).trim() : null;
     if (!code) return res.status(400).json({ error: 'code is required' });
 
     try {
       await ensurePromotionsOptionalColumns(sql);
       const [row] = await sql`
-        INSERT INTO promotions (code, discount_type, value, valid_from, valid_to, is_active, min_subtotal, min_total_quantity, first_order_only)
+        INSERT INTO promotions (code, discount_type, value, valid_from, valid_to, is_active, min_subtotal, min_total_quantity, first_order_only, product_id)
         VALUES (${code}, ${discountType}, ${value},
           ${validFrom ? new Date(validFrom) : null},
           ${validTo ? new Date(validTo) : null},
-          ${isActive}, ${minSubDb}, ${minQtyDb}, ${firstOrderOnly})
+          ${isActive}, ${minSubDb}, ${minQtyDb}, ${firstOrderOnly}, ${productIdDb})
         RETURNING id, code, discount_type, value, valid_from, valid_to, is_active, created_at
       `;
       return res.status(201).json({ id: row?.id?.toString?.() ?? row?.id });

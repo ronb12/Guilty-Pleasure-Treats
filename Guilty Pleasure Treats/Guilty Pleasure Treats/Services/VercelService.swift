@@ -228,7 +228,6 @@ final class VercelService {
             "name": product.name,
             "description": product.productDescription,
             "price": product.price,
-            "imageURL": product.imageURL as Any,
             "category": product.category,
             "isFeatured": product.isFeatured,
             "isSoldOut": product.isSoldOut,
@@ -236,6 +235,11 @@ final class VercelService {
             "stockQuantity": product.stockQuantity as Any,
             "lowStockThreshold": product.lowStockThreshold as Any,
         ]
+        if let url = product.imageURL?.trimmingCharacters(in: .whitespacesAndNewlines), !url.isEmpty {
+            body["imageURL"] = url
+        } else {
+            body["imageURL"] = NSNull()
+        }
         if let c = product.cost { body["cost"] = c }
         body["sizeOptions"] = Self.sizeOptionsPayload(from: product)
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -757,6 +761,9 @@ final class VercelService {
         if let to = promotion.validTo { body["validTo"] = iso.string(from: to) }
         if let m = promotion.minSubtotal, m > 0 { body["minSubtotal"] = m }
         if let q = promotion.minTotalQuantity, q > 0 { body["minTotalQuantity"] = q }
+        if let pid = promotion.productId?.trimmingCharacters(in: .whitespacesAndNewlines), !pid.isEmpty {
+            body["productId"] = pid
+        }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
@@ -793,6 +800,11 @@ final class VercelService {
             body["minTotalQuantity"] = q
         } else {
             body["minTotalQuantity"] = NSNull()
+        }
+        if let pid = promotion.productId?.trimmingCharacters(in: .whitespacesAndNewlines), !pid.isEmpty {
+            body["productId"] = pid
+        } else {
+            body["productId"] = NSNull()
         }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, res) = try await session.data(for: req)

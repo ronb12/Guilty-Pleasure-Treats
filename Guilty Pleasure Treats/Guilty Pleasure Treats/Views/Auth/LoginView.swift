@@ -184,16 +184,21 @@ struct LoginView: View {
     
     private var allergiesSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Food allergies (optional)")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(AppConstants.Colors.textPrimary)
-            TextField("e.g. peanuts, dairy", text: $foodAllergies, axis: .vertical)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("Food allergies")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(AppConstants.Colors.textPrimary)
+                Text("(required)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppConstants.Colors.accent)
+            }
+            TextField("e.g. peanuts, dairy — or type None", text: $foodAllergies, axis: .vertical)
                 .textFieldStyle(LoginTextFieldStyle())
                 #if os(iOS)
                 .textInputAutocapitalization(.never)
                 #endif
                 .lineLimit(3...6)
-            Text("We'll save this to your profile and attach it to orders. Our kitchen cannot guarantee absence of cross-contact.")
+            Text("Required for new accounts. List any allergens or sensitivities, or enter None if you don’t have any. We attach this to your orders; our kitchen cannot guarantee absence of cross-contact.")
                 .font(.caption2)
                 .foregroundStyle(AppConstants.Colors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -303,8 +308,13 @@ struct LoginView: View {
         if isSignUp {
             let nameOk = !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             let phoneOk = !phone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let allergiesOk = !foodAllergies.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             guard nameOk, phoneOk else {
                 errorMessage = "Enter your name and phone number."
+                return
+            }
+            guard allergiesOk else {
+                errorMessage = "Enter your food allergies (or None if you don’t have any)."
                 return
             }
         }
@@ -319,7 +329,7 @@ struct LoginView: View {
                     password: password,
                     displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
                     phone: phone.trimmingCharacters(in: .whitespacesAndNewlines),
-                    foodAllergies: allergiesNote.isEmpty ? nil : allergiesNote
+                    foodAllergies: allergiesNote
                 )
             } else {
                 try await auth.signIn(email: email, password: password)

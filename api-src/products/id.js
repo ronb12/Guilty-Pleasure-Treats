@@ -35,6 +35,13 @@ function normalizeSizeOptionsPatch(body) {
   return out;
 }
 
+/** Accepts JSON null to clear image_url; treats "" as clear. */
+function normalizeImageURL(v) {
+  if (v == null || v === '') return null;
+  const s = String(v).trim();
+  return s.length ? s : null;
+}
+
 function rowSizeOptions(row) {
   const v = row.size_options;
   if (v == null) return null;
@@ -111,7 +118,7 @@ export default async function handler(req, res) {
     const name = String(body.name ?? '').trim();
     const description = String(body.description ?? body.productDescription ?? '').trim();
     const price = Number(body.price) ?? 0;
-    const imageURL = body.imageURL ?? null;
+    const imageURL = normalizeImageURL(body.imageURL ?? null);
     const category = String(body.category ?? '').trim();
     const isFeatured = bodyBool(body.isFeatured);
     let isSoldOut = bodyBool(body.isSoldOut);

@@ -1057,7 +1057,8 @@ final class AdminViewModel: ObservableObject {
         }
     }
 
-    func createEvent(title: String, eventDescription: String?, startAt: Date?, endAt: Date?, imageURL: String?, location: String?) async {
+    @discardableResult
+    func createEvent(title: String, eventDescription: String?, startAt: Date?, endAt: Date?, imageURL: String?, location: String?) async -> Bool {
         let event = Event(
             id: "",
             title: title,
@@ -1072,18 +1073,23 @@ final class AdminViewModel: ObservableObject {
             _ = try await api.createEvent(event)
             successMessage = "Event created. Customers will be notified."
             await loadEvents()
+            return true
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)
+            return false
         }
     }
 
-    func updateEvent(id: String, title: String?, eventDescription: String?, startAt: Date?, endAt: Date?, imageURL: String?, location: String?) async {
+    @discardableResult
+    func updateEvent(id: String, title: String?, eventDescription: String?, startAt: Date?, endAt: Date?, imageURL: String?, location: String?) async -> Bool {
         do {
             try await api.updateEvent(id: id, title: title, eventDescription: eventDescription, startAt: startAt, endAt: endAt, imageURL: imageURL, location: location)
             successMessage = "Event updated."
             await loadEvents()
+            return true
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)
+            return false
         }
     }
 

@@ -6,11 +6,12 @@
 import { sql, hasDb } from '../lib/db.js';
 import { getAuth } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
+import { ensureEventsTable } from '../lib/eventsSchema.js';
 
 function rowToEvent(row) {
   if (!row) return null;
   return {
-    id: row.id,
+    id: row.id?.toString?.() ?? String(row.id ?? ''),
     title: row.title,
     description: row.description ?? null,
     start_at: row.start_at ? new Date(row.start_at).toISOString() : null,
@@ -34,6 +35,7 @@ export default async function handler(req, res) {
 
   if ((req.method || '').toUpperCase() === 'GET') {
     try {
+      await ensureEventsTable(sql);
       const [row] = await sql`
         SELECT id, title, description, start_at, end_at, image_url, location, created_at
         FROM events WHERE id = ${id}
@@ -47,8 +49,15 @@ export default async function handler(req, res) {
   }
 
   if ((req.method || '').toUpperCase() === 'PATCH' || (req.method || '').toUpperCase() === 'DELETE') {
-    const auth = getAuth(req);
+    const auth = await getAuth(req);
     if (!auth?.userId || !auth?.isAdmin) return res.status(403).json({ error: 'Admin required' });
+
+    try {
+      await ensureEventsTable(sql);
+    } catch (migErr) {
+      console.error('[events/id] ensureEventsTable', migErr);
+      return res.status(503).json({ error: 'Database setup failed for events.' });
+    }
 
     if ((req.method || '').toUpperCase() === 'DELETE') {
       try {

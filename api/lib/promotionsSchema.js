@@ -10,6 +10,7 @@ export async function ensurePromotionsOptionalColumns(sql) {
     await sql`ALTER TABLE promotions ADD COLUMN IF NOT EXISTS min_subtotal DECIMAL(10,2)`;
     await sql`ALTER TABLE promotions ADD COLUMN IF NOT EXISTS min_total_quantity INTEGER`;
     await sql`ALTER TABLE promotions ADD COLUMN IF NOT EXISTS first_order_only BOOLEAN NOT NULL DEFAULT false`;
+    await sql`ALTER TABLE promotions ADD COLUMN IF NOT EXISTS product_id TEXT`;
   } catch (e) {
     if (e?.code === '42P01') return;
     throw e;

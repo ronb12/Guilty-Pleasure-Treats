@@ -28,6 +28,26 @@ struct Event: Identifiable, Codable {
         case createdAt = "created_at"
     }
 
+    init(
+        id: String,
+        title: String,
+        eventDescription: String? = nil,
+        startAt: Date? = nil,
+        endAt: Date? = nil,
+        imageURL: String? = nil,
+        location: String? = nil,
+        createdAt: Date? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.eventDescription = eventDescription
+        self.startAt = startAt
+        self.endAt = endAt
+        self.imageURL = imageURL
+        self.location = location
+        self.createdAt = createdAt
+    }
+
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         if let s = try? c.decode(String.self, forKey: .id) {

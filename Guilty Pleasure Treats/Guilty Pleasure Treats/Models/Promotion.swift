@@ -8,9 +8,11 @@
 import Foundation
 
 enum PromotionDiscountType: String, Codable, CaseIterable, Identifiable {
+    /// Subtotal is reduced by `value` percent (e.g. 10 = 10% off).
     case percent = "Percent off"
+    /// Subtotal is reduced by `value` dollars (capped at subtotal). Code is validated like any other promo type.
     case fixed = "Fixed amount off"
-    /// No automatic discount; code still validated and stored on the order (tracking / eligibility rules only).
+    /// No dollar amount off subtotal; code is still validated and saved on the order (tracking, eligibility, or perks you apply manually).
     case none = "None"
     var id: String { rawValue }
 }
@@ -30,10 +32,12 @@ struct Promotion: Identifiable, Codable {
     var minTotalQuantity: Int?
     /// When true, customer must be signed in with zero prior completed orders.
     var firstOrderOnly: Bool
+    /// When set, the promo applies only to cart lines for this catalog product id (server-enforced).
+    var productId: String?
 
     enum CodingKeys: String, CodingKey {
         case id, code, discountType, value, validFrom, validTo, isActive, createdAt
-        case minSubtotal, minTotalQuantity, firstOrderOnly
+        case minSubtotal, minTotalQuantity, firstOrderOnly, productId
     }
 
     init(
@@ -47,7 +51,8 @@ struct Promotion: Identifiable, Codable {
         createdAt: Date? = nil,
         minSubtotal: Double? = nil,
         minTotalQuantity: Int? = nil,
-        firstOrderOnly: Bool = false
+        firstOrderOnly: Bool = false,
+        productId: String? = nil
     ) {
         self.id = id
         self.code = code
@@ -60,6 +65,7 @@ struct Promotion: Identifiable, Codable {
         self.minSubtotal = minSubtotal
         self.minTotalQuantity = minTotalQuantity
         self.firstOrderOnly = firstOrderOnly
+        self.productId = productId
     }
 
     init(from decoder: Decoder) throws {
@@ -75,6 +81,7 @@ struct Promotion: Identifiable, Codable {
         minSubtotal = try c.decodeIfPresent(Double.self, forKey: .minSubtotal)
         minTotalQuantity = try c.decodeIfPresent(Int.self, forKey: .minTotalQuantity)
         firstOrderOnly = try c.decodeIfPresent(Bool.self, forKey: .firstOrderOnly) ?? false
+        productId = try c.decodeIfPresent(String.self, forKey: .productId)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -90,6 +97,7 @@ struct Promotion: Identifiable, Codable {
         try c.encodeIfPresent(minSubtotal, forKey: .minSubtotal)
         try c.encodeIfPresent(minTotalQuantity, forKey: .minTotalQuantity)
         try c.encode(firstOrderOnly, forKey: .firstOrderOnly)
+        try c.encodeIfPresent(productId, forKey: .productId)
     }
 
     private static func decodeFlexibleId(from c: KeyedDecodingContainer<CodingKeys>) -> String? {
@@ -122,13 +130,13 @@ struct Promotion: Identifiable, Codable {
     var customerFacingOfferLine: String {
         let codeUpper = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         switch discountTypeEnum {
-        case .percent:
+        case .some(.percent):
             let pct = value.rounded() == value ? String(format: "%.0f", value) : String(format: "%.1f", value)
             return "\(pct)% off — use code \(codeUpper) at checkout"
-        case .fixed:
+        case .some(.fixed):
             let amt = value.currencyFormatted
             return "\(amt) off — use code \(codeUpper) at checkout"
-        case .none:
+        case .some(.none), nil:
             return "Use code \(codeUpper) at checkout"
         }
     }
@@ -140,31 +148,66 @@ struct Promotion: Identifiable, Codable {
             parts.append("Min \(m.currencyFormatted) cart")
         }
         if let q = minTotalQuantity, q > 0 {
-            parts.append("Min \(q) items")
+            parts.append(productId?.isEmpty == false ? "Min \(q) of that product" : "Min \(q) items")
         }
         if firstOrderOnly {
             parts.append("First order only")
+        }
+        if productId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false {
+            parts.append("Specific product")
         }
         guard !parts.isEmpty else { return nil }
         return parts.joined(separator: " · ")
     }
 
+    /// Subtotal and quantity used for rules/discount when `productId` is set.
+    func promoEligibleSubtotal(orderItems: [OrderItem]) -> Double {
+        guard let t = productId?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty else {
+            return orderItems.reduce(0) { $0 + $1.subtotal }
+        }
+        let target = t.lowercased()
+        return orderItems
+            .filter { $0.productId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == target }
+            .reduce(0) { $0 + $1.subtotal }
+    }
+
+    func promoEligibleItemQuantity(orderItems: [OrderItem]) -> Int {
+        guard let t = productId?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty else {
+            return orderItems.reduce(0) { $0 + $1.quantity }
+        }
+        let target = t.lowercased()
+        return orderItems
+            .filter { $0.productId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == target }
+            .reduce(0) { $0 + $1.quantity }
+    }
+
     /// Matches server `promotionEligibilityFailure` copy for consistent UX.
     func eligibilityFailureMessage(
-        subtotal: Double,
-        totalItemQuantity: Int,
+        orderItems: [OrderItem],
         signedInUser: Bool,
         priorCompletedOrderCount: Int?
     ) -> String? {
-        let sub = subtotal
-        guard sub.isFinite, sub >= 0 else {
+        let scoped = productId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        let subForRules = scoped ? promoEligibleSubtotal(orderItems: orderItems) : orderItems.reduce(0) { $0 + $1.subtotal }
+        let qtyForRules = scoped ? promoEligibleItemQuantity(orderItems: orderItems) : orderItems.reduce(0) { $0 + $1.quantity }
+
+        if scoped, subForRules + 1e-9 <= 0 {
+            return "Add the promoted product to your cart to use this code."
+        }
+        guard subForRules.isFinite, subForRules >= 0 else {
             return "Invalid cart subtotal."
         }
-        if let minS = minSubtotal, minS > 0, sub + 1e-9 < minS {
-            return String(format: "This promo needs a minimum cart of $%.2f before discount (you have $%.2f).", minS, sub)
+        if let minS = minSubtotal, minS > 0, subForRules + 1e-9 < minS {
+            if scoped {
+                return String(format: "This promo needs at least $%.2f of that product before discount (you have $%.2f).", minS, subForRules)
+            }
+            return String(format: "This promo needs a minimum cart of $%.2f before discount (you have $%.2f).", minS, subForRules)
         }
-        if let minQ = minTotalQuantity, minQ > 0, totalItemQuantity < minQ {
-            return "This promo needs at least \(minQ) items in your cart (you have \(totalItemQuantity))."
+        if let minQ = minTotalQuantity, minQ > 0, qtyForRules < minQ {
+            if scoped {
+                return "This promo needs at least \(minQ) of that product in your cart (you have \(qtyForRules))."
+            }
+            return "This promo needs at least \(minQ) items in your cart (you have \(qtyForRules))."
         }
         if firstOrderOnly {
             if !signedInUser {

@@ -915,6 +915,8 @@ struct EditProductView: View {
     @State private var showImagePicker = false
     @State private var showDeleteConfirm = false
     @State private var isSaving = false
+    /// When true, existing server image is cleared on save (without deleting the product).
+    @State private var removeExistingPhoto = false
     
     private var canDelete: Bool {
         guard let id = product.id else { return false }
@@ -1019,7 +1021,7 @@ struct EditProductView: View {
                 Text("Product photo (shows on menu)")
                     .font(.subheadline)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
-                Button(selectedImage == nil ? "Change photo" : "Change photo") {
+                Button("Choose or replace photo") {
                     showImagePicker = true
                 }
                 if let img = selectedImage {
@@ -1030,11 +1032,24 @@ struct EditProductView: View {
                         .frame(height: adminProductPhotoHeight)
                         .clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 8))
-                } else if product.imageURL != nil {
+                } else if !removeExistingPhoto, product.imageURL != nil,
+                          let u = product.imageURL?.trimmingCharacters(in: .whitespacesAndNewlines), !u.isEmpty {
                     ProductImageView(urlString: product.imageURL, placeholderName: "photo")
                         .frame(maxWidth: .infinity)
                         .frame(height: adminProductPhotoHeight)
                         .clipped()
+                } else {
+                    Text("No photo — menu will use the default placeholder.")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 8)
+                }
+                if selectedImage != nil || (!removeExistingPhoto && product.imageURL != nil && !(product.imageURL?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)) {
+                    Button("Remove photo", role: .destructive) {
+                        selectedImage = nil
+                        removeExistingPhoto = true
+                    }
                 }
                 if canDelete {
                     Section {
@@ -1082,6 +1097,9 @@ struct EditProductView: View {
                             if let q = updated.stockQuantity, q > 0 {
                                 updated.isSoldOut = false
                             }
+                            if removeExistingPhoto, selectedImage == nil {
+                                updated.imageURL = nil
+                            }
                             let didSave = await viewModel.updateProduct(updated, newImage: selectedImage)
                             if didSave {
                                 dismiss()
@@ -1109,6 +1127,9 @@ struct EditProductView: View {
             }
             .sheet(isPresented: $showImagePicker) {
                 ImagePicker(image: $selectedImage)
+            }
+            .onChange(of: selectedImage) { _, new in
+                if new != nil { removeExistingPhoto = false }
             }
             .alert("Remove product?", isPresented: $showDeleteConfirm) {
                 Button("Cancel", role: .cancel) { showDeleteConfirm = false }
@@ -2806,7 +2827,18 @@ struct AdminPromotionsView: View {
                 EditLoyaltyRewardView(reward: item, viewModel: viewModel) { editingLoyalty = nil }
                     .macOSAdminSheetSizeForm()
             }
+            .task { await viewModel.loadProducts() }
         }
+    }
+
+    /// Resolved menu name for promo `product_id`, or a short fallback when the product was removed.
+    private func promoScopedProductName(productId: String) -> String {
+        let t = productId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return "—" }
+        if let name = viewModel.products.first(where: { ($0.id ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == t })?.name, !name.isEmpty {
+            return name
+        }
+        return "Removed product (\(t))"
     }
 
     private var promoCodesList: some View {
@@ -2831,6 +2863,11 @@ struct AdminPromotionsView: View {
                         Text("\(p.discountType) · \(p.value)")
                             .font(.caption)
                             .foregroundStyle(AppConstants.Colors.textSecondary)
+                        if let pid = p.productId?.trimmingCharacters(in: .whitespacesAndNewlines), !pid.isEmpty {
+                            Text("Applies to: \(promoScopedProductName(productId: pid))")
+                                .font(.caption)
+                                .foregroundStyle(AppConstants.Colors.accent)
+                        }
                         if let rules = p.rewardRulesCaption {
                             Text(rules)
                                 .font(.caption2)
@@ -3136,6 +3173,14 @@ struct AddPromotionView: View {
     @State private var minSubtotalText = ""
     @State private var minTotalQuantityText = ""
     @State private var firstOrderOnly = false
+    /// Empty = all products; otherwise catalog product id.
+    @State private var appliesToProductId: String = ""
+
+    private var sortedMenuProductsForPromo: [Product] {
+        viewModel.products
+            .filter { ($0.id ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
     
     var body: some View {
         NavigationStack {
@@ -3152,6 +3197,27 @@ struct AddPromotionView: View {
                         .multilineTextAlignment(.leading)
                 } header: {
                     Text("Code")
+                }
+                Section {
+                    Picker("Applies to", selection: $appliesToProductId) {
+                        Text("Any product (whole cart)").tag("")
+                        ForEach(sortedMenuProductsForPromo, id: \.stablePickerId) { p in
+                            Text(p.name).tag(p.id!)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                } header: {
+                    Text("Product scope")
+                } footer: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Choose one menu item to limit the discount to that product’s line items, or leave as whole cart for a cart-wide promo.")
+                            .font(.caption)
+                        if sortedMenuProductsForPromo.isEmpty {
+                            Text("No catalog products with IDs loaded yet. Open the Products tab once, or pull to refresh, then try again.")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
                 }
                 Section {
                     Picker("Type", selection: $discountType) {
@@ -3208,6 +3274,7 @@ struct AddPromotionView: View {
             .macOSGroupedFormStyle()
             .navigationTitle("New Promotion")
             .onAppear { viewModel.clearMessages() }
+            .task { await viewModel.loadProducts() }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -3232,7 +3299,8 @@ struct AddPromotionView: View {
                                 isActive: isActive,
                                 minSubtotal: minSub,
                                 minTotalQuantity: minQty,
-                                firstOrderOnly: firstOrderOnly
+                                firstOrderOnly: firstOrderOnly,
+                                productId: appliesToProductId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : appliesToProductId.trimmingCharacters(in: .whitespacesAndNewlines)
                             ))
                             if ok { dismiss() }
                         }
@@ -3260,6 +3328,21 @@ struct EditPromotionView: View {
     @State private var minSubtotalText: String
     @State private var minTotalQuantityText: String
     @State private var firstOrderOnly: Bool
+    @State private var appliesToProductId: String
+
+    private var sortedMenuProductsForPromoEdit: [Product] {
+        viewModel.products
+            .filter { ($0.id ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    /// Preserves picker selection when the saved `product_id` no longer exists in the catalog.
+    private var orphanedPromoProductId: String? {
+        let t = appliesToProductId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return nil }
+        let inMenu = sortedMenuProductsForPromoEdit.contains { ($0.id ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == t }
+        return inMenu ? nil : t
+    }
     
     init(promotion: Promotion, viewModel: AdminViewModel) {
         self.promotion = promotion
@@ -3279,6 +3362,7 @@ struct EditPromotionView: View {
             _minTotalQuantityText = State(initialValue: "")
         }
         _firstOrderOnly = State(initialValue: promotion.firstOrderOnly)
+        _appliesToProductId = State(initialValue: promotion.productId ?? "")
     }
     
     var body: some View {
@@ -3296,6 +3380,30 @@ struct EditPromotionView: View {
                         .multilineTextAlignment(.leading)
                 } header: {
                     Text("Code")
+                }
+                Section {
+                    Picker("Applies to", selection: $appliesToProductId) {
+                        Text("Any product (whole cart)").tag("")
+                        if let orphan = orphanedPromoProductId {
+                            Text("Unknown product — choose a replacement").tag(orphan)
+                        }
+                        ForEach(sortedMenuProductsForPromoEdit, id: \.stablePickerId) { p in
+                            Text(p.name).tag(p.id!)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                } header: {
+                    Text("Product scope")
+                } footer: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Restrict this code to one menu item, or whole cart for a cart-wide promo.")
+                            .font(.caption)
+                        if sortedMenuProductsForPromoEdit.isEmpty {
+                            Text("No catalog products with IDs loaded. Refresh products, then reopen this promo.")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
                 }
                 Section {
                     Picker("Type", selection: $discountType) {
@@ -3352,6 +3460,7 @@ struct EditPromotionView: View {
             .macOSGroupedFormStyle()
             .navigationTitle("Edit Promotion")
             .onAppear { viewModel.clearMessages() }
+            .task { await viewModel.loadProducts() }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -3376,6 +3485,7 @@ struct EditPromotionView: View {
                         p.minSubtotal = minSub
                         p.minTotalQuantity = minQty
                         p.firstOrderOnly = firstOrderOnly
+                        p.productId = appliesToProductId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : appliesToProductId.trimmingCharacters(in: .whitespacesAndNewlines)
                         Task {
                             let ok = await viewModel.updatePromotion(p)
                             if ok { dismiss() }
@@ -3389,6 +3499,7 @@ struct EditPromotionView: View {
             }
             .macOSEditSheetPadding()
             .macOSReduceSheetTitleGap()
+            .task { await viewModel.loadProducts() }
         }
     }
 }
@@ -3479,12 +3590,8 @@ struct AdminCustomCakeOptionsView: View {
                         }
                         .foregroundStyle(AppConstants.Colors.accent)
                     }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            sizes.removeAll { $0.id == size.id }
-                        } label: { Label("Delete", systemImage: "trash") }
-                    }
                 }
+                .onDelete { sizes.remove(atOffsets: $0) }
                 Button("Add size") {
                     editingSize = nil
                     showSizeSheet = true
@@ -3502,12 +3609,8 @@ struct AdminCustomCakeOptionsView: View {
                         }
                         .foregroundStyle(AppConstants.Colors.accent)
                     }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            flavors.removeAll { $0.id == flavor.id }
-                        } label: { Label("Delete", systemImage: "trash") }
-                    }
                 }
+                .onDelete { flavors.remove(atOffsets: $0) }
                 Button("Add flavor") {
                     editingFlavor = nil
                     showFlavorSheet = true
@@ -3525,12 +3628,8 @@ struct AdminCustomCakeOptionsView: View {
                         }
                         .foregroundStyle(AppConstants.Colors.accent)
                     }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            frostings.removeAll { $0.id == frosting.id }
-                        } label: { Label("Delete", systemImage: "trash") }
-                    }
                 }
+                .onDelete { frostings.remove(atOffsets: $0) }
                 Button("Add frosting") {
                     editingFrosting = nil
                     showFrostingSheet = true
@@ -3548,12 +3647,8 @@ struct AdminCustomCakeOptionsView: View {
                         }
                         .foregroundStyle(AppConstants.Colors.accent)
                     }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            colors.removeAll { $0.id == colorOpt.id }
-                        } label: { Label("Delete", systemImage: "trash") }
-                    }
                 }
+                .onDelete { colors.remove(atOffsets: $0) }
                 Button("Add color") {
                     editingColor = nil
                     showColorSheet = true
@@ -3571,12 +3666,8 @@ struct AdminCustomCakeOptionsView: View {
                         }
                         .foregroundStyle(AppConstants.Colors.accent)
                     }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            fillings.removeAll { $0.id == fillOpt.id }
-                        } label: { Label("Delete", systemImage: "trash") }
-                    }
                 }
+                .onDelete { fillings.remove(atOffsets: $0) }
                 Button("Add fill") {
                     editingFilling = nil
                     showFillingSheet = true
@@ -3596,12 +3687,8 @@ struct AdminCustomCakeOptionsView: View {
                         }
                         .foregroundStyle(AppConstants.Colors.accent)
                     }
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            toppings.removeAll { $0.id == topping.id }
-                        } label: { Label("Delete", systemImage: "trash") }
-                    }
                 }
+                .onDelete { toppings.remove(atOffsets: $0) }
                 Button("Add topping") {
                     editingTopping = nil
                     showToppingSheet = true
@@ -4638,27 +4725,23 @@ struct AdminEventsView: View {
             .refreshable { await viewModel.loadEvents() }
             .sheet(isPresented: $showAddEvent) {
                 AdminEventFormSheet(
+                    viewModel: viewModel,
                     event: nil,
                     onSave: { title, desc, start, end, imageURL, location in
-                        Task {
-                            await viewModel.createEvent(title: title, eventDescription: desc, startAt: start, endAt: end, imageURL: imageURL, location: location)
-                            showAddEvent = false
-                        }
+                        await viewModel.createEvent(title: title, eventDescription: desc, startAt: start, endAt: end, imageURL: imageURL, location: location)
                     },
-                    onCancel: { showAddEvent = false }
+                    onDismiss: { showAddEvent = false }
                 )
                 .macOSAdminSheetSize()
             }
             .sheet(item: $eventToEdit) { event in
                 AdminEventFormSheet(
+                    viewModel: viewModel,
                     event: event,
                     onSave: { title, desc, start, end, imageURL, location in
-                        Task {
-                            await viewModel.updateEvent(id: event.id, title: title, eventDescription: desc, startAt: start, endAt: end, imageURL: imageURL, location: location)
-                            eventToEdit = nil
-                        }
+                        await viewModel.updateEvent(id: event.id, title: title, eventDescription: desc, startAt: start, endAt: end, imageURL: imageURL, location: location)
                     },
-                    onCancel: { eventToEdit = nil }
+                    onDismiss: { eventToEdit = nil }
                 )
                 .macOSAdminSheetSize()
             }
@@ -4668,9 +4751,11 @@ struct AdminEventsView: View {
 
 /// Create or edit event: title, description, start/end, photo or PDF attachment, location.
 private struct AdminEventFormSheet: View {
+    @ObservedObject var viewModel: AdminViewModel
     let event: Event?
-    let onSave: (String, String?, Date?, Date?, String?, String?) -> Void
-    let onCancel: () -> Void
+    /// Performs create/update; returns whether the server accepted the save (sheet dismisses only then).
+    let onSave: (String, String?, Date?, Date?, String?, String?) async -> Bool
+    let onDismiss: () -> Void
 
     @State private var title: String = ""
     @State private var eventDescription: String = ""
@@ -4762,13 +4847,15 @@ private struct AdminEventFormSheet: View {
             .navigationTitle(event == nil ? "New event" : "Edit event")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: onCancel)
+                    Button("Cancel", action: onDismiss)
                         .foregroundStyle(AppConstants.Colors.accent)
                         .disabled(isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        Task { await saveEvent() }
+                        Task { @MainActor in
+                            await saveEvent()
+                        }
                     }
                     .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
                     .foregroundStyle(AppConstants.Colors.accent)
@@ -4792,13 +4879,15 @@ private struct AdminEventFormSheet: View {
     }
 
     private func saveEvent() async {
+        saveError = nil
+        viewModel.clearMessages()
+        isSaving = true
+        defer { isSaving = false }
+
         let start = useStartDate ? startAt : nil
         let end = useEndDate ? endAt : nil
         let finalImageURL: String?
         if let data = selectedAttachmentData, let contentType = selectedAttachmentContentType, !data.isEmpty {
-            isSaving = true
-            saveError = nil
-            defer { isSaving = false }
             let ext: String
             if contentType == "application/pdf" { ext = "pdf" }
             else if contentType == "image/png" { ext = "png" }
@@ -4813,7 +4902,8 @@ private struct AdminEventFormSheet: View {
         } else {
             finalImageURL = imageURL.trimmingCharacters(in: .whitespaces).isEmpty ? nil : imageURL.trimmingCharacters(in: .whitespaces)
         }
-        onSave(
+
+        let ok = await onSave(
             title.trimmingCharacters(in: .whitespaces),
             eventDescription.isEmpty ? nil : eventDescription.trimmingCharacters(in: .whitespaces),
             start,
@@ -4821,6 +4911,11 @@ private struct AdminEventFormSheet: View {
             finalImageURL,
             location.isEmpty ? nil : location.trimmingCharacters(in: .whitespaces)
         )
+        if ok {
+            onDismiss()
+        } else {
+            saveError = viewModel.errorMessage ?? "Couldn’t save the event. Check your connection and try again."
+        }
     }
 }
 
