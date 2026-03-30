@@ -6,6 +6,18 @@ import { verifyNeonJWT, getOrCreateUserFromNeonPayload } from './neonAuth.js';
 const SESSION_DAYS = 30;
 const BCRYPT_ROUNDS = 10;
 
+/** Normalize is_admin from DB/drivers so checks are consistent (avoids `!== true` failing on coercion). */
+export function coerceAdminFlag(value) {
+  if (value === true) return true;
+  if (value === false || value == null) return false;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value === 'string') {
+    const s = value.trim().toLowerCase();
+    return s === 'true' || s === 't' || s === '1' || s === 'yes';
+  }
+  return false;
+}
+
 export async function hashPassword(password) {
   return bcrypt.hash(password, BCRYPT_ROUNDS);
 }
@@ -49,7 +61,7 @@ export async function getSession(sessionId) {
       email: user.email,
       displayName: user.display_name,
       phone: user.phone ?? null,
-      isAdmin: user.is_admin,
+      isAdmin: coerceAdminFlag(user.is_admin),
       points: user.points ?? 0,
     };
   }
@@ -70,7 +82,7 @@ export async function getSession(sessionId) {
     email: row.email,
     displayName: row.display_name,
     phone: row.phone ?? null,
-    isAdmin: row.is_admin,
+    isAdmin: coerceAdminFlag(row.is_admin),
     points: row.points ?? 0,
   };
 }
@@ -97,5 +109,6 @@ export async function getAuth(req) {
   const token = getTokenFromRequest(req);
   if (!token) return null;
   const session = await getSession(token);
-  return session ? { userId: session.userId, isAdmin: session.isAdmin } : null;
+  if (!session?.userId) return null;
+  return { userId: session.userId, isAdmin: coerceAdminFlag(session.isAdmin) };
 }

@@ -50,7 +50,7 @@ export default async function handler(req, res) {
 
   if ((req.method || '').toUpperCase() === 'PATCH' || (req.method || '').toUpperCase() === 'DELETE') {
     const auth = await getAuth(req);
-    if (!auth?.userId || !auth?.isAdmin) return res.status(403).json({ error: 'Admin required' });
+    if (!auth?.userId || !auth.isAdmin) return res.status(403).json({ error: 'Admin required' });
 
     try {
       await ensureEventsTable(sql);

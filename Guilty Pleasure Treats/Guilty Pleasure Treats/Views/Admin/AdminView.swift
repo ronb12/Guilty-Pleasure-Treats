@@ -3030,6 +3030,31 @@ private struct AddLoyaltyRewardView: View {
                     }
                 }
                 Section {
+                    ForEach(LoyaltyRewardQuickTemplate.all) { t in
+                        Button {
+                            applyLoyaltyQuickTemplate(t)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(t.title)
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(AppConstants.Colors.textPrimary)
+                                Text(t.subtitle)
+                                    .font(.caption)
+                                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } header: {
+                    Text("Quick start")
+                } footer: {
+                    Text("Tap a template to fill name, points, and sort order. Choose the free product below (defaults to first menu item if needed).")
+                        .font(.caption)
+                }
+                Section {
                     TextField("Display name", text: $name)
                 } header: {
                     Text("Name")
@@ -3071,6 +3096,7 @@ private struct AddLoyaltyRewardView: View {
             .macOSCompactFormContent()
             .macOSGroupedFormStyle()
             .navigationTitle("New loyalty reward")
+            .task { await viewModel.loadProducts() }
             .onAppear {
                 viewModel.clearMessages()
                 if productId.isEmpty, let first = productsWithIds.first?.id {
@@ -3099,6 +3125,16 @@ private struct AddLoyaltyRewardView: View {
             }
             .macOSEditSheetPadding()
             .macOSReduceSheetTitleGap()
+        }
+    }
+
+    private func applyLoyaltyQuickTemplate(_ t: LoyaltyRewardQuickTemplate) {
+        name = t.suggestedName
+        pointsText = String(t.pointsRequired)
+        sortOrderText = String(t.sortOrder)
+        isActive = true
+        if productId.isEmpty, let first = productsWithIds.first?.id {
+            productId = first
         }
     }
 }
@@ -3338,6 +3374,31 @@ struct AddPromotionView: View {
                     }
                 }
                 Section {
+                    ForEach(PromoQuickTemplate.all) { t in
+                        Button {
+                            applyPromoQuickTemplate(t)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(t.title)
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(AppConstants.Colors.textPrimary)
+                                Text(t.subtitle)
+                                    .font(.caption)
+                                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } header: {
+                    Text("Quick start")
+                } footer: {
+                    Text("Tap a template to fill suggested fields. Change the code if it’s already taken. For “Free menu item”, open Applies to and choose the product.")
+                        .font(.caption)
+                }
+                Section {
                     TextField("Code", text: $code)
                         .multilineTextAlignment(.leading)
                 } header: {
@@ -3479,6 +3540,17 @@ struct AddPromotionView: View {
             .macOSEditSheetPadding()
             .macOSReduceSheetTitleGap()
         }
+    }
+
+    private func applyPromoQuickTemplate(_ t: PromoQuickTemplate) {
+        code = t.suggestedCode
+        discountType = t.discountType
+        valueText = t.value
+        minSubtotalText = t.minSubtotal
+        minTotalQuantityText = t.minQty
+        firstOrderOnly = t.firstOrderOnly
+        appliesToProductId = ""
+        isActive = true
     }
 }
 

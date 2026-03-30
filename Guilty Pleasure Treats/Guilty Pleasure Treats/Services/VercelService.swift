@@ -1627,9 +1627,9 @@ extension VercelService {
         if imageURL != nil { body["image_url"] = imageURL as Any }
         if location != nil { body["location"] = location as Any }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
-        let (_, res) = try await session.data(for: req)
+        let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
-        try validateResponse(http, data: Data())
+        try validateResponse(http, data: data)
     }
 
     /// Delete event (admin). DELETE /api/events/:id.

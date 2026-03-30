@@ -3,7 +3,7 @@
  * POST /api/events - create event (admin only). Body: title, description?, start_at?, end_at?, image_url?, location?. Sends push to customers.
  */
 import { sql, hasDb } from '../lib/db.js';
-import { getTokenFromRequest, getSession } from '../lib/auth.js';
+import { getTokenFromRequest, getSession, getAuth } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
 import { ensureEventsTable } from '../lib/eventsSchema.js';
 
@@ -62,9 +62,8 @@ export default async function handler(req, res) {
   }
 
   if ((req.method || '').toUpperCase() === 'POST') {
-    const token = getTokenFromRequest(req);
-    const session = token ? await getSession(token) : null;
-    if (!session?.userId || session.isAdmin !== true) return res.status(403).json({ error: 'Admin required' });
+    const auth = await getAuth(req);
+    if (!auth?.userId || !auth.isAdmin) return res.status(403).json({ error: 'Admin required' });
     if (!hasDb() || !sql) return res.status(503).json({ error: 'Service unavailable' });
 
     try {
