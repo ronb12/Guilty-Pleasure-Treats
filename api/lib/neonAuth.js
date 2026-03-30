@@ -50,9 +50,19 @@ export async function verifyNeonJWT(token) {
 /**
  * Get or create our users table row for a Neon Auth user (from JWT payload).
  * Returns { id, email, display_name, phone, is_admin, points } or null.
+ * On DB connection errors, returns null (does not throw) so serverless handlers don’t crash.
  */
 export async function getOrCreateUserFromNeonPayload(payload) {
   if (!hasDb() || !sql || !payload?.sub) return null;
+  try {
+    return await getOrCreateUserFromNeonPayloadImpl(payload);
+  } catch (e) {
+    console.error('[neonAuth] getOrCreateUserFromNeonPayload', e?.message ?? e);
+    return null;
+  }
+}
+
+async function getOrCreateUserFromNeonPayloadImpl(payload) {
   const neonId = String(payload.sub);
   const email = payload.email ? String(payload.email).trim().toLowerCase() : null;
   const name = payload.name || payload.displayName || null;

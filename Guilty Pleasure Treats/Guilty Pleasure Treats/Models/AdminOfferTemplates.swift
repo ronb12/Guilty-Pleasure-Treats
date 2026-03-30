@@ -7,7 +7,7 @@
 
 import Foundation
 
-// MARK: - Promo codes (5)
+// MARK: - Promo codes (10)
 
 struct PromoQuickTemplate: Identifiable, Equatable {
     let id: String
@@ -76,10 +76,65 @@ struct PromoQuickTemplate: Identifiable, Equatable {
             minQty: "1",
             firstOrderOnly: false
         ),
+        PromoQuickTemplate(
+            id: "student",
+            title: "Student / community 10%",
+            subtitle: "10% off cart — rename the code to match your campaign",
+            suggestedCode: "STUDENT10",
+            discountType: PromotionDiscountType.percent.rawValue,
+            value: "10",
+            minSubtotal: "",
+            minQty: "",
+            firstOrderOnly: false
+        ),
+        PromoQuickTemplate(
+            id: "flash_sale",
+            title: "Flash sale 25%",
+            subtitle: "High-impact limited-time percent off whole cart",
+            suggestedCode: "FLASH25",
+            discountType: PromotionDiscountType.percent.rawValue,
+            value: "25",
+            minSubtotal: "",
+            minQty: "",
+            firstOrderOnly: false
+        ),
+        PromoQuickTemplate(
+            id: "order_tracking",
+            title: "Thank-you code (no discount)",
+            subtitle: "Code saved on orders for tracking — no automatic dollar off",
+            suggestedCode: "THANKYOU",
+            discountType: PromotionDiscountType.none.rawValue,
+            value: "",
+            minSubtotal: "",
+            minQty: "",
+            firstOrderOnly: false
+        ),
+        PromoQuickTemplate(
+            id: "multi_item",
+            title: "Multi-item 10%",
+            subtitle: "10% off when cart has at least 2 items total",
+            suggestedCode: "MORE10",
+            discountType: PromotionDiscountType.percent.rawValue,
+            value: "10",
+            minSubtotal: "",
+            minQty: "2",
+            firstOrderOnly: false
+        ),
+        PromoQuickTemplate(
+            id: "min_spend_25",
+            title: "Spring 15% at $25+",
+            subtitle: "15% off after $25 subtotal — good for small upsell",
+            suggestedCode: "SPRING15",
+            discountType: PromotionDiscountType.percent.rawValue,
+            value: "15",
+            minSubtotal: "25",
+            minQty: "",
+            firstOrderOnly: false
+        ),
     ]
 }
 
-// MARK: - Loyalty rewards (5)
+// MARK: - Loyalty rewards (10)
 
 struct LoyaltyRewardQuickTemplate: Identifiable, Equatable {
     let id: String
@@ -129,6 +184,46 @@ struct LoyaltyRewardQuickTemplate: Identifiable, Equatable {
             suggestedName: "Sweet reward",
             pointsRequired: 25,
             sortOrder: 4
+        ),
+        LoyaltyRewardQuickTemplate(
+            id: "brownie",
+            title: "Brownie bite",
+            subtitle: "Entry-level chocolate reward",
+            suggestedName: "Brownie bite",
+            pointsRequired: 15,
+            sortOrder: 5
+        ),
+        LoyaltyRewardQuickTemplate(
+            id: "seasonal_box",
+            title: "Seasonal box",
+            subtitle: "Mid-high tier for holiday assortments",
+            suggestedName: "Seasonal treat box",
+            pointsRequired: 75,
+            sortOrder: 6
+        ),
+        LoyaltyRewardQuickTemplate(
+            id: "mini_cake",
+            title: "Mini cake",
+            subtitle: "Personal-size cake redemption",
+            suggestedName: "Mini cake",
+            pointsRequired: 150,
+            sortOrder: 7
+        ),
+        LoyaltyRewardQuickTemplate(
+            id: "party_pack",
+            title: "Party pack",
+            subtitle: "Large bundle for events",
+            suggestedName: "Party dessert pack",
+            pointsRequired: 350,
+            sortOrder: 8
+        ),
+        LoyaltyRewardQuickTemplate(
+            id: "vip_tier",
+            title: "VIP dessert",
+            subtitle: "Top tier — signature or custom item",
+            suggestedName: "VIP dessert reward",
+            pointsRequired: 500,
+            sortOrder: 9
         ),
     ]
 }
