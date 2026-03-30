@@ -5,6 +5,7 @@
  */
 import { neonAuthSignUp, isNeonAuthConfigured } from '../../api/lib/neonAuth.js';
 import { sql, hasDb } from '../../api/lib/db.js';
+import { issueApiSessionTokenIfJwt } from '../../api/lib/auth.js';
 import { checkRateLimit } from '../lib/rateLimit.js';
 
 function json(res, status, data) {
@@ -90,8 +91,9 @@ export default async function handler(req, res) {
       } catch (_) { /* ignore */ }
     }
 
+    const apiToken = await issueApiSessionTokenIfJwt(userId, result.token);
     json(res, 200, {
-      token: result.token,
+      token: apiToken,
       user: {
         uid: String(u.id),
         email: u.email ?? null,

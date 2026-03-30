@@ -156,6 +156,20 @@ export async function createSession(userId) {
   }
 }
 
+/**
+ * Neon Auth email/password returns a short-lived JWT. Mobile clients should use a `sessions` row instead
+ * (same as Apple sign-in and DB password fallback) so `getSession` keeps working after the JWT expires.
+ */
+export async function issueApiSessionTokenIfJwt(userId, token) {
+  if (!token || typeof token !== 'string') return token;
+  if (!isJWT(token)) return token;
+  if (!hasDb() || !sql || userId == null) return token;
+  const uid = String(userId).trim();
+  if (!uid) return token;
+  const sess = await createSession(uid);
+  return sess?.id ?? token;
+}
+
 /** True if the token looks like a JWT (three base64 parts). */
 function isJWT(token) {
   if (!token || typeof token !== 'string') return false;

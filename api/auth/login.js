@@ -8,7 +8,13 @@
  * with a DB session (so you can log in as admin without Neon Auth).
  */
 import { neonAuthSignIn, isNeonAuthConfigured } from '../../api/lib/neonAuth.js';
-import { createSession, verifyPassword, sessionHasAdminAccess, coerceAdminFlag } from '../../api/lib/auth.js';
+import {
+  createSession,
+  verifyPassword,
+  sessionHasAdminAccess,
+  coerceAdminFlag,
+  issueApiSessionTokenIfJwt,
+} from '../../api/lib/auth.js';
 import { sql, hasDb, awaitNeonRows } from '../../api/lib/db.js';
 
 function json(res, status, data) {
@@ -127,7 +133,8 @@ export default async function handler(req, res) {
       isAdmin: sessionHasAdminAccess(sessionLike),
       points: Number(u.points ?? 0),
     };
-    json(res, 200, { token: result.token, user });
+    const apiToken = await issueApiSessionTokenIfJwt(u.id, result.token);
+    json(res, 200, { token: apiToken, user });
   } catch (err) {
     console.error('[auth/login]', err);
     json(res, 500, { error: 'Sign in failed' });
