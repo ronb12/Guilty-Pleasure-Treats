@@ -1,6 +1,10 @@
 # iOS app — not deployed to Vercel (API + static `website/` only)
 Guilty Pleasure Treats
 
+# Never upload git data or backups (thousands of files → CLI upload timeouts)
+.git
+.git.bak
+
 # Local / editor
 .cursor
 .DS_Store
