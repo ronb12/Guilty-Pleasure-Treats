@@ -94,13 +94,13 @@ export function sessionHasAdminAccess(session) {
 /**
  * Same as sessionHasAdminAccess, then reads `users.is_admin` (+ email) by session.userId when the in-memory flag is wrong
  * (JWT/session drift, driver types). Also applies ADMIN_GRANT_EMAILS to the DB email when session.email was empty.
- * Any truthy `session.isAdmin` matches POST /api/products (`if (!session?.isAdmin)`).
+ * `session.isAdmin` on the object returned by getSession is computed with this helper so it matches /api/users/me.
  * `neon_auth_id` is queried in a second statement so a missing column cannot invalidate the whole lookup.
  */
 export async function sessionHasAdminAccessResolved(session, sqlTag) {
   if (!session?.userId) return false;
-  // Loose truthy check — same effective rule as api/products.js POST.
-  if (session.isAdmin) return true;
+  // Same coercion as sessionHasAdminAccess (avoids wrong results if is_admin is a string, etc.).
+  if (coerceAdminFlag(session.isAdmin)) return true;
   if (sessionHasAdminAccess(session)) return true;
   if (!sqlTag) return false;
   const rawUid = String(session.userId).trim();
@@ -205,12 +205,21 @@ async function getSessionImpl(sessionId) {
       const emailFromJwt =
         payload.email != null && String(payload.email).trim() !== '' ? String(payload.email).trim() : null;
       const sessionEmail = emailFromRow ?? emailFromJwt;
-      // Match /api/auth/login + /api/auth/apple: isAdmin includes ADMIN_GRANT_EMAILS, not only users.is_admin.
-      const isAdmin = sessionHasAdminAccess({
-        userId: jwtUid,
-        email: sessionEmail,
-        isAdmin: u.is_admin,
-      });
+      // Must match /api/users/me and admin mutating routes (DB re-check + ADMIN_GRANT_*), not only sessionHasAdminAccess.
+      const isAdmin = sql
+        ? await sessionHasAdminAccessResolved(
+            {
+              userId: jwtUid,
+              email: sessionEmail,
+              isAdmin: u.is_admin,
+            },
+            sql
+          )
+        : sessionHasAdminAccess({
+            userId: jwtUid,
+            email: sessionEmail,
+            isAdmin: u.is_admin,
+          });
       return {
         id: sid,
         userId: jwtUid,
@@ -252,11 +261,14 @@ async function getSessionImpl(sessionId) {
     if (!row) return null;
     const resolvedUid = row.id != null ? String(row.id).trim() : '';
     if (!resolvedUid) return null;
-    const isAdmin = sessionHasAdminAccess({
-      userId: resolvedUid,
-      email: row.email ?? null,
-      isAdmin: row.is_admin,
-    });
+    const isAdmin = await sessionHasAdminAccessResolved(
+      {
+        userId: resolvedUid,
+        email: row.email ?? null,
+        isAdmin: row.is_admin,
+      },
+      sql
+    );
     return {
       id: srow.id,
       userId: resolvedUid,
