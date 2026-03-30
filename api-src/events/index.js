@@ -71,22 +71,23 @@ export default async function handler(req, res) {
   if ((req.method || '').toUpperCase() === 'POST') {
     const token = getTokenFromRequest(req);
     const session = token ? await getSession(token) : null;
-    if (!session?.userId || !sessionHasAdminAccess(session)) {
-      const parts = token ? String(token).split('.') : [];
-      const tokenKind = !token ? 'none' : parts.length === 3 ? 'jwt' : 'session';
-      let reason = 'unknown';
-      if (!token) reason = 'no_token';
-      else if (!session?.userId) reason = 'invalid_or_expired_session';
-      else if (!sessionHasAdminAccess(session)) reason = 'user_not_admin';
-      console.warn('[events] POST auth failed (Admin required)', {
-        hasBearerHeader: Boolean(req.headers?.authorization && /^Bearer\s+/i.test(String(req.headers.authorization))),
-        tokenKind,
-        hasUserId: Boolean(session?.userId),
+    if (!token) {
+      console.warn('[events] POST auth failed', { reason: 'no_token' });
+      return res.status(401).json({ error: 'Unauthorized', code: 'no_token' });
+    }
+    if (!session?.userId) {
+      const parts = String(token).split('.');
+      const tokenKind = parts.length === 3 ? 'jwt' : 'session';
+      console.warn('[events] POST auth failed', { reason: 'invalid_or_expired_session', tokenKind });
+      return res.status(401).json({ error: 'Unauthorized', code: 'invalid_session' });
+    }
+    if (!sessionHasAdminAccess(session)) {
+      console.warn('[events] POST auth failed (not admin)', {
+        hasUserId: true,
         isAdminCoerced: coerceAdminFlag(session?.isAdmin),
         envGrantEligible: Boolean(process.env.ADMIN_GRANT_EMAILS?.trim()),
-        reason,
       });
-      return res.status(403).json({ error: 'Admin required' });
+      return res.status(403).json({ error: 'Admin required', code: 'not_admin' });
     }
     if (!hasDb() || !sql) return res.status(503).json({ error: 'Service unavailable' });
 

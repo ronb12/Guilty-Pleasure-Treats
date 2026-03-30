@@ -51,7 +51,9 @@ export default async function handler(req, res) {
   if ((req.method || '').toUpperCase() === 'PATCH' || (req.method || '').toUpperCase() === 'DELETE') {
     const token = getTokenFromRequest(req);
     const session = token ? await getSession(token) : null;
-    if (!session?.userId || !sessionHasAdminAccess(session)) return res.status(403).json({ error: 'Admin required' });
+    if (!token) return res.status(401).json({ error: 'Unauthorized', code: 'no_token' });
+    if (!session?.userId) return res.status(401).json({ error: 'Unauthorized', code: 'invalid_session' });
+    if (!sessionHasAdminAccess(session)) return res.status(403).json({ error: 'Admin required', code: 'not_admin' });
 
     try {
       await ensureEventsTable(sql);

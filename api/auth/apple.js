@@ -8,7 +8,7 @@
  */
 import { createHash } from 'crypto';
 import * as jose from 'jose';
-import { createSession } from '../../api/lib/auth.js';
+import { createSession, coerceAdminFlag, sessionHasAdminAccess } from '../../api/lib/auth.js';
 import { sql, hasDb } from '../../api/lib/db.js';
 import { checkRateLimit } from '../lib/rateLimit.js';
 
@@ -65,6 +65,94 @@ async function findUserByAppleSubject(sub) {
     LIMIT 1
   `;
   return rows[0] || null;
+}
+
+async function findUserByEmailCi(email) {
+  if (!email || typeof email !== 'string') return null;
+  const e = email.trim().toLowerCase();
+  try {
+    const rows = await sql`
+      SELECT id, email, display_name, phone, is_admin, points, apple_sub, apple_id
+      FROM users
+      WHERE LOWER(TRIM(COALESCE(email, ''))) = ${e}
+      LIMIT 1
+    `;
+    return rows[0] || null;
+  } catch (err) {
+    if (err?.code === '42703') {
+      const rows = await sql`
+        SELECT id, email, display_name, phone, is_admin, points
+        FROM users
+        WHERE LOWER(TRIM(COALESCE(email, ''))) = ${e}
+        LIMIT 1
+      `;
+      return rows[0] ? { ...rows[0], apple_sub: null, apple_id: null } : null;
+    }
+    throw err;
+  }
+}
+
+function rowHasAppleLinked(row) {
+  if (!row) return false;
+  const s = row.apple_sub != null && String(row.apple_sub).trim() !== '';
+  const a = row.apple_id != null && String(row.apple_id).trim() !== '';
+  return s || a;
+}
+
+async function attachAppleSubjectToUser(userId, sub) {
+  try {
+    await sql`
+      UPDATE users SET apple_sub = ${sub}, apple_id = ${sub}, updated_at = NOW()
+      WHERE id = ${userId}
+    `;
+  } catch (e) {
+    if (e?.code === '42703') {
+      await sql`UPDATE users SET apple_sub = ${sub}, updated_at = NOW() WHERE id = ${userId}`;
+    } else throw e;
+  }
+}
+
+/**
+ * If Apple signed-in row is non-admin but an admin row exists with the same email and no apple_sub yet,
+ * move apple_sub onto the admin row so sessions use the privileged account (common: email/password admin + later Apple with same email).
+ */
+async function preferAdminAppleSession(userRow, sub, tokenEmail) {
+  if (!userRow || coerceAdminFlag(userRow.is_admin) || !tokenEmail) return userRow;
+  const te = tokenEmail.trim().toLowerCase();
+  let adminRows;
+  try {
+    adminRows = await sql`
+      SELECT id, email, display_name, phone, is_admin, points, apple_sub
+      FROM users
+      WHERE is_admin = true AND LOWER(TRIM(COALESCE(email, ''))) = ${te}
+      LIMIT 1
+    `;
+  } catch (e) {
+    if (e?.code === '42703') return userRow;
+    throw e;
+  }
+  const admin = adminRows[0];
+  if (!admin || String(admin.id) === String(userRow.id)) return userRow;
+
+  const adminSub = admin.apple_sub != null ? String(admin.apple_sub).trim() : '';
+  if (adminSub && adminSub !== sub) return userRow;
+
+  try {
+    await sql`
+      UPDATE users SET apple_sub = NULL, apple_id = NULL
+      WHERE id = ${userRow.id} AND (apple_sub = ${sub} OR apple_id = ${sub})
+    `;
+  } catch (e) {
+    if (e?.code === '42703') {
+      await sql`UPDATE users SET apple_sub = NULL WHERE id = ${userRow.id} AND apple_sub = ${sub}`;
+    } else throw e;
+  }
+  await attachAppleSubjectToUser(admin.id, sub);
+  const refreshed = await sql`
+    SELECT id, email, display_name, phone, is_admin, points
+    FROM users WHERE id = ${admin.id} LIMIT 1
+  `;
+  return refreshed[0] || userRow;
 }
 
 async function insertUserForAppleSubject({ sub, tokenEmail, displayName }) {
@@ -206,6 +294,18 @@ export default async function handler(req, res) {
   try {
     let userRow = await findUserByAppleSubject(sub);
 
+    if (!userRow && tokenEmail) {
+      const existing = await findUserByEmailCi(tokenEmail);
+      if (existing && !rowHasAppleLinked(existing)) {
+        await attachAppleSubjectToUser(existing.id, sub);
+        const linked = await sql`
+          SELECT id, email, display_name, phone, is_admin, points
+          FROM users WHERE id = ${existing.id} LIMIT 1
+        `;
+        userRow = linked[0] || null;
+      }
+    }
+
     if (!userRow) {
       userRow = await insertUserForAppleSubject({
         sub,
@@ -229,12 +329,19 @@ export default async function handler(req, res) {
       }
     }
 
+    userRow = await preferAdminAppleSession(userRow, sub, tokenEmail);
+
     const session = await createSession(userRow.id);
     if (!session) {
       json(res, 500, { error: 'Could not create session.' });
       return;
     }
 
+    const sessionLike = {
+      userId: String(userRow.id),
+      email: userRow.email ?? null,
+      isAdmin: userRow.is_admin,
+    };
     json(res, 200, {
       token: session.id,
       user: {
@@ -242,7 +349,7 @@ export default async function handler(req, res) {
         email: userRow.email ?? null,
         displayName: userRow.display_name ?? null,
         phone: userRow.phone ?? null,
-        isAdmin: Boolean(userRow.is_admin),
+        isAdmin: sessionHasAdminAccess(sessionLike),
         points: Number(userRow.points ?? 0),
       },
     });
