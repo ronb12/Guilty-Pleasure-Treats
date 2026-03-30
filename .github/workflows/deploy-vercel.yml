@@ -23,7 +23,7 @@ jobs:
       - run: npm ci
       - run: npm run vercel:sync
       - name: Deploy to production
-        run: npx vercel deploy --prod --yes --token "$VERCEL_TOKEN"
+        run: npx vercel deploy --prod --yes --archive tgz --token "$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
