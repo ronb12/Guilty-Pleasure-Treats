@@ -54,4 +54,17 @@ struct UserProfile: Codable {
         marketingEmailOptIn = try c.decodeIfPresent(Bool.self, forKey: .marketingEmailOptIn) ?? true
         foodAllergies = try c.decodeIfPresent(String.self, forKey: .foodAllergies)
     }
+
+    /// `JSONSerialization` may surface `isAdmin` as Bool, NSNumber (0/1), or rarely a string — match server truth.
+    static func isAdminFromJSON(_ value: Any?) -> Bool {
+        switch value {
+        case let b as Bool: return b
+        case let n as NSNumber: return n.boolValue
+        case let i as Int: return i != 0
+        case let s as String:
+            let t = s.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return t == "true" || t == "1" || t == "yes" || t == "t"
+        default: return false
+        }
+    }
 }

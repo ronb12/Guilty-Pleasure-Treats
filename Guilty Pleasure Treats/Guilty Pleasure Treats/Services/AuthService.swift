@@ -164,8 +164,8 @@ final class AuthService: ObservableObject {
             email: user["email"] as? String,
             displayName: user["displayName"] as? String,
             phone: user["phone"] as? String,
-            isAdmin: (user["isAdmin"] as? Bool) ?? false,
-            points: (user["points"] as? Int) ?? 0,
+            isAdmin: UserProfile.isAdminFromJSON(user["isAdmin"]),
+            points: (user["points"] as? Int) ?? ((user["points"] as? NSNumber)?.intValue ?? 0),
             createdAt: Date(),
             completedOrderCount: 0,
             marketingEmailOptIn: true,
@@ -322,8 +322,8 @@ final class AuthService: ObservableObject {
             email: user["email"] as? String,
             displayName: user["displayName"] as? String,
             phone: user["phone"] as? String,
-            isAdmin: (user["isAdmin"] as? Bool) ?? false,
-            points: (user["points"] as? Int) ?? 0,
+            isAdmin: UserProfile.isAdminFromJSON(user["isAdmin"]),
+            points: (user["points"] as? Int) ?? ((user["points"] as? NSNumber)?.intValue ?? 0),
             createdAt: Date(),
             foodAllergies: user["foodAllergies"] as? String
         )

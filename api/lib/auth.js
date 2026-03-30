@@ -87,27 +87,39 @@ async function getSessionImpl(sessionId) {
       };
     }
     if (!hasDb() || !sql) return null;
-    const rows = await awaitNeonRows(
+    // Two-step lookup: sessions.user_id is TEXT; avoid a single JOIN missing rows when UUID text formats differ.
+    const sessRows = await awaitNeonRows(
       sql`
-      SELECT s.id, s.expires_at, u.id AS uid, u.email, u.display_name, u.phone, u.is_admin, u.points
-      FROM sessions s
-      INNER JOIN users u ON (
-        u.id::text = trim(both from s.user_id)
-        OR lower(replace(u.id::text, '-', '')) = lower(replace(trim(both from s.user_id), '-', ''))
-      )
-      WHERE s.id = ${sid} AND s.expires_at > NOW()
+      SELECT id, user_id, expires_at FROM sessions
+      WHERE id = ${sid} AND expires_at > NOW()
       LIMIT 1
     `,
-      'getSession'
+      'getSession_sess'
     );
-    const row = rows[0];
+    const srow = sessRows[0];
+    if (!srow) return null;
+    const rawUid = String(srow.user_id ?? '').trim();
+    if (!rawUid) return null;
+    const canon = canonicalUserIdForSession(rawUid);
+    const userRows = await awaitNeonRows(
+      sql`
+      SELECT id, email, display_name, phone, is_admin, points
+      FROM users u
+      WHERE u.id::text = ${canon}
+         OR u.id::text = ${rawUid}
+         OR lower(replace(u.id::text, '-', '')) = lower(replace(${rawUid}, '-', ''))
+      LIMIT 1
+    `,
+      'getSession_user'
+    );
+    const row = userRows[0];
     if (!row) return null;
-    const resolvedUid = row.uid != null ? String(row.uid).trim() : '';
+    const resolvedUid = row.id != null ? String(row.id).trim() : '';
     if (!resolvedUid) return null;
     return {
-      id: row.id,
+      id: srow.id,
       userId: resolvedUid,
-      expiresAt: row.expires_at,
+      expiresAt: srow.expires_at,
       email: row.email,
       displayName: row.display_name,
       phone: row.phone ?? null,
