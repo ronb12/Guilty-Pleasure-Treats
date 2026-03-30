@@ -112,27 +112,19 @@ export async function sessionHasAdminAccessResolved(session, sqlTag) {
       WHERE lower(u.id::text) = lower(${canon})
          OR lower(u.id::text) = lower(${rawUid})
          OR lower(replace(u.id::text, '-', '')) = lower(replace(${rawUid}, '-', ''))
+         OR (
+           u.neon_auth_id IS NOT NULL
+           AND (
+             TRIM(u.neon_auth_id) = TRIM(${rawUid})
+             OR LOWER(TRIM(u.neon_auth_id)) = LOWER(TRIM(${rawUid}))
+             OR REPLACE(TRIM(u.neon_auth_id), '-', '') = REPLACE(TRIM(${rawUid}), '-', '')
+           )
+         )
       LIMIT 1
     `,
-    'session_resolve_is_admin_by_id'
+    'session_resolve_is_admin'
   );
-  let row = rows[0];
-  if (!row) {
-    const byNeon = await awaitNeonRows(
-      sqlTag`
-        SELECT is_admin, email FROM users u
-        WHERE u.neon_auth_id IS NOT NULL
-          AND (
-            TRIM(u.neon_auth_id) = TRIM(${rawUid})
-            OR LOWER(TRIM(u.neon_auth_id)) = LOWER(TRIM(${rawUid}))
-            OR REPLACE(TRIM(u.neon_auth_id), '-', '') = REPLACE(TRIM(${rawUid}), '-', '')
-          )
-        LIMIT 1
-      `,
-      'session_resolve_is_admin_by_neon_id'
-    );
-    row = byNeon[0];
-  }
+  const row = rows[0];
   if (!row) return false;
   if (coerceAdminFlag(row.is_admin)) return true;
   if (emailMatchesAdminGrant(row.email)) return true;
@@ -174,21 +166,38 @@ async function getSessionImpl(sessionId) {
       if (!payload) return null;
       const user = await getOrCreateUserFromNeonPayload(payload);
       if (!user) return null;
+      const neonSub = payload.sub != null ? String(payload.sub).trim() : '';
       // Authoritative row refresh (avoids stale is_admin / email if lookup path drifted).
       const pid = user.id != null ? String(user.id).trim() : '';
-      const freshList =
-        pid.length > 0
-          ? await awaitNeonRows(
-              sql`
+      let freshList = [];
+      if (pid.length > 0) {
+        freshList = await awaitNeonRows(
+          sql`
             SELECT id, email, display_name, phone, is_admin, points
             FROM users
             WHERE lower(id::text) = lower(${pid})
                OR lower(replace(id::text, '-', '')) = lower(replace(${pid}, '-', ''))
             LIMIT 1
           `,
-              'getSession_jwt_user_refresh'
-            )
-          : [];
+          'getSession_jwt_user_refresh'
+        );
+      }
+      if (!freshList[0] && neonSub.length > 0) {
+        freshList = await awaitNeonRows(
+          sql`
+            SELECT id, email, display_name, phone, is_admin, points
+            FROM users
+            WHERE neon_auth_id IS NOT NULL
+              AND (
+                TRIM(neon_auth_id) = TRIM(${neonSub})
+                OR LOWER(TRIM(neon_auth_id)) = LOWER(TRIM(${neonSub}))
+                OR REPLACE(TRIM(neon_auth_id), '-', '') = REPLACE(TRIM(${neonSub}), '-', '')
+              )
+            LIMIT 1
+          `,
+          'getSession_jwt_user_refresh_neon'
+        );
+      }
       const u = freshList[0] || user;
       const jwtUid = canonicalUserIdForSession(u.id) || String(u.id).trim();
       if (!jwtUid) return null;
