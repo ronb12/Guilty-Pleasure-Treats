@@ -7,6 +7,8 @@
  *   1) public.users.password_hash (bcrypt — set-user-password / reset flow)
  *   2) Neon Auth (email/password in neon_auth.account)
  *   3) ADMIN_FALLBACK_EMAIL + ADMIN_FALLBACK_PASSWORD (Vercel env)
+ *
+ * Vercel must set DATABASE_URL (or POSTGRES_URL) for the bcrypt path; without it, only Neon Auth runs.
  */
 import { neonAuthSignIn, isNeonAuthConfigured } from '../../api/lib/neonAuth.js';
 import {
@@ -23,7 +25,9 @@ function json(res, status, data) {
   res.status(status).json(data);
 }
 
-/** @returns {Promise<{ token: string, user: object } | null>} */
+const LOGIN_DB_SESSION_FAILED = { __loginDbSessionFailed: true };
+
+/** @returns {Promise<{ token: string, user: object } | null | typeof LOGIN_DB_SESSION_FAILED>} */
 async function loginWithDbPasswordHash(email, password) {
   if (!hasDb() || !sql) return null;
   let rows;
@@ -46,7 +50,7 @@ async function loginWithDbPasswordHash(email, password) {
   const session = await createSession(userRow.id);
   if (!session) {
     console.error('[auth/login] createSession failed after valid bcrypt for', email.toLowerCase());
-    return null;
+    return LOGIN_DB_SESSION_FAILED;
   }
   return {
     token: session.id,
@@ -69,7 +73,7 @@ export default async function handler(req, res) {
 
   const body = req.body || {};
   const email = typeof body.email === 'string' ? body.email.trim() : '';
-  const password = typeof body.password === 'string' ? body.password : '';
+  const password = typeof body.password === 'string' ? body.password.trim() : '';
 
   if (!email || !password) {
     json(res, 400, { error: 'Email and password are required' });
@@ -84,6 +88,15 @@ export default async function handler(req, res) {
   try {
     let result = await loginWithDbPasswordHash(email, password);
 
+    if (result && result.__loginDbSessionFailed) {
+      json(res, 503, {
+        error:
+          'Your password was accepted but the server could not create a session. Check Vercel DATABASE_URL and the sessions table, then try again.',
+        code: 'session_create_failed',
+      });
+      return;
+    }
+
     if (!result || !result.token || !result.user) {
       result = await neonAuthSignIn(email, password);
     }
@@ -91,7 +104,7 @@ export default async function handler(req, res) {
     // Optional: admin fallback when Neon Auth rejects and no public.users password match
     if ((!result || !result.token || !result.user) && hasDb() && sql) {
       const fallbackEmail = (process.env.ADMIN_FALLBACK_EMAIL || '').trim().toLowerCase();
-      const fallbackPassword = process.env.ADMIN_FALLBACK_PASSWORD || '';
+      const fallbackPassword = (process.env.ADMIN_FALLBACK_PASSWORD || '').trim();
       if (fallbackEmail && fallbackPassword && email.toLowerCase() === fallbackEmail && password === fallbackPassword) {
         let rows = await awaitNeonRows(
           sql`SELECT id, email, display_name, phone, is_admin, points FROM users WHERE LOWER(TRIM(COALESCE(email, ''))) = ${fallbackEmail} LIMIT 1`,
