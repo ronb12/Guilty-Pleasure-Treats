@@ -1,15 +1,24 @@
 # Deploy production to Vercel (CLI from GitHub runners; avoids local network/timeouts).
 #
-# Required repository secrets (Vercel → Project → Settings → General → IDs; Account → Tokens):
-#   VERCEL_TOKEN
-#   VERCEL_ORG_ID
-#   VERCEL_PROJECT_ID
+# Triggers: every push to `main`, or manual run (Actions → Deploy to Vercel → Run workflow).
 #
-# Run: Actions → "Deploy to Vercel" → Run workflow.
+# Required repository secrets (GitHub → Settings → Secrets and variables → Actions):
+#   VERCEL_TOKEN      — Vercel → Account Settings → Tokens
+#   VERCEL_ORG_ID     — Vercel → Project → Settings → General → Team / Personal ID
+#   VERCEL_PROJECT_ID — Vercel → Project → Settings → General → Project ID
+#
+# Without these secrets, the workflow fails on the first step with a clear error.
 name: Deploy to Vercel
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
+
+concurrency:
+  group: vercel-prod-${{ github.repository }}
+  cancel-in-progress: true
 
 jobs:
   deploy:
@@ -20,6 +29,22 @@ jobs:
         with:
           node-version: "20"
           cache: npm
+
+      - name: Require Vercel secrets
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          missing=
+          [ -z "$VERCEL_TOKEN" ] && missing="${missing} VERCEL_TOKEN"
+          [ -z "$VERCEL_ORG_ID" ] && missing="${missing} VERCEL_ORG_ID"
+          [ -z "$VERCEL_PROJECT_ID" ] && missing="${missing} VERCEL_PROJECT_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing GitHub Actions secrets:$missing. Add them under Repo → Settings → Secrets and variables → Actions. See .github/workflows/deploy-vercel.yml header."
+            exit 1
+          fi
+
       - run: npm ci
       - run: npm run vercel:sync
       - name: Deploy to production
