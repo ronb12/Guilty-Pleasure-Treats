@@ -3,9 +3,9 @@
  * Body: { email, password }
  * Returns: 200 { token, user: { uid, email, displayName, isAdmin, points } } or 401/500 { error }
  *
- * Sign-in order (maximizes success when Neon password and DB password_hash differ):
- *   1) Neon Auth (email/password as configured in Neon)
- *   2) public.users.password_hash (bcrypt — e.g. set via SQL / tooling)
+ * Sign-in order (avoids 401 when Neon credential is out of sync with public.users):
+ *   1) public.users.password_hash (bcrypt — set-user-password / reset flow)
+ *   2) Neon Auth (email/password in neon_auth.account)
  *   3) ADMIN_FALLBACK_EMAIL + ADMIN_FALLBACK_PASSWORD (Vercel env)
  */
 import { neonAuthSignIn, isNeonAuthConfigured } from '../../api/lib/neonAuth.js';
@@ -31,7 +31,7 @@ async function loginWithDbPasswordHash(email, password) {
     rows = await sql`
       SELECT id, email, display_name, phone, is_admin, points, password_hash
       FROM users
-      WHERE LOWER(email) = ${email.toLowerCase()}
+      WHERE LOWER(TRIM(COALESCE(email, ''))) = ${email.toLowerCase()}
       LIMIT 1
     `;
   } catch (e) {
@@ -82,10 +82,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    let result = await neonAuthSignIn(email, password);
+    let result = await loginWithDbPasswordHash(email, password);
 
     if (!result || !result.token || !result.user) {
-      result = await loginWithDbPasswordHash(email, password);
+      result = await neonAuthSignIn(email, password);
     }
 
     // Optional: admin fallback when Neon Auth rejects and no public.users password match
@@ -94,7 +94,7 @@ export default async function handler(req, res) {
       const fallbackPassword = process.env.ADMIN_FALLBACK_PASSWORD || '';
       if (fallbackEmail && fallbackPassword && email.toLowerCase() === fallbackEmail && password === fallbackPassword) {
         let rows = await awaitNeonRows(
-          sql`SELECT id, email, display_name, phone, is_admin, points FROM users WHERE LOWER(email) = ${fallbackEmail} LIMIT 1`,
+          sql`SELECT id, email, display_name, phone, is_admin, points FROM users WHERE LOWER(TRIM(COALESCE(email, ''))) = ${fallbackEmail} LIMIT 1`,
           'login_admin_fallback_lookup'
         );
         let userRow = rows[0];
