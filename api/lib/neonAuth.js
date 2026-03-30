@@ -80,7 +80,12 @@ async function getOrCreateUserFromNeonPayloadImplBody(payload) {
     sql`
       SELECT id, email, display_name, phone, is_admin, points
       FROM users
-      WHERE neon_auth_id = ${neonId}
+      WHERE neon_auth_id IS NOT NULL
+        AND (
+          TRIM(neon_auth_id) = TRIM(${neonId})
+          OR LOWER(TRIM(neon_auth_id)) = LOWER(TRIM(${neonId}))
+          OR REPLACE(TRIM(neon_auth_id), '-', '') = REPLACE(TRIM(${neonId}), '-', '')
+        )
       LIMIT 1
     `,
     'neonAuth_byNeonId'
@@ -95,7 +100,7 @@ async function getOrCreateUserFromNeonPayloadImplBody(payload) {
       sql`
       SELECT id, email, display_name, phone, is_admin, points
       FROM users
-      WHERE email = ${email}
+      WHERE LOWER(TRIM(COALESCE(email, ''))) = ${email}
       LIMIT 1
     `,
       'neonAuth_byEmail'

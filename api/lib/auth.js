@@ -90,17 +90,33 @@ async function getSessionImpl(sessionId) {
       if (!payload) return null;
       const user = await getOrCreateUserFromNeonPayload(payload);
       if (!user) return null;
-      const jwtUid = canonicalUserIdForSession(user.id) || String(user.id).trim();
+      // Authoritative row refresh (avoids stale is_admin / email if lookup path drifted).
+      const pid = user.id != null ? String(user.id).trim() : '';
+      const freshList =
+        pid.length > 0
+          ? await awaitNeonRows(
+              sql`
+            SELECT id, email, display_name, phone, is_admin, points
+            FROM users
+            WHERE lower(id::text) = lower(${pid})
+               OR lower(replace(id::text, '-', '')) = lower(replace(${pid}, '-', ''))
+            LIMIT 1
+          `,
+              'getSession_jwt_user_refresh'
+            )
+          : [];
+      const u = freshList[0] || user;
+      const jwtUid = canonicalUserIdForSession(u.id) || String(u.id).trim();
       if (!jwtUid) return null;
       return {
         id: sid,
         userId: jwtUid,
         expiresAt: null,
-        email: user.email,
-        displayName: user.display_name,
-        phone: user.phone ?? null,
-        isAdmin: coerceAdminFlag(user.is_admin),
-        points: user.points ?? 0,
+        email: u.email,
+        displayName: u.display_name,
+        phone: u.phone ?? null,
+        isAdmin: coerceAdminFlag(u.is_admin),
+        points: u.points ?? 0,
       };
     }
     if (!hasDb() || !sql) return null;

@@ -1057,6 +1057,7 @@ final class AdminViewModel: ObservableObject {
             events = try await api.fetchEvents(includeAllForAdmin: true)
         } catch {
             events = []
+            errorMessage = FriendlyErrorMessage.message(for: error)
         }
     }
 

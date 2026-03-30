@@ -35,11 +35,16 @@ export default async function handler(req, res) {
       await ensureEventsTable(sql);
       const token = getTokenFromRequest(req);
       const session = token ? await getSession(token) : null;
-      const allEvents =
-        session &&
-        sessionHasAdminAccess(session) &&
-        (String(req.query?.all ?? req.query?.admin ?? '').trim() === '1' ||
-          String(req.query?.all ?? '').toLowerCase() === 'true');
+      const wantsAll =
+        String(req.query?.all ?? req.query?.admin ?? '').trim() === '1' ||
+        String(req.query?.all ?? '').toLowerCase() === 'true';
+      // Admin list must be authorized; otherwise non-admins silently got the public list and Create Event still failed.
+      if (wantsAll) {
+        if (!token) return res.status(401).json({ error: 'Unauthorized', code: 'no_token' });
+        if (!session?.userId) return res.status(401).json({ error: 'Unauthorized', code: 'invalid_session' });
+        if (!sessionHasAdminAccess(session)) return res.status(403).json({ error: 'Admin required', code: 'not_admin' });
+      }
+      const allEvents = wantsAll;
       const rows = allEvents
         ? await awaitNeonRows(
             sql`
