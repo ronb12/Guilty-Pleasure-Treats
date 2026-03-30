@@ -4,7 +4,7 @@
  * DELETE /api/events/:id - delete event (admin only).
  */
 import { sql, hasDb } from '../lib/db.js';
-import { getTokenFromRequest, getSession, sessionHasAdminAccess } from '../lib/auth.js';
+import { getTokenFromRequest, getSession, sessionHasAdminAccessResolved } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
 import { ensureEventsTable } from '../lib/eventsSchema.js';
 import { updateLegacyEventDateTime } from '../lib/eventsCompat.js';
@@ -54,7 +54,9 @@ export default async function handler(req, res) {
     const session = token ? await getSession(token) : null;
     if (!token) return res.status(401).json({ error: 'Unauthorized', code: 'no_token' });
     if (!session?.userId) return res.status(401).json({ error: 'Unauthorized', code: 'invalid_session' });
-    if (!sessionHasAdminAccess(session)) return res.status(403).json({ error: 'Admin required', code: 'not_admin' });
+    if (!(await sessionHasAdminAccessResolved(session, sql))) {
+      return res.status(403).json({ error: 'Admin required', code: 'not_admin' });
+    }
 
     try {
       await ensureEventsTable(sql);

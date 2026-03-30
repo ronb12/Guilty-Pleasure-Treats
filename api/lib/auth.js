@@ -55,6 +55,30 @@ export function sessionHasAdminAccess(session) {
   return list.includes(email.trim().toLowerCase());
 }
 
+/**
+ * Same as sessionHasAdminAccess, then reads `users.is_admin` by session.userId when the in-memory flag is wrong
+ * (JWT/session drift, driver types). Use for mutating admin routes so UI “admin” matches Neon.
+ */
+export async function sessionHasAdminAccessResolved(session, sqlTag) {
+  if (!session?.userId) return false;
+  if (sessionHasAdminAccess(session)) return true;
+  if (!sqlTag) return false;
+  const rawUid = String(session.userId).trim();
+  if (!rawUid) return false;
+  const canon = canonicalUserIdForSession(rawUid);
+  const rows = await awaitNeonRows(
+    sqlTag`
+      SELECT is_admin FROM users u
+      WHERE lower(u.id::text) = lower(${canon})
+         OR lower(u.id::text) = lower(${rawUid})
+         OR lower(replace(u.id::text, '-', '')) = lower(replace(${rawUid}, '-', ''))
+      LIMIT 1
+    `,
+    'session_resolve_is_admin'
+  );
+  return coerceAdminFlag(rows[0]?.is_admin);
+}
+
 export async function createSession(userId) {
   if (!hasDb() || !sql) return null;
   const uid = canonicalUserIdForSession(userId);
@@ -245,7 +269,7 @@ export function getAdminAuth(req) {
       if (!session?.userId) return null;
       const uid = String(session.userId).trim();
       if (!uid) return null;
-      if (!sessionHasAdminAccess(session)) return null;
+      if (!(await sessionHasAdminAccessResolved(session, sql))) return null;
       return { userId: uid, isAdmin: true };
     })
     .catch((err) => {

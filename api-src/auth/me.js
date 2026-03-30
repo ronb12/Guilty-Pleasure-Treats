@@ -1,8 +1,9 @@
 /**
  * GET /api/auth/me — validate session; returns same shape as login user payload.
  */
-import { getTokenFromRequest, getSession, sessionHasAdminAccess } from '../../api/lib/auth.js';
+import { getTokenFromRequest, getSession, sessionHasAdminAccessResolved } from '../../api/lib/auth.js';
 import { setCors, handleOptions } from '../../api/lib/cors.js';
+import { sql, hasDb } from '../../api/lib/db.js';
 
 export default async function handler(req, res) {
   setCors(res);
@@ -26,7 +27,7 @@ export default async function handler(req, res) {
     email: session.email ?? null,
     displayName: session.displayName ?? null,
     phone: session.phone ?? null,
-    isAdmin: sessionHasAdminAccess(session),
+    isAdmin: await sessionHasAdminAccessResolved(session, hasDb() ? sql : null),
     points: Number(session.points ?? 0),
   });
 }

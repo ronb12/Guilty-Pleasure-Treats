@@ -3,7 +3,12 @@
  * POST /api/events - create event (admin only). Body: title, description?, start_at?, end_at?, image_url?, location?. Sends push to customers.
  */
 import { sql, hasDb, awaitNeonRows } from '../lib/db.js';
-import { getTokenFromRequest, getSession, coerceAdminFlag, sessionHasAdminAccess } from '../lib/auth.js';
+import {
+  getTokenFromRequest,
+  getSession,
+  coerceAdminFlag,
+  sessionHasAdminAccessResolved,
+} from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
 import { ensureEventsTable } from '../lib/eventsSchema.js';
 import { insertEventRow } from '../lib/eventsCompat.js';
@@ -43,7 +48,9 @@ export default async function handler(req, res) {
       if (wantsAll) {
         if (!token) return res.status(401).json({ error: 'Unauthorized', code: 'no_token' });
         if (!session?.userId) return res.status(401).json({ error: 'Unauthorized', code: 'invalid_session' });
-        if (!sessionHasAdminAccess(session)) return res.status(403).json({ error: 'Admin required', code: 'not_admin' });
+        if (!(await sessionHasAdminAccessResolved(session, sql))) {
+          return res.status(403).json({ error: 'Admin required', code: 'not_admin' });
+        }
       }
       const allEvents = wantsAll;
       const rows = allEvents
@@ -87,7 +94,8 @@ export default async function handler(req, res) {
       console.warn('[events] POST auth failed', { reason: 'invalid_or_expired_session', tokenKind });
       return res.status(401).json({ error: 'Unauthorized', code: 'invalid_session' });
     }
-    if (!sessionHasAdminAccess(session)) {
+    const allowed = await sessionHasAdminAccessResolved(session, sql);
+    if (!allowed) {
       console.warn('[events] POST auth failed (not admin)', {
         hasUserId: true,
         isAdminCoerced: coerceAdminFlag(session?.isAdmin),
