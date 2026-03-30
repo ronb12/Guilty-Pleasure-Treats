@@ -1403,7 +1403,10 @@ struct AdminOrdersView: View {
         NavigationStack {
             ordersListContent
             .navigationTitle("Orders")
-            .onAppear { tryOpenOrderFromMessage() }
+            .onAppear {
+                tryOpenOrderFromMessage()
+                Task { await viewModel.loadOrders() }
+            }
             .onChange(of: viewModel.pendingOrderIdToOpen) { _, _ in tryOpenOrderFromMessage() }
             .onChange(of: viewModel.orders.count) { _, _ in tryOpenOrderFromMessage() }
             .sheet(item: $orderToOpenFromMessage) { order in
@@ -4494,12 +4497,12 @@ struct AdminAnalyticsView: View {
                 }
             }
             .refreshable {
-                await viewModel.loadOrders()
+                await viewModel.loadOrdersForAnalytics()
                 await viewModel.loadAnalyticsSummary()
             }
             .task {
-                // Orders drive all period metrics; summary is only total customer count.
-                await viewModel.loadOrders()
+                // Orders drive all period metrics; ignore Orders-tab filters (see loadOrdersForAnalytics).
+                await viewModel.loadOrdersForAnalytics()
                 await viewModel.loadAnalyticsSummary()
             }
         }

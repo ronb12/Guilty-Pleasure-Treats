@@ -2,7 +2,7 @@
  * GET /api/analytics/summary — admin only. Returns { totalCustomers } (non-admin users).
  */
 import { sql, hasDb } from '../../api/lib/db.js';
-import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
+import { getTokenFromRequest, getSession, coerceAdminFlag } from '../../api/lib/auth.js';
 import { setCors, handleOptions } from '../../api/lib/cors.js';
 
 export default async function handler(req, res) {
@@ -18,7 +18,7 @@ export default async function handler(req, res) {
 
   const token = getTokenFromRequest(req);
   const session = token ? await getSession(token) : null;
-  if (!session?.userId || session.isAdmin !== true) {
+  if (!session?.userId || !coerceAdminFlag(session.isAdmin)) {
     return res.status(403).json({ error: 'Admin required' });
   }
   if (!hasDb() || !sql) return res.status(503).json({ error: 'Service unavailable' });

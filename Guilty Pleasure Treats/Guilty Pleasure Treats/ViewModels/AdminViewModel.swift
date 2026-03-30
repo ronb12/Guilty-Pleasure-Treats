@@ -817,6 +817,34 @@ final class AdminViewModel: ObservableObject {
         }
     }
 
+    /// Analytics uses in-memory `orders` for all charts; must ignore Orders-tab filters or metrics look empty when filters are narrow.
+    func loadOrdersForAnalytics() async {
+        do {
+            ordersLoadError = nil
+            orders = try await api.fetchAllOrders(
+                status: nil,
+                fulfillmentType: nil,
+                search: nil,
+                dateFrom: nil,
+                dateTo: nil
+            )
+            if let first = orders.first, let id = first.id, let createdAt = first.createdAt {
+                NotificationService.shared.addNewOrderInAppIfNeeded(
+                    orderId: id,
+                    customerName: first.customerName,
+                    total: first.total,
+                    orderCreatedAt: createdAt
+                )
+            }
+        } catch {
+            orders = []
+            ordersLoadError = FriendlyErrorMessage.message(for: error)
+            #if DEBUG
+            print("[Admin] loadOrdersForAnalytics failed: \(error)")
+            #endif
+        }
+    }
+
     /// True when any admin order list filter is active (may hide rows that exist in Neon).
     var hasActiveAdminOrderFilters: Bool {
         !adminOrderStatusFilter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
