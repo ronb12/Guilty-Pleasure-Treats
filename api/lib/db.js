@@ -48,11 +48,9 @@ export function hasDb() {
  * Await a neon tagged-template query; never throws. On NeonDbError / fetch failures returns [] so callers don’t crash serverless.
  */
 export async function awaitNeonRows(queryPromise, label = 'query') {
-  try {
-    const result = await Promise.resolve(queryPromise);
-    return Array.isArray(result) ? result : [];
-  } catch (err) {
+  const result = await Promise.resolve(queryPromise).catch((err) => {
     console.error(`[db] ${label}`, err?.message ?? err);
     return [];
-  }
+  });
+  return Array.isArray(result) ? result : [];
 }

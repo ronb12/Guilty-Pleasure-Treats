@@ -149,14 +149,17 @@ async function getSessionImpl(sessionId) {
   }
 }
 
-/** Resolves to session or null; never rejects (avoids unhandled Neon fetch failures crashing serverless). */
-export async function getSession(sessionId) {
-  try {
-    return await getSessionImpl(sessionId);
-  } catch (err) {
-    console.error('[auth] getSession rejected', err?.message ?? err);
-    return null;
-  }
+/**
+ * Resolves to session or null; never rejects.
+ * Double `.catch` avoids rare unhandledRejection when Neon’s fetch fails (Vercel logs showed rejection escaping async/await).
+ */
+export function getSession(sessionId) {
+  return Promise.resolve()
+    .then(() => getSessionImpl(sessionId))
+    .catch((err) => {
+      console.error('[auth] getSession rejected', err?.message ?? err);
+      return null;
+    });
 }
 
 export async function deleteSession(sessionId) {
@@ -203,16 +206,13 @@ async function getAuthImpl(req) {
 }
 
 /** Never rejects — safe for serverless when Neon returns fetch failed. Always await at call sites. */
-export async function getAuth(req) {
-  try {
-    return await getAuthImpl(req).catch((err) => {
+export function getAuth(req) {
+  return Promise.resolve()
+    .then(() => getAuthImpl(req))
+    .catch((err) => {
       console.error('[auth] getAuth rejected', err?.message ?? err);
       return null;
     });
-  } catch (err) {
-    console.error('[auth] getAuth outer', err?.message ?? err);
-    return null;
-  }
 }
 
 /**
@@ -220,18 +220,20 @@ export async function getAuth(req) {
  * Uses the same source as getSession (sessions↔users JOIN or Neon Auth user row) — no second users query,
  * which avoided false 403s when a follow-up SELECT failed or id::text did not match the JOIN.
  */
-export async function getAdminAuth(req) {
-  try {
-    const token = getTokenFromRequest(req);
-    if (!token) return null;
-    const session = await getSession(token);
-    if (!session?.userId) return null;
-    const uid = String(session.userId).trim();
-    if (!uid) return null;
-    if (!sessionHasAdminAccess(session)) return null;
-    return { userId: uid, isAdmin: true };
-  } catch (err) {
-    console.error('[auth] getAdminAuth', err?.message ?? err);
-    return null;
-  }
+export function getAdminAuth(req) {
+  return Promise.resolve()
+    .then(async () => {
+      const token = getTokenFromRequest(req);
+      if (!token) return null;
+      const session = await getSession(token);
+      if (!session?.userId) return null;
+      const uid = String(session.userId).trim();
+      if (!uid) return null;
+      if (!sessionHasAdminAccess(session)) return null;
+      return { userId: uid, isAdmin: true };
+    })
+    .catch((err) => {
+      console.error('[auth] getAdminAuth', err?.message ?? err);
+      return null;
+    });
 }

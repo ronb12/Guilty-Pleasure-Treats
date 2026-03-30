@@ -24,4 +24,13 @@ function hasDb() {
   return !!connectionString;
 }
 
-module.exports = { sql: sqlTag, query, hasDb };
+/** Never throws; returns [] on Neon fetch failures (matches api/lib/db.js). */
+async function awaitNeonRows(queryPromise, label = 'query') {
+  const result = await Promise.resolve(queryPromise).catch((err) => {
+    console.error(`[db] ${label}`, err?.message ?? err);
+    return [];
+  });
+  return Array.isArray(result) ? result : [];
+}
+
+module.exports = { sql: sqlTag, query, hasDb, awaitNeonRows };

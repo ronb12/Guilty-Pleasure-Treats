@@ -3,7 +3,7 @@
  * Set NEON_AUTH_URL (e.g. https://ep-....neonauth..../neondb/auth) to enable.
  */
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import { sql, hasDb } from './db.js';
+import { sql, hasDb, awaitNeonRows } from './db.js';
 
 const NEON_AUTH_URL = process.env.NEON_AUTH_URL?.replace(/\/$/, '');
 const JWKS_URL = NEON_AUTH_URL ? `${NEON_AUTH_URL}/.well-known/jwks.json` : null;
@@ -76,33 +76,36 @@ async function getOrCreateUserFromNeonPayloadImplBody(payload) {
   const email = payload.email ? String(payload.email).trim().toLowerCase() : null;
   const name = payload.name || payload.displayName || null;
 
-  try {
-    const byNeonId = await sql`
+  const byNeonId = await awaitNeonRows(
+    sql`
       SELECT id, email, display_name, phone, is_admin, points
       FROM users
       WHERE neon_auth_id = ${neonId}
       LIMIT 1
-    `;
-    if (byNeonId.length > 0) {
-      const u = byNeonId[0];
-      return { id: u.id, email: u.email, display_name: u.display_name, phone: u.phone ?? null, is_admin: u.is_admin, points: Number(u.points ?? 0) };
-    }
-  } catch (e) {
-    if (e?.code !== '42703') throw e;
+    `,
+    'neonAuth_byNeonId'
+  );
+  if (byNeonId.length > 0) {
+    const u = byNeonId[0];
+    return { id: u.id, email: u.email, display_name: u.display_name, phone: u.phone ?? null, is_admin: u.is_admin, points: Number(u.points ?? 0) };
   }
 
   if (email) {
-    const byEmail = await sql`
+    const byEmail = await awaitNeonRows(
+      sql`
       SELECT id, email, display_name, phone, is_admin, points
       FROM users
       WHERE email = ${email}
       LIMIT 1
-    `;
+    `,
+      'neonAuth_byEmail'
+    );
     if (byEmail.length > 0) {
       const u = byEmail[0];
-      try {
-        await sql`UPDATE users SET neon_auth_id = ${neonId}, updated_at = NOW() WHERE id = ${u.id}`;
-      } catch (_) { /* column may not exist */ }
+      await awaitNeonRows(
+        sql`UPDATE users SET neon_auth_id = ${neonId}, updated_at = NOW() WHERE id = ${u.id}`,
+        'neonAuth_link_neon_id'
+      );
       return { id: u.id, email: u.email, display_name: u.display_name, phone: u.phone ?? null, is_admin: u.is_admin, points: Number(u.points ?? 0) };
     }
   }

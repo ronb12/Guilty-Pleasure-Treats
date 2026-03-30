@@ -2,7 +2,7 @@
  * GET /api/events - list upcoming events (start_at >= now, ordered by start_at).
  * POST /api/events - create event (admin only). Body: title, description?, start_at?, end_at?, image_url?, location?. Sends push to customers.
  */
-import { sql, hasDb } from '../lib/db.js';
+import { sql, hasDb, awaitNeonRows } from '../lib/db.js';
 import { getTokenFromRequest, getSession, coerceAdminFlag, sessionHasAdminAccess } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
 import { ensureEventsTable } from '../lib/eventsSchema.js';
@@ -41,19 +41,25 @@ export default async function handler(req, res) {
         (String(req.query?.all ?? req.query?.admin ?? '').trim() === '1' ||
           String(req.query?.all ?? '').toLowerCase() === 'true');
       const rows = allEvents
-        ? await sql`
+        ? await awaitNeonRows(
+            sql`
         SELECT id, title, description, start_at, end_at, image_url, location, created_at
         FROM events
         ORDER BY start_at ASC NULLS LAST, created_at DESC
         LIMIT 500
-      `
-        : await sql`
+      `,
+            'events_GET_all'
+          )
+        : await awaitNeonRows(
+            sql`
         SELECT id, title, description, start_at, end_at, image_url, location, created_at
         FROM events
         WHERE start_at IS NULL OR start_at >= NOW()
         ORDER BY start_at ASC NULLS LAST, created_at DESC
         LIMIT 100
-      `;
+      `,
+            'events_GET_public'
+          );
       return res.status(200).json(rows.map(rowToEvent));
     } catch (err) {
       if (err?.code === '42P01') return res.status(200).json([]);
@@ -101,16 +107,26 @@ export default async function handler(req, res) {
     const location = body.location != null ? String(body.location).trim() : null;
 
     try {
-      const [row] = await sql`
+      const inserted = await awaitNeonRows(
+        sql`
         INSERT INTO events (title, description, start_at, end_at, image_url, location)
         VALUES (${title}, ${description || null}, ${startAt ? new Date(startAt) : null}, ${endAt ? new Date(endAt) : null}, ${imageUrl || null}, ${location || null})
         RETURNING id, title, description, start_at, end_at, image_url, location, created_at
-      `;
+      `,
+        'events_POST_insert'
+      );
+      const row = inserted[0];
+      if (!row) {
+        return res.status(503).json({ error: 'Database unavailable. Try again in a moment.' });
+      }
       const eventId = row?.id?.toString?.() ?? row?.id;
 
       try {
         const { notifyNewEvent } = await import('../../api/lib/apns.js');
-        const customerRows = await sql`SELECT device_token FROM push_tokens WHERE is_admin = false AND device_token IS NOT NULL AND device_token != ''`;
+        const customerRows = await awaitNeonRows(
+          sql`SELECT device_token FROM push_tokens WHERE is_admin = false AND device_token IS NOT NULL AND device_token != ''`,
+          'events_POST_push_tokens'
+        );
         const tokens = (customerRows || []).map((r) => r.device_token).filter(Boolean);
         const subtitle = row?.start_at ? new Date(row.start_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : (row?.location || null);
         if (tokens.length) notifyNewEvent(tokens, eventId, title, subtitle);
