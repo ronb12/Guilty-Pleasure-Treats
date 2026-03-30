@@ -5290,7 +5290,6 @@ private struct AdminEventFormSheet: View {
     @State private var selectedAttachmentContentType: String?
     @State private var showAttachmentPicker = false
     @State private var isSaving = false
-    @State private var saveError: String?
 
     private var attachmentLabel: String {
         guard selectedAttachmentData != nil else { return "" }
@@ -5300,6 +5299,14 @@ private struct AdminEventFormSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                if let err = viewModel.errorMessage, !err.isEmpty {
+                    Section {
+                        Text(err)
+                            .font(.subheadline)
+                            .foregroundStyle(.red)
+                            .accessibilityIdentifier("eventFormError")
+                    }
+                }
                 Section {
                     TextField("Title", text: $title)
                         .textContentType(.none)
@@ -5355,13 +5362,6 @@ private struct AdminEventFormSheet: View {
                 Section("Location (optional)") {
                     TextField("Address or venue", text: $location)
                 }
-                if let err = saveError {
-                    Section {
-                        Text(err)
-                            .foregroundStyle(.red)
-                            .font(.caption)
-                    }
-                }
             }
             .macOSGroupedFormStyle()
             .macOSEditSheetPadding()
@@ -5375,6 +5375,8 @@ private struct AdminEventFormSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         Task { @MainActor in
+                            let t = title.trimmingCharacters(in: .whitespaces)
+                            guard !t.isEmpty, !isSaving else { return }
                             await saveEvent()
                         }
                     }
@@ -5382,11 +5384,23 @@ private struct AdminEventFormSheet: View {
                     .foregroundStyle(AppConstants.Colors.accent)
                 }
             }
+            .macOSReduceSheetTitleGap()
+            .overlay {
+                if isSaving {
+                    ZStack {
+                        Color.black.opacity(0.15)
+                        ProgressView("Saving…")
+                            .padding(20)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    .ignoresSafeArea()
+                }
+            }
             .sheet(isPresented: $showAttachmentPicker) {
                 EventDocumentPicker(pickedData: $selectedAttachmentData, pickedContentType: $selectedAttachmentContentType)
             }
             .onAppear {
-                saveError = nil
+                viewModel.dismissProductBanner()
                 if let e = event {
                     title = e.title
                     eventDescription = e.eventDescription ?? ""
@@ -5400,8 +5414,6 @@ private struct AdminEventFormSheet: View {
     }
 
     private func saveEvent() async {
-        saveError = nil
-        viewModel.clearMessages()
         isSaving = true
         defer { isSaving = false }
 
@@ -5417,7 +5429,7 @@ private struct AdminEventFormSheet: View {
             do {
                 finalImageURL = try await VercelService.shared.uploadImageBase64(data: data, pathname: pathname, contentType: contentType)
             } catch {
-                saveError = FriendlyErrorMessage.message(for: error)
+                viewModel.errorMessage = FriendlyErrorMessage.message(for: error)
                 return
             }
         } else {
@@ -5434,8 +5446,6 @@ private struct AdminEventFormSheet: View {
         )
         if ok {
             onDismiss()
-        } else {
-            saveError = viewModel.errorMessage ?? "Couldn’t save the event. Check your connection and try again."
         }
     }
 }
