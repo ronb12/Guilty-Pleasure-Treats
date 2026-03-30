@@ -4,7 +4,8 @@
  * Returns { url: string }.
  */
 import { put } from '@vercel/blob';
-import { getTokenFromRequest, getSession } from '../api/lib/auth.js';
+import { getTokenFromRequest, getSession, sessionHasAdminAccessResolved } from '../api/lib/auth.js';
+import { sql } from '../api/lib/db.js';
 import { setCors, handleOptions } from '../api/lib/cors.js';
 
 export default async function handler(req, res) {
@@ -21,7 +22,8 @@ export default async function handler(req, res) {
   const token = getTokenFromRequest(req);
   const session = token ? await getSession(token) : null;
   if (!session?.userId) return res.status(401).json({ error: 'Unauthorized' });
-  if (session.isAdmin !== true) return res.status(403).json({ error: 'Admin required' });
+  const allowed = await sessionHasAdminAccessResolved(session, sql);
+  if (!allowed) return res.status(403).json({ error: 'Admin required' });
 
   const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
   if (!blobToken) {

@@ -348,6 +348,7 @@ async function main() {
     await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS image_url TEXT`;
     await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS location TEXT`;
     await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS description TEXT`;
+    await sql`ALTER TABLE events ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`;
     await sql`CREATE INDEX IF NOT EXISTS idx_events_start_at ON events(start_at ASC) WHERE start_at IS NOT NULL`;
     console.log('events OK');
 

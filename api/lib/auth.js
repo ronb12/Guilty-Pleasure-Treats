@@ -53,13 +53,42 @@ function emailMatchesAdminGrant(email) {
 }
 
 /**
+ * True if `session.userId` matches an id in ADMIN_GRANT_USER_IDS (comma-separated UUIDs, optional).
+ * Use when `users.email` is null/private-relay but you still need admin APIs (Neon row must match this id).
+ */
+function userIdMatchesAdminGrantList(userId) {
+  const raw = process.env.ADMIN_GRANT_USER_IDS || '';
+  const parts = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (parts.length === 0 || userId == null) return false;
+  const uid = String(userId).trim();
+  if (!uid) return false;
+  const canon = canonicalUserIdForSession(uid);
+  const strip = (s) => String(s).replace(/-/g, '').toLowerCase();
+  const us = strip(uid);
+  const cs = strip(canon);
+  for (const p of parts) {
+    const pt = p.trim();
+    if (!pt) continue;
+    const pc = canonicalUserIdForSession(pt);
+    if (uid === pt || uid === pc || canon === pt || canon === pc) return true;
+    if (us && (us === strip(pt) || us === strip(pc))) return true;
+    if (cs && (cs === strip(pt) || cs === strip(pc))) return true;
+  }
+  return false;
+}
+
+/**
  * True if DB says admin, or session email is in ADMIN_GRANT_EMAILS (comma-separated, case-insensitive).
  * Set in Vercel when `users.is_admin` was never set for the owner row.
  */
 export function sessionHasAdminAccess(session) {
   if (!session?.userId) return false;
   if (coerceAdminFlag(session.isAdmin)) return true;
-  return emailMatchesAdminGrant(session.email);
+  if (emailMatchesAdminGrant(session.email)) return true;
+  return userIdMatchesAdminGrantList(session.userId);
 }
 
 /**
