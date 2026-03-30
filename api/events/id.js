@@ -79,11 +79,15 @@ export default async function handler(req, res) {
 
     const body = req.body || {};
     const title = body.title != null ? String(body.title).trim() : null;
-    const description = body.description !== undefined ? (body.description == null ? null : String(body.description).trim()) : null;
-    const startAt = body.start_at !== undefined ? body.start_at : (body.startAt !== undefined ? body.startAt : null);
-    const endAt = body.end_at !== undefined ? body.end_at : (body.endAt !== undefined ? body.endAt : null);
-    const imageUrl = body.image_url !== undefined ? body.image_url : (body.imageURL !== undefined ? body.imageURL : null);
-    const location = body.location !== undefined ? (body.location == null ? null : String(body.location).trim()) : null;
+    const description =
+      body.description !== undefined ? (body.description == null ? null : String(body.description).trim()) : undefined;
+    const startAt =
+      body.start_at !== undefined ? body.start_at : body.startAt !== undefined ? body.startAt : undefined;
+    const endAt = body.end_at !== undefined ? body.end_at : body.endAt !== undefined ? body.endAt : undefined;
+    const imageUrl =
+      body.image_url !== undefined ? body.image_url : body.imageURL !== undefined ? body.imageURL : undefined;
+    const location =
+      body.location !== undefined ? (body.location == null ? null : String(body.location).trim()) : undefined;
 
     try {
       const [existing] = await sql`SELECT id FROM events WHERE id = ${id}`;

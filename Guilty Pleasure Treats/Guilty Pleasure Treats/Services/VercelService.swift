@@ -1630,7 +1630,7 @@ extension VercelService {
         return id
     }
 
-    /// Update event (admin). PATCH /api/events/:id.
+    /// Update event (admin). PATCH /api/events/:id — sends all form fields so optional clears (null) apply reliably.
     func updateEvent(id: String, title: String?, eventDescription: String?, startAt: Date?, endAt: Date?, imageURL: String?, location: String?) async throws {
         guard let token = authToken else { throw VercelNotConfiguredError() }
         guard let url = apiIDURL(resource: "events", id: id) else { throw VercelNotConfiguredError() }
@@ -1638,13 +1638,23 @@ extension VercelService {
         req.httpMethod = "PATCH"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        var body: [String: Any] = [:]
-        if let t = title { body["title"] = t }
-        if eventDescription != nil { body["description"] = eventDescription as Any }
-        if startAt != nil { body["start_at"] = startAt.map { ISO8601DateFormatter().string(from: $0) } as Any }
-        if endAt != nil { body["end_at"] = endAt.map { ISO8601DateFormatter().string(from: $0) } as Any }
-        if imageURL != nil { body["image_url"] = imageURL as Any }
-        if location != nil { body["location"] = location as Any }
+        let isoFrac = ISO8601DateFormatter()
+        isoFrac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        isoFrac.timeZone = TimeZone(secondsFromGMT: 0)
+        let isoPlain = ISO8601DateFormatter()
+        isoPlain.formatOptions = [.withInternetDateTime]
+        isoPlain.timeZone = TimeZone(secondsFromGMT: 0)
+        func eventISO(_ d: Date) -> String {
+            let s = isoFrac.string(from: d)
+            return s.isEmpty ? isoPlain.string(from: d) : s
+        }
+        let t = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        var body: [String: Any] = ["title": t]
+        body["description"] = eventDescription.map { $0 as Any } ?? NSNull()
+        body["start_at"] = startAt.map { eventISO($0) as Any } ?? NSNull()
+        body["end_at"] = endAt.map { eventISO($0) as Any } ?? NSNull()
+        body["image_url"] = imageURL.map { $0 as Any } ?? NSNull()
+        body["location"] = location.map { $0 as Any } ?? NSNull()
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }

@@ -5200,31 +5200,53 @@ struct AdminEventsView: View {
                         Button {
                             eventToEdit = event
                         } label: {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(event.title)
-                                    .font(.headline)
-                                    .foregroundStyle(AppConstants.Colors.textPrimary)
-                                if let desc = event.eventDescription, !desc.isEmpty {
-                                    Text(desc)
-                                        .font(.subheadline)
-                                        .foregroundStyle(AppConstants.Colors.textSecondary)
-                                        .lineLimit(2)
+                            HStack(alignment: .top, spacing: 12) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(event.title)
+                                        .font(.headline)
+                                        .foregroundStyle(AppConstants.Colors.textPrimary)
+                                    if let desc = event.eventDescription, !desc.isEmpty {
+                                        Text(desc)
+                                            .font(.subheadline)
+                                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                                            .lineLimit(2)
+                                    }
+                                    if let start = event.startAt {
+                                        Label(start.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
+                                            .font(.caption)
+                                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                                    }
+                                    if let loc = event.location, !loc.isEmpty {
+                                        Label(loc, systemImage: "mappin.circle")
+                                            .font(.caption)
+                                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                                    }
+                                    Text("Tap to edit")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(AppConstants.Colors.accent)
                                 }
-                                if let start = event.startAt {
-                                    Label(start.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
-                                        .font(.caption)
-                                        .foregroundStyle(AppConstants.Colors.textSecondary)
-                                }
-                                if let loc = event.location, !loc.isEmpty {
-                                    Label(loc, systemImage: "mappin.circle")
-                                        .font(.caption)
-                                        .foregroundStyle(AppConstants.Colors.textSecondary)
-                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(AppConstants.Colors.textSecondary.opacity(0.7))
                             }
                             .padding(.vertical, 4)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Edit event: \(event.title)")
+                        .contextMenu {
+                            Button {
+                                eventToEdit = event
+                            } label: {
+                                Label("Edit", systemImage: "pencil")
+                            }
+                            Button(role: .destructive) {
+                                Task { await viewModel.deleteEvent(id: event.id) }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
                                 Task { await viewModel.deleteEvent(id: event.id) }
