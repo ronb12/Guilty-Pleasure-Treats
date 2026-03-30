@@ -27,9 +27,20 @@ export async function verifyPassword(password, hash) {
   return bcrypt.compare(password, hash);
 }
 
+/** Store sessions.user_id (TEXT) in the same shape as users.id::text so JOINs match. */
+export function canonicalUserIdForSession(userId) {
+  if (userId == null) return '';
+  const raw = String(userId).trim();
+  const hex = raw.replace(/-/g, '').toLowerCase();
+  if (hex.length === 32 && /^[0-9a-f]+$/.test(hex)) {
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+  }
+  return raw;
+}
+
 export async function createSession(userId) {
   if (!hasDb() || !sql) return null;
-  const uid = userId != null ? String(userId) : null;
+  const uid = canonicalUserIdForSession(userId);
   if (!uid) return null;
   try {
     const id = randomUUID();
@@ -62,9 +73,11 @@ async function getSessionImpl(sessionId) {
       if (!payload) return null;
       const user = await getOrCreateUserFromNeonPayload(payload);
       if (!user) return null;
+      const jwtUid = canonicalUserIdForSession(user.id) || String(user.id).trim();
+      if (!jwtUid) return null;
       return {
         id: sid,
-        userId: user.id,
+        userId: jwtUid,
         expiresAt: null,
         email: user.email,
         displayName: user.display_name,
@@ -76,9 +89,12 @@ async function getSessionImpl(sessionId) {
     if (!hasDb() || !sql) return null;
     const rows = await awaitNeonRows(
       sql`
-      SELECT s.id, s.user_id, s.expires_at, u.email, u.display_name, u.phone, u.is_admin, u.points
+      SELECT s.id, s.expires_at, u.id AS uid, u.email, u.display_name, u.phone, u.is_admin, u.points
       FROM sessions s
-      JOIN users u ON u.id::text = trim(both from s.user_id::text)
+      INNER JOIN users u ON (
+        u.id::text = trim(both from s.user_id)
+        OR lower(replace(u.id::text, '-', '')) = lower(replace(trim(both from s.user_id), '-', ''))
+      )
       WHERE s.id = ${sid} AND s.expires_at > NOW()
       LIMIT 1
     `,
@@ -86,9 +102,11 @@ async function getSessionImpl(sessionId) {
     );
     const row = rows[0];
     if (!row) return null;
+    const resolvedUid = row.uid != null ? String(row.uid).trim() : '';
+    if (!resolvedUid) return null;
     return {
       id: row.id,
-      userId: row.user_id,
+      userId: resolvedUid,
       expiresAt: row.expires_at,
       email: row.email,
       displayName: row.display_name,
@@ -113,9 +131,10 @@ export async function getSession(sessionId) {
 }
 
 export async function deleteSession(sessionId) {
-  if (!sessionId || !hasDb() || !sql) return;
+  const sid = sessionId != null ? String(sessionId).trim() : '';
+  if (!sid || !hasDb() || !sql) return;
   try {
-    await sql`DELETE FROM sessions WHERE id = ${sessionId}`;
+    await sql`DELETE FROM sessions WHERE id = ${sid}`;
   } catch (err) {
     console.error('[auth] deleteSession', err?.message ?? err);
   }
