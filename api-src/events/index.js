@@ -3,7 +3,7 @@
  * POST /api/events - create event (admin only). Body: title, description?, start_at?, end_at?, image_url?, location?. Sends push to customers.
  */
 import { sql, hasDb } from '../lib/db.js';
-import { getTokenFromRequest, getSession, coerceAdminFlag } from '../lib/auth.js';
+import { getTokenFromRequest, getSession, coerceAdminFlag, sessionHasAdminAccess } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
 import { ensureEventsTable } from '../lib/eventsSchema.js';
 
@@ -36,7 +36,8 @@ export default async function handler(req, res) {
       const token = getTokenFromRequest(req);
       const session = token ? await getSession(token) : null;
       const allEvents =
-        coerceAdminFlag(session?.isAdmin) &&
+        session &&
+        sessionHasAdminAccess(session) &&
         (String(req.query?.all ?? req.query?.admin ?? '').trim() === '1' ||
           String(req.query?.all ?? '').toLowerCase() === 'true');
       const rows = allEvents
@@ -64,18 +65,19 @@ export default async function handler(req, res) {
   if ((req.method || '').toUpperCase() === 'POST') {
     const token = getTokenFromRequest(req);
     const session = token ? await getSession(token) : null;
-    if (!session?.userId || !coerceAdminFlag(session.isAdmin)) {
+    if (!session?.userId || !sessionHasAdminAccess(session)) {
       const parts = token ? String(token).split('.') : [];
       const tokenKind = !token ? 'none' : parts.length === 3 ? 'jwt' : 'session';
       let reason = 'unknown';
       if (!token) reason = 'no_token';
       else if (!session?.userId) reason = 'invalid_or_expired_session';
-      else if (!coerceAdminFlag(session.isAdmin)) reason = 'user_not_admin';
+      else if (!sessionHasAdminAccess(session)) reason = 'user_not_admin';
       console.warn('[events] POST auth failed (Admin required)', {
         hasBearerHeader: Boolean(req.headers?.authorization && /^Bearer\s+/i.test(String(req.headers.authorization))),
         tokenKind,
         hasUserId: Boolean(session?.userId),
         isAdminCoerced: coerceAdminFlag(session?.isAdmin),
+        envGrantEligible: Boolean(process.env.ADMIN_GRANT_EMAILS?.trim()),
         reason,
       });
       return res.status(403).json({ error: 'Admin required' });

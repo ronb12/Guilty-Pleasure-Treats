@@ -8,7 +8,7 @@
  * with a DB session (so you can log in as admin without Neon Auth).
  */
 import { neonAuthSignIn, isNeonAuthConfigured } from '../../api/lib/neonAuth.js';
-import { createSession, verifyPassword } from '../../api/lib/auth.js';
+import { createSession, verifyPassword, sessionHasAdminAccess } from '../../api/lib/auth.js';
 import { sql, hasDb } from '../../api/lib/db.js';
 
 function json(res, status, data) {
@@ -105,12 +105,17 @@ export default async function handler(req, res) {
       return;
     }
     const u = result.user;
+    const sessionLike = {
+      userId: String(u.id),
+      email: u.email ?? null,
+      isAdmin: u.is_admin,
+    };
     const user = {
       uid: String(u.id),
       email: u.email ?? null,
       displayName: u.display_name ?? null,
       phone: u.phone ?? null,
-      isAdmin: Boolean(u.is_admin),
+      isAdmin: sessionHasAdminAccess(sessionLike),
       points: Number(u.points ?? 0),
     };
     json(res, 200, { token: result.token, user });

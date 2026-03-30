@@ -30,12 +30,29 @@ export async function verifyPassword(password, hash) {
 /** Store sessions.user_id (TEXT) in the same shape as users.id::text so JOINs match. */
 export function canonicalUserIdForSession(userId) {
   if (userId == null) return '';
-  const raw = String(userId).trim();
+  let raw = String(userId).trim().replace(/^\{|\}$/g, '').trim();
   const hex = raw.replace(/-/g, '').toLowerCase();
   if (hex.length === 32 && /^[0-9a-f]+$/.test(hex)) {
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
   }
   return raw;
+}
+
+/**
+ * True if DB says admin, or session email is in ADMIN_GRANT_EMAILS (comma-separated, case-insensitive).
+ * Set in Vercel when `users.is_admin` was never set for the owner row.
+ */
+export function sessionHasAdminAccess(session) {
+  if (!session?.userId) return false;
+  if (coerceAdminFlag(session.isAdmin)) return true;
+  const email = session.email;
+  if (!email || typeof email !== 'string') return false;
+  const list = (process.env.ADMIN_GRANT_EMAILS || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (list.length === 0) return false;
+  return list.includes(email.trim().toLowerCase());
 }
 
 export async function createSession(userId) {
@@ -105,8 +122,8 @@ async function getSessionImpl(sessionId) {
       sql`
       SELECT id, email, display_name, phone, is_admin, points
       FROM users u
-      WHERE u.id::text = ${canon}
-         OR u.id::text = ${rawUid}
+      WHERE lower(u.id::text) = lower(${canon})
+         OR lower(u.id::text) = lower(${rawUid})
          OR lower(replace(u.id::text, '-', '')) = lower(replace(${rawUid}, '-', ''))
       LIMIT 1
     `,
@@ -211,7 +228,7 @@ export async function getAdminAuth(req) {
     if (!session?.userId) return null;
     const uid = String(session.userId).trim();
     if (!uid) return null;
-    if (!coerceAdminFlag(session.isAdmin)) return null;
+    if (!sessionHasAdminAccess(session)) return null;
     return { userId: uid, isAdmin: true };
   } catch (err) {
     console.error('[auth] getAdminAuth', err?.message ?? err);
