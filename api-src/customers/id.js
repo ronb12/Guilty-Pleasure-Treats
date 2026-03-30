@@ -6,6 +6,14 @@ import { sql, hasDb } from '../../api/lib/db.js';
 import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
 import { setCors, handleOptions } from '../../api/lib/cors.js';
 
+async function ensureCustomersOptionalColumns(sql) {
+  try {
+    await sql`ALTER TABLE customers ADD COLUMN IF NOT EXISTS food_allergies TEXT`;
+  } catch (e) {
+    if (e?.code !== '42P01') console.warn('[customers/id] food_allergies column', e?.message ?? e);
+  }
+}
+
 function rowToCustomer(row) {
   if (!row) return null;
   return {
@@ -20,6 +28,10 @@ function rowToCustomer(row) {
     state: row.state ?? null,
     postalCode: row.postal_code ?? null,
     notes: row.notes ?? null,
+    foodAllergies:
+      row.food_allergies != null && String(row.food_allergies).trim() !== ''
+        ? String(row.food_allergies).trim()
+        : null,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
     updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
   };
@@ -43,6 +55,8 @@ export default async function handler(req, res) {
   }
   if (!hasDb() || !sql) return res.status(503).json({ error: 'Service unavailable' });
 
+  await ensureCustomersOptionalColumns(sql);
+
   const method = (req.method || '').toUpperCase();
 
   if (method === 'DELETE') {
@@ -59,7 +73,7 @@ export default async function handler(req, res) {
   if (method === 'PATCH') {
     try {
       const [existing] = await sql`
-        SELECT id, name, phone, email, address, street, address_line_2, city, state, postal_code, notes
+        SELECT id, name, phone, email, address, street, address_line_2, city, state, postal_code, notes, food_allergies
         FROM customers WHERE id = ${id}::uuid LIMIT 1
       `;
       if (!existing) return res.status(404).json({ error: 'Not found' });
@@ -83,13 +97,23 @@ export default async function handler(req, res) {
             : String(body.postalCode).trim() || null
           : existing.postal_code;
       const notes = body.notes !== undefined ? (body.notes == null ? null : String(body.notes).trim() || null) : existing.notes;
+      const foodAllergies =
+        body.foodAllergies !== undefined || body.food_allergies !== undefined
+          ? (() => {
+              const raw = body.foodAllergies !== undefined ? body.foodAllergies : body.food_allergies;
+              if (raw == null) return null;
+              const t = String(raw).trim();
+              return t !== '' ? t : null;
+            })()
+          : existing.food_allergies;
 
       const [row] = await sql`
         UPDATE customers
         SET name = ${name}, phone = ${phone}, email = ${email}, street = ${street}, address_line_2 = ${addressLine2},
-            city = ${city}, state = ${state}, postal_code = ${postalCode}, notes = ${notes}, updated_at = NOW()
+            city = ${city}, state = ${state}, postal_code = ${postalCode}, notes = ${notes},
+            food_allergies = ${foodAllergies}, updated_at = NOW()
         WHERE id = ${id}::uuid
-        RETURNING id, name, phone, email, address, street, address_line_2, city, state, postal_code, notes, created_at, updated_at
+        RETURNING id, name, phone, email, address, street, address_line_2, city, state, postal_code, notes, food_allergies, created_at, updated_at
       `;
       return res.status(200).json(rowToCustomer(row));
     } catch (err) {

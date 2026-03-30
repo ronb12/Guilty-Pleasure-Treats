@@ -313,6 +313,7 @@ async function main() {
       )
     `;
     await sql`CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name ASC)`;
+    await sql`ALTER TABLE customers ADD COLUMN IF NOT EXISTS food_allergies TEXT`;
     console.log('customers OK');
 
     // push_tokens (requires users table)

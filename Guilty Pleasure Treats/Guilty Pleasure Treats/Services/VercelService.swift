@@ -1184,7 +1184,7 @@ final class VercelService {
         return try decoder.decode([SavedCustomer].self, from: data)
     }
 
-    func addSavedCustomer(name: String, phone: String, email: String?, street: String?, addressLine2: String?, city: String?, state: String?, postalCode: String?, notes: String?) async throws -> SavedCustomer {
+    func addSavedCustomer(name: String, phone: String, email: String?, street: String?, addressLine2: String?, city: String?, state: String?, postalCode: String?, notes: String?, foodAllergies: String?) async throws -> SavedCustomer {
         guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: base.appendingPathComponent("api/customers"))
         req.httpMethod = "POST"
@@ -1198,6 +1198,7 @@ final class VercelService {
         if let s = state, !s.isEmpty { body["state"] = s }
         if let p = postalCode, !p.isEmpty { body["postalCode"] = p }
         if let n = notes, !n.isEmpty { body["notes"] = n }
+        if let fa = foodAllergies?.trimmingCharacters(in: .whitespacesAndNewlines), !fa.isEmpty { body["foodAllergies"] = fa }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
@@ -1205,7 +1206,7 @@ final class VercelService {
         return try decoder.decode(SavedCustomer.self, from: data)
     }
 
-    func updateSavedCustomer(id: String, name: String?, phone: String?, email: String?, street: String?, addressLine2: String?, city: String?, state: String?, postalCode: String?, notes: String?) async throws {
+    func updateSavedCustomer(id: String, name: String?, phone: String?, email: String?, street: String?, addressLine2: String?, city: String?, state: String?, postalCode: String?, notes: String?, foodAllergies: String) async throws {
         guard let token = authToken else { throw VercelNotConfiguredError() }
         guard let url = apiIDURL(resource: "customers", id: id) else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
@@ -1222,6 +1223,8 @@ final class VercelService {
         if let s = state { body["state"] = s }
         if let p = postalCode { body["postalCode"] = p }
         if let n = notes { body["notes"] = n }
+        let faTrim = foodAllergies.trimmingCharacters(in: .whitespacesAndNewlines)
+        body["foodAllergies"] = faTrim.isEmpty ? NSNull() : faTrim
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (_, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }

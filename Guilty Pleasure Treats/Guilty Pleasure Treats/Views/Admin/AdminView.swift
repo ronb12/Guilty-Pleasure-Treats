@@ -2114,6 +2114,12 @@ struct AdminCustomersView: View {
                                         .font(.caption2)
                                         .foregroundStyle(AppConstants.Colors.textSecondary)
                                 }
+                                if let fa = c.foodAllergies?.trimmingCharacters(in: .whitespacesAndNewlines), !fa.isEmpty {
+                                    Text("Allergies: \(fa)")
+                                        .font(.caption2)
+                                        .foregroundStyle(AppConstants.Colors.accent.opacity(0.95))
+                                        .lineLimit(2)
+                                }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             Spacer(minLength: 8)
@@ -2374,6 +2380,7 @@ struct AddCustomerSheet: View {
     @State private var city = ""
     @State private var state = ""
     @State private var zip = ""
+    @State private var foodAllergies = ""
     @State private var notes = ""
     @State private var isSaving = false
 
@@ -2381,13 +2388,14 @@ struct AddCustomerSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text("Add a customer to your contact list. All fields below are required.")
+                    Text("Add a customer to your contact list. All fields below are required except food allergies.")
                         .font(.subheadline)
                         .foregroundStyle(AppConstants.Colors.textSecondary)
                         .padding(.horizontal, 4)
 
                     contactSection
                     addressSection
+                    allergiesSection
                     notesSection
 
                     PrimaryButton(
@@ -2472,10 +2480,28 @@ struct AddCustomerSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
     }
 
+    private var allergiesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            customerFormSectionLabel("Food allergies")
+            Text("Optional. Same idea as customer accounts — attach to this contact for the kitchen when you place orders for them. We can’t guarantee an allergen-free environment.")
+                .font(.caption)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
+            TextField("e.g. peanuts, tree nuts, dairy", text: $foodAllergies, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                #if os(iOS)
+                .lineLimit(4...8)
+                #endif
+        }
+        .padding(AppConstants.Layout.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppConstants.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
+    }
+
     private var notesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             customerFormSectionLabel("Notes")
-            Text("Optional — dietary preferences, favorite orders, etc.")
+            Text("Optional — favorite orders, VIP notes, etc.")
                 .font(.caption)
                 .foregroundStyle(AppConstants.Colors.textSecondary)
             TextField("Add any notes about this customer", text: $notes, axis: .vertical)
@@ -2528,7 +2554,8 @@ struct AddCustomerSheet: View {
             city: city.trimmingCharacters(in: .whitespaces),
             state: state.trimmingCharacters(in: .whitespaces),
             postalCode: zip.trimmingCharacters(in: .whitespaces),
-            notes: notes.isEmpty ? nil : notes
+            notes: notes.isEmpty ? nil : notes,
+            foodAllergies: foodAllergies.isEmpty ? nil : foodAllergies
         )
         isSaving = false
         onDismiss()
@@ -2547,6 +2574,7 @@ struct EditCustomerSheet: View {
     @State private var city: String = ""
     @State private var state: String = ""
     @State private var zip: String = ""
+    @State private var foodAllergies: String = ""
     @State private var notes: String = ""
     @State private var isSaving = false
 
@@ -2554,13 +2582,14 @@ struct EditCustomerSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text("Update this customer’s contact and address. All fields below are required.")
+                    Text("Update this customer’s contact and address. All fields are required except food allergies.")
                         .font(.subheadline)
                         .foregroundStyle(AppConstants.Colors.textSecondary)
                         .padding(.horizontal, 4)
 
                     editContactSection
                     editAddressSection
+                    editAllergiesSection
                     editNotesSection
 
                     PrimaryButton(
@@ -2596,6 +2625,7 @@ struct EditCustomerSheet: View {
                     zip = parsed.zip
                 }
                 notes = customer.notes ?? ""
+                foodAllergies = customer.foodAllergies ?? ""
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -2605,6 +2635,24 @@ struct EditCustomerSheet: View {
             }
             .macOSReduceSheetTitleGap()
         }
+    }
+
+    private var editAllergiesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            editFormSectionLabel("Food allergies")
+            Text("Optional. Shown for the kitchen on orders for this contact.")
+                .font(.caption)
+                .foregroundStyle(AppConstants.Colors.textSecondary)
+            TextField("e.g. peanuts, tree nuts, dairy", text: $foodAllergies, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                #if os(iOS)
+                .lineLimit(4...8)
+                #endif
+        }
+        .padding(AppConstants.Layout.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(AppConstants.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
     }
 
     private var editContactSection: some View {
@@ -2668,7 +2716,7 @@ struct EditCustomerSheet: View {
     private var editNotesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             editFormSectionLabel("Notes")
-            Text("Optional — dietary preferences, favorite orders, etc.")
+            Text("Optional — favorite orders, VIP notes, etc.")
                 .font(.caption)
                 .foregroundStyle(AppConstants.Colors.textSecondary)
             TextField("Add any notes about this customer", text: $notes, axis: .vertical)
@@ -2737,7 +2785,8 @@ struct EditCustomerSheet: View {
             city: city.trimmingCharacters(in: .whitespaces),
             state: state.trimmingCharacters(in: .whitespaces),
             postalCode: zip.trimmingCharacters(in: .whitespaces),
-            notes: notes.isEmpty ? nil : notes
+            notes: notes.isEmpty ? nil : notes,
+            foodAllergies: foodAllergies
         )
         isSaving = false
         onDismiss()
@@ -3163,6 +3212,93 @@ private extension Product {
     var stablePickerId: String { id ?? name }
 }
 
+/// Scrollable list for promo “Applies to” instead of a compact menu (long product lists).
+private struct AdminPromoAppliesToPickerPage: View {
+    @Binding var selection: String
+    let products: [Product]
+    var orphanedProductId: String?
+    @Environment(\.dismiss) private var dismiss
+
+    private var normalizedSelection: String {
+        selection.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func matches(_ productId: String) -> Bool {
+        normalizedSelection == productId.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        List {
+            Section {
+                Button {
+                    selection = ""
+                    dismiss()
+                } label: {
+                    HStack {
+                        Text("Any product (whole cart)")
+                            .foregroundStyle(AppConstants.Colors.textPrimary)
+                        Spacer()
+                        if normalizedSelection.isEmpty {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(AppConstants.Colors.accent)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            if let orphan = orphanedProductId?.trimmingCharacters(in: .whitespacesAndNewlines), !orphan.isEmpty {
+                Section {
+                    Button {
+                        selection = orphan
+                        dismiss()
+                    } label: {
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Unknown product — keep or replace")
+                                    .foregroundStyle(AppConstants.Colors.textPrimary)
+                                Text(orphan)
+                                    .font(.caption)
+                                    .foregroundStyle(AppConstants.Colors.textSecondary)
+                            }
+                            Spacer()
+                            if matches(orphan) {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(AppConstants.Colors.accent)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                } footer: {
+                    Text("This ID is not on your current menu. Pick a product below to reassign.")
+                        .font(.caption)
+                }
+            }
+            Section {
+                ForEach(products, id: \.stablePickerId) { p in
+                    let pid = p.id ?? ""
+                    Button {
+                        selection = pid
+                        dismiss()
+                    } label: {
+                        HStack {
+                            Text(p.name)
+                                .foregroundStyle(AppConstants.Colors.textPrimary)
+                            Spacer()
+                            if matches(pid) {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(AppConstants.Colors.accent)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .navigationTitle("Applies to")
+        .inlineNavigationTitle()
+    }
+}
+
 struct AddPromotionView: View {
     @ObservedObject var viewModel: AdminViewModel
     @Environment(\.dismiss) private var dismiss
@@ -3180,6 +3316,15 @@ struct AddPromotionView: View {
         viewModel.products
             .filter { ($0.id ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private var addPromoAppliesToSummary: String {
+        let t = appliesToProductId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.isEmpty { return "Whole cart" }
+        if let name = sortedMenuProductsForPromo.first(where: { ($0.id ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == t })?.name, !name.isEmpty {
+            return name
+        }
+        return t
     }
     
     var body: some View {
@@ -3199,19 +3344,31 @@ struct AddPromotionView: View {
                     Text("Code")
                 }
                 Section {
-                    Picker("Applies to", selection: $appliesToProductId) {
-                        Text("Any product (whole cart)").tag("")
-                        ForEach(sortedMenuProductsForPromo, id: \.stablePickerId) { p in
-                            Text(p.name).tag(p.id!)
+                    NavigationLink {
+                        AdminPromoAppliesToPickerPage(
+                            selection: $appliesToProductId,
+                            products: sortedMenuProductsForPromo,
+                            orphanedProductId: nil
+                        )
+                    } label: {
+                        HStack {
+                            Text("Applies to")
+                            Spacer()
+                            Text(addPromoAppliesToSummary)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
+                                .multilineTextAlignment(.trailing)
+                                .lineLimit(2)
                         }
                     }
-                    .pickerStyle(.menu)
                 } header: {
                     Text("Product scope")
                 } footer: {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Choose one menu item to limit the discount to that product’s line items, or leave as whole cart for a cart-wide promo.")
+                        Text("Tap to open the full product list (scrollable). Choose one item to limit the discount, or whole cart for a cart-wide promo.")
                             .font(.caption)
+                        Text("Free product: under Applies to pick that menu item, then set Type to Percent off and Value to 100. The customer must add that product to the cart; the discount removes its price for those line items.")
+                            .font(.caption)
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
                         if sortedMenuProductsForPromo.isEmpty {
                             Text("No catalog products with IDs loaded yet. Open the Products tab once, or pull to refresh, then try again.")
                                 .font(.caption)
@@ -3227,6 +3384,10 @@ struct AddPromotionView: View {
                     }
                 } header: {
                     Text("Type")
+                } footer: {
+                    Text("Percent off at 100 on a scoped product = that product is free (see Product scope tip). Fixed amount caps at the discounted subtotal.")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
                 }
                 if discountType != PromotionDiscountType.none.rawValue {
                     Section {
@@ -3237,6 +3398,10 @@ struct AddPromotionView: View {
                             .multilineTextAlignment(.leading)
                     } header: {
                         Text("Value")
+                    } footer: {
+                        Text("Use 100 with Percent off and a product under Applies to for a free item.")
+                            .font(.caption)
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
                     }
                 } else {
                     Section {
@@ -3343,6 +3508,16 @@ struct EditPromotionView: View {
         let inMenu = sortedMenuProductsForPromoEdit.contains { ($0.id ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == t }
         return inMenu ? nil : t
     }
+
+    private var editPromoAppliesToSummary: String {
+        let t = appliesToProductId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.isEmpty { return "Whole cart" }
+        if orphanedPromoProductId != nil { return "Unknown product" }
+        if let name = sortedMenuProductsForPromoEdit.first(where: { ($0.id ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == t })?.name, !name.isEmpty {
+            return name
+        }
+        return t
+    }
     
     init(promotion: Promotion, viewModel: AdminViewModel) {
         self.promotion = promotion
@@ -3382,22 +3557,31 @@ struct EditPromotionView: View {
                     Text("Code")
                 }
                 Section {
-                    Picker("Applies to", selection: $appliesToProductId) {
-                        Text("Any product (whole cart)").tag("")
-                        if let orphan = orphanedPromoProductId {
-                            Text("Unknown product — choose a replacement").tag(orphan)
-                        }
-                        ForEach(sortedMenuProductsForPromoEdit, id: \.stablePickerId) { p in
-                            Text(p.name).tag(p.id!)
+                    NavigationLink {
+                        AdminPromoAppliesToPickerPage(
+                            selection: $appliesToProductId,
+                            products: sortedMenuProductsForPromoEdit,
+                            orphanedProductId: orphanedPromoProductId
+                        )
+                    } label: {
+                        HStack {
+                            Text("Applies to")
+                            Spacer()
+                            Text(editPromoAppliesToSummary)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
+                                .multilineTextAlignment(.trailing)
+                                .lineLimit(2)
                         }
                     }
-                    .pickerStyle(.menu)
                 } header: {
                     Text("Product scope")
                 } footer: {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Restrict this code to one menu item, or whole cart for a cart-wide promo.")
+                        Text("Tap for the full scrollable product list. Restrict to one menu item, or whole cart for a cart-wide promo.")
                             .font(.caption)
+                        Text("Free product: under Applies to pick that menu item, then set Type to Percent off and Value to 100. The customer must add that product to the cart; the discount removes its price for those line items.")
+                            .font(.caption)
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
                         if sortedMenuProductsForPromoEdit.isEmpty {
                             Text("No catalog products with IDs loaded. Refresh products, then reopen this promo.")
                                 .font(.caption)
@@ -3413,6 +3597,10 @@ struct EditPromotionView: View {
                     }
                 } header: {
                     Text("Type")
+                } footer: {
+                    Text("Percent off at 100 on a scoped product = that product is free (see Product scope tip). Fixed amount caps at the discounted subtotal.")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
                 }
                 if discountType != PromotionDiscountType.none.rawValue {
                     Section {
@@ -3423,6 +3611,10 @@ struct EditPromotionView: View {
                             .multilineTextAlignment(.leading)
                     } header: {
                         Text("Value")
+                    } footer: {
+                        Text("Use 100 with Percent off and a product under Applies to for a free item.")
+                            .font(.caption)
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
                     }
                 } else {
                     Section {

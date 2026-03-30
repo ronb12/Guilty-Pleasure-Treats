@@ -19,6 +19,8 @@ struct SavedCustomer: Identifiable, Codable, Equatable, Hashable {
     var state: String?
     var postalCode: String?
     var notes: String?
+    /// Kitchen-facing note for saved contact (same intent as account food allergies).
+    var foodAllergies: String?
     var createdAt: String?
     var updatedAt: String?
 
@@ -34,6 +36,7 @@ struct SavedCustomer: Identifiable, Codable, Equatable, Hashable {
         case state
         case postalCode
         case notes
+        case foodAllergies
         case createdAt
         case updatedAt
     }

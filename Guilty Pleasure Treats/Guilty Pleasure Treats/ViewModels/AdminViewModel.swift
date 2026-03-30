@@ -730,10 +730,11 @@ final class AdminViewModel: ObservableObject {
         }
     }
 
-    func addSavedCustomer(name: String, phone: String, email: String?, street: String?, addressLine2: String?, city: String?, state: String?, postalCode: String?, notes: String?) async {
+    func addSavedCustomer(name: String, phone: String, email: String?, street: String?, addressLine2: String?, city: String?, state: String?, postalCode: String?, notes: String?, foodAllergies: String?) async {
         let n = name.trimmingCharacters(in: .whitespaces)
         guard !n.isEmpty else { return }
         do {
+            let allergyNote = foodAllergies?.trimmingCharacters(in: .whitespacesAndNewlines)
             let item = try await api.addSavedCustomer(
                 name: n,
                 phone: phone.trimmingCharacters(in: .whitespaces),
@@ -743,7 +744,8 @@ final class AdminViewModel: ObservableObject {
                 city: city?.trimmingCharacters(in: .whitespaces).isEmpty == true ? nil : city?.trimmingCharacters(in: .whitespaces),
                 state: state?.trimmingCharacters(in: .whitespaces).isEmpty == true ? nil : state?.trimmingCharacters(in: .whitespaces),
                 postalCode: postalCode?.trimmingCharacters(in: .whitespaces).isEmpty == true ? nil : postalCode?.trimmingCharacters(in: .whitespaces),
-                notes: notes?.trimmingCharacters(in: .whitespaces).isEmpty == true ? nil : notes
+                notes: notes?.trimmingCharacters(in: .whitespaces).isEmpty == true ? nil : notes,
+                foodAllergies: (allergyNote?.isEmpty == false) ? allergyNote : nil
             )
             savedCustomers.append(item)
             savedCustomers.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
@@ -754,7 +756,7 @@ final class AdminViewModel: ObservableObject {
         }
     }
 
-    func updateSavedCustomer(_ item: SavedCustomer, name: String?, phone: String?, email: String?, street: String?, addressLine2: String?, city: String?, state: String?, postalCode: String?, notes: String?) async {
+    func updateSavedCustomer(_ item: SavedCustomer, name: String?, phone: String?, email: String?, street: String?, addressLine2: String?, city: String?, state: String?, postalCode: String?, notes: String?, foodAllergies: String) async {
         guard let name = name?.trimmingCharacters(in: .whitespaces), !name.isEmpty else { return }
         do {
             try await api.updateSavedCustomer(
@@ -767,7 +769,8 @@ final class AdminViewModel: ObservableObject {
                 city: city?.trimmingCharacters(in: .whitespaces).isEmpty == true ? nil : city?.trimmingCharacters(in: .whitespaces),
                 state: state?.trimmingCharacters(in: .whitespaces).isEmpty == true ? nil : state?.trimmingCharacters(in: .whitespaces),
                 postalCode: postalCode?.trimmingCharacters(in: .whitespaces).isEmpty == true ? nil : postalCode?.trimmingCharacters(in: .whitespaces),
-                notes: notes?.trimmingCharacters(in: .whitespaces).isEmpty == true ? nil : notes
+                notes: notes?.trimmingCharacters(in: .whitespaces).isEmpty == true ? nil : notes,
+                foodAllergies: foodAllergies
             )
             successMessage = "Customer updated."
             await loadSavedCustomers()

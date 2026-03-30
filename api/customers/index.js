@@ -6,6 +6,14 @@ import { sql, hasDb } from '../../api/lib/db.js';
 import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
 import { setCors, handleOptions } from '../../api/lib/cors.js';
 
+async function ensureCustomersOptionalColumns(sql) {
+  try {
+    await sql`ALTER TABLE customers ADD COLUMN IF NOT EXISTS food_allergies TEXT`;
+  } catch (e) {
+    if (e?.code !== '42P01') console.warn('[customers] food_allergies column', e?.message ?? e);
+  }
+}
+
 function rowToCustomer(row) {
   if (!row) return null;
   return {
@@ -20,6 +28,10 @@ function rowToCustomer(row) {
     state: row.state ?? null,
     postalCode: row.postal_code ?? null,
     notes: row.notes ?? null,
+    foodAllergies:
+      row.food_allergies != null && String(row.food_allergies).trim() !== ''
+        ? String(row.food_allergies).trim()
+        : null,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
     updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : null,
   };
@@ -40,10 +52,12 @@ export default async function handler(req, res) {
   }
   if (!hasDb() || !sql) return res.status(503).json({ error: 'Service unavailable' });
 
+  await ensureCustomersOptionalColumns(sql);
+
   if ((req.method || '').toUpperCase() === 'GET') {
     try {
       const rows = await sql`
-        SELECT id, name, phone, email, address, street, address_line_2, city, state, postal_code, notes, created_at, updated_at
+        SELECT id, name, phone, email, address, street, address_line_2, city, state, postal_code, notes, food_allergies, created_at, updated_at
         FROM customers
         ORDER BY name ASC NULLS LAST
         LIMIT 2000
@@ -68,11 +82,14 @@ export default async function handler(req, res) {
     const state = body.state != null ? String(body.state).trim() || null : null;
     const postalCode = body.postalCode != null ? String(body.postalCode).trim() || null : null;
     const notes = body.notes != null ? String(body.notes).trim() || null : null;
+    const rawAllergies = body.foodAllergies ?? body.food_allergies ?? null;
+    const foodAllergies =
+      rawAllergies != null && String(rawAllergies).trim() !== '' ? String(rawAllergies).trim() : null;
     try {
       const [row] = await sql`
-        INSERT INTO customers (name, phone, email, street, address_line_2, city, state, postal_code, notes)
-        VALUES (${name}, ${phone}, ${email}, ${street}, ${addressLine2}, ${city}, ${state}, ${postalCode}, ${notes})
-        RETURNING id, name, phone, email, address, street, address_line_2, city, state, postal_code, notes, created_at, updated_at
+        INSERT INTO customers (name, phone, email, street, address_line_2, city, state, postal_code, notes, food_allergies)
+        VALUES (${name}, ${phone}, ${email}, ${street}, ${addressLine2}, ${city}, ${state}, ${postalCode}, ${notes}, ${foodAllergies})
+        RETURNING id, name, phone, email, address, street, address_line_2, city, state, postal_code, notes, food_allergies, created_at, updated_at
       `;
       return res.status(201).json(rowToCustomer(row));
     } catch (err) {
