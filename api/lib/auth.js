@@ -151,8 +151,7 @@ export async function getAuth(req) {
 }
 
 /**
- * Admin mutating routes: require a valid session and is_admin = true on the users row (DB is authoritative).
- * Avoids false "Admin required" when JWT/session snapshot disagrees with Neon (e.g. role updated after login).
+ * Admin mutating routes: valid session + is_admin (DB first; same id match as /api/users/me).
  */
 export async function getAdminAuth(req) {
   try {
@@ -160,15 +159,29 @@ export async function getAdminAuth(req) {
     if (!token) return null;
     const session = await getSession(token);
     if (!session?.userId) return null;
-    if (!hasDb() || !sql) return null;
-    const uid = String(session.userId);
+    const uid = String(session.userId).trim();
+    if (!uid) return null;
+
+    // Session-only admin (e.g. DB unavailable) — same idea as promotions POST
+    if (!hasDb() || !sql) {
+      return coerceAdminFlag(session.isAdmin) ? { userId: uid, isAdmin: true } : null;
+    }
+
     const rows = await awaitNeonRows(
-      sql`SELECT is_admin FROM users WHERE id = ${uid}::uuid LIMIT 1`,
+      sql`SELECT is_admin FROM users WHERE id::text = ${uid} LIMIT 1`,
       'getAdminAuth'
     );
     const row = rows[0];
-    if (!row || !coerceAdminFlag(row.is_admin)) return null;
-    return { userId: uid, isAdmin: true };
+    if (row) {
+      return coerceAdminFlag(row.is_admin) ? { userId: uid, isAdmin: true } : null;
+    }
+
+    // No row (id mismatch / migration edge): trust session from getSession/JWT+users join
+    if (coerceAdminFlag(session.isAdmin)) {
+      console.warn('[auth] getAdminAuth: no users row for id; allowing session.isAdmin', { uidLen: uid.length });
+      return { userId: uid, isAdmin: true };
+    }
+    return null;
   } catch (err) {
     console.error('[auth] getAdminAuth', err?.message ?? err);
     return null;
