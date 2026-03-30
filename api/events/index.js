@@ -2,16 +2,16 @@
  * GET /api/events - list upcoming events (start_at >= now, ordered by start_at).
  * POST /api/events - create event (admin only). Body: title, description?, start_at?, end_at?, image_url?, location?. Sends push to customers.
  */
-import { sql, hasDb, awaitNeonRows } from '../lib/db.js';
+import { sql, hasDb, awaitNeonRows } from '../../api/lib/db.js';
 import {
   getTokenFromRequest,
   getSession,
   coerceAdminFlag,
   sessionHasAdminAccessResolved,
-} from '../lib/auth.js';
+} from '../../api/lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
 import { ensureEventsTable } from '../lib/eventsSchema.js';
-import { insertEventRow } from '../lib/eventsCompat.js';
+import { insertEventRow } from '../../api/lib/eventsCompat.js';
 
 function rowToEvent(row) {
   if (!row) return null;

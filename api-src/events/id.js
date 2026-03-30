@@ -3,7 +3,7 @@
  * PATCH /api/events/:id - update event (admin only).
  * DELETE /api/events/:id - delete event (admin only).
  */
-import { sql, hasDb } from '../lib/db.js';
+import { sql, hasDb } from '../../api/lib/db.js';
 import { getTokenFromRequest, getSession, sessionHasAdminAccessResolved } from '../../api/lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
 import { ensureEventsTable } from '../lib/eventsSchema.js';
