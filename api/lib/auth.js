@@ -135,7 +135,8 @@ export async function sessionHasAdminAccessResolved(session, sqlTag) {
   }
   if (!row) return false;
   if (coerceAdminFlag(row.is_admin)) return true;
-  return emailMatchesAdminGrant(row.email);
+  if (emailMatchesAdminGrant(row.email)) return true;
+  return emailMatchesAdminGrant(session.email);
 }
 
 export async function createSession(userId) {

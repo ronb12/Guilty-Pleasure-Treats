@@ -3,7 +3,7 @@
  * PATCH /api/users/me — update displayName; addPoints / redeemPoints; admin may addPoints with targetUserId.
  */
 import { sql, hasDb } from '../../api/lib/db.js';
-import { getTokenFromRequest, getSession } from '../../api/lib/auth.js';
+import { getTokenFromRequest, getSession, sessionHasAdminAccessResolved } from '../../api/lib/auth.js';
 import { setCors, handleOptions } from '../../api/lib/cors.js';
 import { ensureLoyaltyRewardsTable } from '../../api/lib/loyaltyRewardsSchema.js';
 import { ensureNewsletterSuppressionsTable, normalizeMarketingEmail } from '../../api/lib/newsletterSuppressions.js';
@@ -27,7 +27,6 @@ function userResponse(row) {
     displayName: row.display_name ?? null,
     phone: row.phone ?? null,
     foodAllergies: row.food_allergies != null && String(row.food_allergies).trim() !== '' ? String(row.food_allergies).trim() : null,
-    isAdmin: Boolean(row.is_admin),
     points: Number(row.points ?? 0),
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
     marketingEmailOptIn: marketing,
@@ -75,7 +74,8 @@ export default async function handler(req, res) {
       } catch (e) {
         if (e?.code !== '42P01') console.error('[users/me] order count', e);
       }
-      return res.status(200).json({ ...userResponse(row), completedOrderCount });
+      const isAdmin = await sessionHasAdminAccessResolved(session, sql);
+      return res.status(200).json({ ...userResponse(row), isAdmin, completedOrderCount });
     } catch (err) {
       if (err?.code === '42703') {
         try {
@@ -103,7 +103,8 @@ export default async function handler(req, res) {
             if (e?.code !== '42P01') console.error('[users/me] order count', e);
           }
           const base = userResponse({ ...row, food_allergies: null });
-          return res.status(200).json({ ...base, completedOrderCount });
+          const isAdmin = await sessionHasAdminAccessResolved(session, sql);
+          return res.status(200).json({ ...base, isAdmin, completedOrderCount });
         } catch (e2) {
           console.error('[users/me] GET fallback', e2);
         }
@@ -219,7 +220,9 @@ export default async function handler(req, res) {
             )
           END AS marketing_email_opt_in
       `;
-      return res.status(200).json(userResponse(row));
+      const base = userResponse(row);
+      const isAdmin = await sessionHasAdminAccessResolved(session, sql);
+      return res.status(200).json({ ...base, isAdmin });
     } catch (err) {
       console.error('[users/me] PATCH', err);
       return res.status(500).json({ error: 'Update failed' });
