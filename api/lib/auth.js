@@ -10,6 +10,7 @@ const BCRYPT_ROUNDS = 10;
 export function coerceAdminFlag(value) {
   if (value === true) return true;
   if (value === false || value == null) return false;
+  if (typeof value === 'bigint') return value === 1n;
   if (typeof value === 'number') return value === 1;
   if (typeof value === 'string') {
     const s = value.trim().toLowerCase();
@@ -53,15 +54,16 @@ function isJWT(token) {
 }
 
 async function getSessionImpl(sessionId) {
-  if (!sessionId) return null;
+  const sid = sessionId != null ? String(sessionId).trim() : '';
+  if (!sid) return null;
   try {
-    if (isJWT(sessionId)) {
-      const payload = await verifyNeonJWT(sessionId);
+    if (isJWT(sid)) {
+      const payload = await verifyNeonJWT(sid);
       if (!payload) return null;
       const user = await getOrCreateUserFromNeonPayload(payload);
       if (!user) return null;
       return {
-        id: sessionId,
+        id: sid,
         userId: user.id,
         expiresAt: null,
         email: user.email,
@@ -76,8 +78,8 @@ async function getSessionImpl(sessionId) {
       sql`
       SELECT s.id, s.user_id, s.expires_at, u.email, u.display_name, u.phone, u.is_admin, u.points
       FROM sessions s
-      JOIN users u ON u.id = s.user_id
-      WHERE s.id = ${sessionId} AND s.expires_at > NOW()
+      JOIN users u ON u.id::text = trim(both from s.user_id::text)
+      WHERE s.id = ${sid} AND s.expires_at > NOW()
       LIMIT 1
     `,
       'getSession'
@@ -122,11 +124,19 @@ export async function deleteSession(sessionId) {
 /** Get Bearer token from Authorization header or cookie */
 export function getTokenFromRequest(req) {
   const auth = req.headers?.authorization;
-  if (auth && auth.startsWith('Bearer ')) return auth.slice(7);
+  if (auth && /^Bearer\s+/i.test(String(auth))) {
+    return String(auth).replace(/^Bearer\s+/i, '').trim();
+  }
   const cookie = req.headers?.cookie;
   if (cookie) {
     const m = cookie.match(/\bsession=([^;]+)/);
-    if (m) return m[1];
+    if (m) {
+      try {
+        return decodeURIComponent(m[1].trim());
+      } catch {
+        return m[1].trim();
+      }
+    }
   }
   return null;
 }

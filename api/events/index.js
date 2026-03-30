@@ -3,7 +3,7 @@
  * POST /api/events - create event (admin only). Body: title, description?, start_at?, end_at?, image_url?, location?. Sends push to customers.
  */
 import { sql, hasDb } from '../lib/db.js';
-import { getTokenFromRequest, getSession, getAdminAuth } from '../lib/auth.js';
+import { getTokenFromRequest, getSession, coerceAdminFlag } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
 import { ensureEventsTable } from '../lib/eventsSchema.js';
 
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
       const token = getTokenFromRequest(req);
       const session = token ? await getSession(token) : null;
       const allEvents =
-        session?.isAdmin === true &&
+        coerceAdminFlag(session?.isAdmin) &&
         (String(req.query?.all ?? req.query?.admin ?? '').trim() === '1' ||
           String(req.query?.all ?? '').toLowerCase() === 'true');
       const rows = allEvents
@@ -63,19 +63,19 @@ export default async function handler(req, res) {
 
   if ((req.method || '').toUpperCase() === 'POST') {
     const token = getTokenFromRequest(req);
-    const auth = await getAdminAuth(req);
-    if (!auth?.userId || !auth.isAdmin) {
+    const session = token ? await getSession(token) : null;
+    if (!session?.userId || !coerceAdminFlag(session.isAdmin)) {
       const parts = token ? String(token).split('.') : [];
       const tokenKind = !token ? 'none' : parts.length === 3 ? 'jwt' : 'session';
       let reason = 'unknown';
       if (!token) reason = 'no_token';
-      else if (!auth?.userId) reason = 'invalid_or_expired_session_or_not_admin';
-      else if (!auth.isAdmin) reason = 'user_not_admin';
+      else if (!session?.userId) reason = 'invalid_or_expired_session';
+      else if (!coerceAdminFlag(session.isAdmin)) reason = 'user_not_admin';
       console.warn('[events] POST auth failed (Admin required)', {
-        hasBearerHeader: Boolean(req.headers?.authorization?.startsWith?.('Bearer ')),
+        hasBearerHeader: Boolean(req.headers?.authorization && /^Bearer\s+/i.test(String(req.headers.authorization))),
         tokenKind,
-        hasUserId: Boolean(auth?.userId),
-        isAdmin: auth?.isAdmin === true,
+        hasUserId: Boolean(session?.userId),
+        isAdminCoerced: coerceAdminFlag(session?.isAdmin),
         reason,
       });
       return res.status(403).json({ error: 'Admin required' });
