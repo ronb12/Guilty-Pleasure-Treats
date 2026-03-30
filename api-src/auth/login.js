@@ -9,7 +9,7 @@
  */
 import { neonAuthSignIn, isNeonAuthConfigured } from '../../api/lib/neonAuth.js';
 import { createSession, verifyPassword, sessionHasAdminAccess, coerceAdminFlag } from '../../api/lib/auth.js';
-import { sql, hasDb } from '../../api/lib/db.js';
+import { sql, hasDb, awaitNeonRows } from '../../api/lib/db.js';
 
 function json(res, status, data) {
   res.setHeader('Content-Type', 'application/json');
@@ -41,14 +41,17 @@ export default async function handler(req, res) {
 
     // If Neon Auth fails, try public.users (password_hash) so dashboard-set passwords work
     if ((!result || !result.token || !result.user) && hasDb() && sql) {
-      const dbUsers = await sql`
+      const dbUsers = await awaitNeonRows(
+        sql`
         SELECT id, email, display_name, phone, is_admin, points, password_hash
         FROM users
         WHERE LOWER(email) = ${email.toLowerCase()} AND password_hash IS NOT NULL
         LIMIT 1
-      `;
+      `,
+        'login_db_password_user'
+      );
       const userRow = dbUsers[0];
-      if (userRow && await verifyPassword(password, userRow.password_hash)) {
+      if (userRow && (await verifyPassword(password, userRow.password_hash))) {
         const session = await createSession(userRow.id);
         if (session) {
           result = {
@@ -71,14 +74,20 @@ export default async function handler(req, res) {
       const fallbackEmail = (process.env.ADMIN_FALLBACK_EMAIL || '').trim().toLowerCase();
       const fallbackPassword = process.env.ADMIN_FALLBACK_PASSWORD || '';
       if (fallbackEmail && fallbackPassword && email.toLowerCase() === fallbackEmail && password === fallbackPassword) {
-        let rows = await sql`SELECT id, email, display_name, phone, is_admin, points FROM users WHERE LOWER(email) = ${fallbackEmail} LIMIT 1`;
+        let rows = await awaitNeonRows(
+          sql`SELECT id, email, display_name, phone, is_admin, points FROM users WHERE LOWER(email) = ${fallbackEmail} LIMIT 1`,
+          'login_admin_fallback_lookup'
+        );
         let userRow = rows[0];
         if (!userRow) {
-          const insertRows = await sql`
+          const insertRows = await awaitNeonRows(
+            sql`
             INSERT INTO users (email, display_name, is_admin, points)
             VALUES (${email}, 'Admin', true, 0)
             RETURNING id, email, display_name, is_admin, points
-          `;
+          `,
+            'login_admin_fallback_insert'
+          );
           userRow = insertRows[0];
         }
         if (userRow) {

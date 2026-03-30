@@ -24,7 +24,13 @@ export async function hashPassword(password) {
 }
 
 export async function verifyPassword(password, hash) {
-  return bcrypt.compare(password, hash);
+  if (hash == null || typeof hash !== 'string' || hash.length < 10) return false;
+  try {
+    return await bcrypt.compare(String(password), hash);
+  } catch (e) {
+    console.error('[auth] verifyPassword', e?.message ?? e);
+    return false;
+  }
 }
 
 /** Store sessions.user_id (TEXT) in the same shape as users.id::text so JOINs match. */

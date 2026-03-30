@@ -139,35 +139,46 @@ async function getOrCreateUserFromNeonPayloadImplBody(payload) {
 
 /**
  * Proxy sign-in to Neon Auth: POST sign-in/email, then GET token (with cookie), return JWT + user.
+ * Never throws — network/JSON/JWKS failures return null so login can fall back to DB password.
  */
 export async function neonAuthSignIn(email, password) {
   if (!NEON_AUTH_URL) return null;
-  const origin = getAuthOrigin();
-  const signInRes = await fetch(`${NEON_AUTH_URL}/sign-in/email`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Origin: origin },
-    body: JSON.stringify({
-      email: String(email).trim(),
-      password: String(password),
-    }),
-    redirect: 'manual',
-  });
-  const setCookie = signInRes.headers.get('set-cookie') || signInRes.headers.get('Set-Cookie');
-  const cookieValue = setCookie ? setCookie.split(';')[0].trim() : null;
-  if (!cookieValue || !signInRes.ok) return null;
-  const tokenRes = await fetch(`${NEON_AUTH_URL}/token`, {
-    method: 'GET',
-    headers: { Cookie: cookieValue },
-  });
-  if (!tokenRes.ok) return null;
-  const tokenJson = await tokenRes.json();
-  const jwt = tokenJson?.token;
-  if (!jwt) return null;
-  const payload = await verifyNeonJWT(jwt);
-  if (!payload) return null;
-  const user = await getOrCreateUserFromNeonPayload(payload);
-  if (!user) return null;
-  return { token: jwt, user };
+  try {
+    const origin = getAuthOrigin();
+    const signInRes = await fetch(`${NEON_AUTH_URL}/sign-in/email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: origin },
+      body: JSON.stringify({
+        email: String(email).trim(),
+        password: String(password),
+      }),
+      redirect: 'manual',
+    });
+    const setCookie = signInRes.headers.get('set-cookie') || signInRes.headers.get('Set-Cookie');
+    const cookieValue = setCookie ? setCookie.split(';')[0].trim() : null;
+    if (!cookieValue || !signInRes.ok) return null;
+    const tokenRes = await fetch(`${NEON_AUTH_URL}/token`, {
+      method: 'GET',
+      headers: { Cookie: cookieValue },
+    });
+    if (!tokenRes.ok) return null;
+    let tokenJson;
+    try {
+      tokenJson = await tokenRes.json();
+    } catch {
+      return null;
+    }
+    const jwt = tokenJson?.token;
+    if (!jwt) return null;
+    const payload = await verifyNeonJWT(jwt);
+    if (!payload) return null;
+    const user = await getOrCreateUserFromNeonPayload(payload);
+    if (!user) return null;
+    return { token: jwt, user };
+  } catch (e) {
+    console.error('[neonAuth] signIn', e?.message ?? e);
+    return null;
+  }
 }
 
 /**
