@@ -3,7 +3,7 @@
  * POST /api/events - create event (admin only). Body: title, description?, start_at?, end_at?, image_url?, location?. Sends push to customers.
  */
 import { sql, hasDb } from '../lib/db.js';
-import { getTokenFromRequest, getSession, getAuth } from '../lib/auth.js';
+import { getTokenFromRequest, getSession, getAdminAuth } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
 import { ensureEventsTable } from '../lib/eventsSchema.js';
 
@@ -63,13 +63,13 @@ export default async function handler(req, res) {
 
   if ((req.method || '').toUpperCase() === 'POST') {
     const token = getTokenFromRequest(req);
-    const auth = await getAuth(req);
+    const auth = await getAdminAuth(req);
     if (!auth?.userId || !auth.isAdmin) {
       const parts = token ? String(token).split('.') : [];
       const tokenKind = !token ? 'none' : parts.length === 3 ? 'jwt' : 'session';
       let reason = 'unknown';
       if (!token) reason = 'no_token';
-      else if (!auth?.userId) reason = 'invalid_or_expired_session';
+      else if (!auth?.userId) reason = 'invalid_or_expired_session_or_not_admin';
       else if (!auth.isAdmin) reason = 'user_not_admin';
       console.warn('[events] POST auth failed (Admin required)', {
         hasBearerHeader: Boolean(req.headers?.authorization?.startsWith?.('Bearer ')),

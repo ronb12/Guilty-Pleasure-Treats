@@ -137,14 +137,16 @@ export default async function handler(req, res) {
 
   const token = getTokenFromRequest(req);
   const session = token ? await getSession(token) : null;
+  const isAdmin = session?.isAdmin === true;
   const includeInactive =
     req.query?.includeInactive === '1' || req.query?.include_inactive === '1';
-  const asAdmin = session?.isAdmin === true && includeInactive;
+  /** GET only: include hidden rewards when admin passes includeInactive=1 */
+  const listAllForAdmin = isAdmin && includeInactive;
 
   if ((req.method || '').toUpperCase() === 'GET') {
     try {
       await ensureLoyaltyRewardsTable(sql);
-      const rows = await fetchRewardsJoined(sql, { asAdmin });
+      const rows = await fetchRewardsJoined(sql, { asAdmin: listAllForAdmin });
       return res.status(200).json((rows || []).map(mapJoinedRow));
     } catch (err) {
       if (err?.code === '42P01') return res.status(200).json([]);
@@ -154,7 +156,7 @@ export default async function handler(req, res) {
   }
 
   if ((req.method || '').toUpperCase() === 'POST') {
-    if (!asAdmin) return res.status(403).json({ error: 'Admin required' });
+    if (!isAdmin) return res.status(403).json({ error: 'Admin required' });
     const body = req.body || {};
     const name = String(body.name ?? '').trim();
     const pointsRequired = Math.trunc(Number(body.pointsRequired ?? body.points_required ?? 0));

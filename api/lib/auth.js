@@ -149,3 +149,28 @@ export async function getAuth(req) {
     return null;
   });
 }
+
+/**
+ * Admin mutating routes: require a valid session and is_admin = true on the users row (DB is authoritative).
+ * Avoids false "Admin required" when JWT/session snapshot disagrees with Neon (e.g. role updated after login).
+ */
+export async function getAdminAuth(req) {
+  try {
+    const token = getTokenFromRequest(req);
+    if (!token) return null;
+    const session = await getSession(token);
+    if (!session?.userId) return null;
+    if (!hasDb() || !sql) return null;
+    const uid = String(session.userId);
+    const rows = await awaitNeonRows(
+      sql`SELECT is_admin FROM users WHERE id = ${uid}::uuid LIMIT 1`,
+      'getAdminAuth'
+    );
+    const row = rows[0];
+    if (!row || !coerceAdminFlag(row.is_admin)) return null;
+    return { userId: uid, isAdmin: true };
+  } catch (err) {
+    console.error('[auth] getAdminAuth', err?.message ?? err);
+    return null;
+  }
+}

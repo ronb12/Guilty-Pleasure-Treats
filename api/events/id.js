@@ -4,7 +4,7 @@
  * DELETE /api/events/:id - delete event (admin only).
  */
 import { sql, hasDb } from '../lib/db.js';
-import { getAuth } from '../lib/auth.js';
+import { getAdminAuth } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
 import { ensureEventsTable } from '../lib/eventsSchema.js';
 
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
   }
 
   if ((req.method || '').toUpperCase() === 'PATCH' || (req.method || '').toUpperCase() === 'DELETE') {
-    const auth = await getAuth(req);
+    const auth = await getAdminAuth(req);
     if (!auth?.userId || !auth.isAdmin) return res.status(403).json({ error: 'Admin required' });
 
     try {
