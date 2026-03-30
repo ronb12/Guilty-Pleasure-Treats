@@ -162,6 +162,12 @@ async function getSessionImpl(sessionId) {
       const u = freshList[0] || user;
       const jwtUid = canonicalUserIdForSession(u.id) || String(u.id).trim();
       if (!jwtUid) return null;
+      // Match /api/auth/login + /api/auth/apple: isAdmin includes ADMIN_GRANT_EMAILS, not only users.is_admin.
+      const isAdmin = sessionHasAdminAccess({
+        userId: jwtUid,
+        email: u.email ?? null,
+        isAdmin: u.is_admin,
+      });
       return {
         id: sid,
         userId: jwtUid,
@@ -169,7 +175,7 @@ async function getSessionImpl(sessionId) {
         email: u.email,
         displayName: u.display_name,
         phone: u.phone ?? null,
-        isAdmin: coerceAdminFlag(u.is_admin),
+        isAdmin,
         points: u.points ?? 0,
       };
     }
@@ -203,6 +209,11 @@ async function getSessionImpl(sessionId) {
     if (!row) return null;
     const resolvedUid = row.id != null ? String(row.id).trim() : '';
     if (!resolvedUid) return null;
+    const isAdmin = sessionHasAdminAccess({
+      userId: resolvedUid,
+      email: row.email ?? null,
+      isAdmin: row.is_admin,
+    });
     return {
       id: srow.id,
       userId: resolvedUid,
@@ -210,7 +221,7 @@ async function getSessionImpl(sessionId) {
       email: row.email,
       displayName: row.display_name,
       phone: row.phone ?? null,
-      isAdmin: coerceAdminFlag(row.is_admin),
+      isAdmin,
       points: row.points ?? 0,
     };
   } catch (err) {
