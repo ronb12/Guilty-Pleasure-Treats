@@ -38,6 +38,20 @@ export function canonicalUserIdForSession(userId) {
   return raw;
 }
 
+function adminGrantEmailList() {
+  return (process.env.ADMIN_GRANT_EMAILS || '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/** True if `email` is listed in ADMIN_GRANT_EMAILS (case-insensitive). */
+function emailMatchesAdminGrant(email) {
+  const list = adminGrantEmailList();
+  if (list.length === 0 || !email || typeof email !== 'string') return false;
+  return list.includes(email.trim().toLowerCase());
+}
+
 /**
  * True if DB says admin, or session email is in ADMIN_GRANT_EMAILS (comma-separated, case-insensitive).
  * Set in Vercel when `users.is_admin` was never set for the owner row.
@@ -45,19 +59,13 @@ export function canonicalUserIdForSession(userId) {
 export function sessionHasAdminAccess(session) {
   if (!session?.userId) return false;
   if (coerceAdminFlag(session.isAdmin)) return true;
-  const email = session.email;
-  if (!email || typeof email !== 'string') return false;
-  const list = (process.env.ADMIN_GRANT_EMAILS || '')
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean);
-  if (list.length === 0) return false;
-  return list.includes(email.trim().toLowerCase());
+  return emailMatchesAdminGrant(session.email);
 }
 
 /**
- * Same as sessionHasAdminAccess, then reads `users.is_admin` by session.userId when the in-memory flag is wrong
- * (JWT/session drift, driver types). Use for mutating admin routes so UI “admin” matches Neon.
+ * Same as sessionHasAdminAccess, then reads `users.is_admin` (+ email) by session.userId when the in-memory flag is wrong
+ * (JWT/session drift, driver types). Also applies ADMIN_GRANT_EMAILS to the DB email when session.email was empty.
+ * Matches `neon_auth_id` so a subject-shaped id still resolves when linked.
  */
 export async function sessionHasAdminAccessResolved(session, sqlTag) {
   if (!session?.userId) return false;
@@ -68,15 +76,26 @@ export async function sessionHasAdminAccessResolved(session, sqlTag) {
   const canon = canonicalUserIdForSession(rawUid);
   const rows = await awaitNeonRows(
     sqlTag`
-      SELECT is_admin FROM users u
+      SELECT is_admin, email FROM users u
       WHERE lower(u.id::text) = lower(${canon})
          OR lower(u.id::text) = lower(${rawUid})
          OR lower(replace(u.id::text, '-', '')) = lower(replace(${rawUid}, '-', ''))
+         OR (
+           u.neon_auth_id IS NOT NULL
+           AND (
+             TRIM(u.neon_auth_id) = TRIM(${rawUid})
+             OR LOWER(TRIM(u.neon_auth_id)) = LOWER(TRIM(${rawUid}))
+             OR REPLACE(TRIM(u.neon_auth_id), '-', '') = REPLACE(TRIM(${rawUid}), '-', '')
+           )
+         )
       LIMIT 1
     `,
     'session_resolve_is_admin'
   );
-  return coerceAdminFlag(rows[0]?.is_admin);
+  const row = rows[0];
+  if (!row) return false;
+  if (coerceAdminFlag(row.is_admin)) return true;
+  return emailMatchesAdminGrant(row.email);
 }
 
 export async function createSession(userId) {
