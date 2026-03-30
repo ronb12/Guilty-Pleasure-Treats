@@ -3014,6 +3014,8 @@ private struct AddLoyaltyRewardView: View {
     @State private var productId = ""
     @State private var sortOrderText = "0"
     @State private var isActive = true
+    /// Empty string = no template applied yet (dropdown “None”).
+    @State private var selectedLoyaltyQuickTemplateId: String = ""
 
     private var productsWithIds: [Product] {
         viewModel.products.filter { ($0.id ?? "").isEmpty == false }
@@ -3030,28 +3032,21 @@ private struct AddLoyaltyRewardView: View {
                     }
                 }
                 Section {
-                    ForEach(LoyaltyRewardQuickTemplate.all) { t in
-                        Button {
-                            applyLoyaltyQuickTemplate(t)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(t.title)
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(AppConstants.Colors.textPrimary)
-                                Text(t.subtitle)
-                                    .font(.caption)
-                                    .foregroundStyle(AppConstants.Colors.textSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    Picker("Template", selection: $selectedLoyaltyQuickTemplateId) {
+                        Text("None").tag("")
+                        ForEach(LoyaltyRewardQuickTemplate.all) { t in
+                            Text(t.title).tag(t.id)
                         }
-                        .buttonStyle(.plain)
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: selectedLoyaltyQuickTemplateId) { _, newId in
+                        guard !newId.isEmpty, let t = LoyaltyRewardQuickTemplate.all.first(where: { $0.id == newId }) else { return }
+                        applyLoyaltyQuickTemplate(t)
                     }
                 } header: {
                     Text("Quick start")
                 } footer: {
-                    Text("Tap a template to fill name, points, and sort order. Choose the free product below (defaults to first menu item if needed).")
+                    Text("Choose a preset from the menu to fill name, points, and sort order. Pick the free product below (defaults to first menu item if needed).")
                         .font(.caption)
                 }
                 Section {
@@ -3347,6 +3342,8 @@ struct AddPromotionView: View {
     @State private var firstOrderOnly = false
     /// Empty = all products; otherwise catalog product id.
     @State private var appliesToProductId: String = ""
+    /// Empty = no template chosen (dropdown “None”).
+    @State private var selectedPromoQuickTemplateId: String = ""
 
     private var sortedMenuProductsForPromo: [Product] {
         viewModel.products
@@ -3374,28 +3371,21 @@ struct AddPromotionView: View {
                     }
                 }
                 Section {
-                    ForEach(PromoQuickTemplate.all) { t in
-                        Button {
-                            applyPromoQuickTemplate(t)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(t.title)
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(AppConstants.Colors.textPrimary)
-                                Text(t.subtitle)
-                                    .font(.caption)
-                                    .foregroundStyle(AppConstants.Colors.textSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    Picker("Template", selection: $selectedPromoQuickTemplateId) {
+                        Text("None").tag("")
+                        ForEach(PromoQuickTemplate.all) { t in
+                            Text(t.title).tag(t.id)
                         }
-                        .buttonStyle(.plain)
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: selectedPromoQuickTemplateId) { _, newId in
+                        guard !newId.isEmpty, let t = PromoQuickTemplate.all.first(where: { $0.id == newId }) else { return }
+                        applyPromoQuickTemplate(t)
                     }
                 } header: {
                     Text("Quick start")
                 } footer: {
-                    Text("Tap a template to fill suggested fields. Change the code if it’s already taken. For “Free menu item”, open Applies to and choose the product.")
+                    Text("Choose a preset from the menu to fill suggested fields. Change the code if it’s already taken. For “Free menu item”, open Applies to and choose the product.")
                         .font(.caption)
                 }
                 Section {

@@ -1078,6 +1078,13 @@ final class AdminViewModel: ObservableObject {
             await loadEvents()
             return true
         } catch {
+            #if DEBUG
+            if let v = error as? VercelAPIError {
+                print("[Events] createEvent failed: \(v.supportDebugText)")
+            } else {
+                print("[Events] createEvent failed: \(error)")
+            }
+            #endif
             errorMessage = FriendlyErrorMessage.message(for: error)
             return false
         }

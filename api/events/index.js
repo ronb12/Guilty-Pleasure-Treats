@@ -62,8 +62,24 @@ export default async function handler(req, res) {
   }
 
   if ((req.method || '').toUpperCase() === 'POST') {
+    const token = getTokenFromRequest(req);
     const auth = await getAuth(req);
-    if (!auth?.userId || !auth.isAdmin) return res.status(403).json({ error: 'Admin required' });
+    if (!auth?.userId || !auth.isAdmin) {
+      const parts = token ? String(token).split('.') : [];
+      const tokenKind = !token ? 'none' : parts.length === 3 ? 'jwt' : 'session';
+      let reason = 'unknown';
+      if (!token) reason = 'no_token';
+      else if (!auth?.userId) reason = 'invalid_or_expired_session';
+      else if (!auth.isAdmin) reason = 'user_not_admin';
+      console.warn('[events] POST auth failed (Admin required)', {
+        hasBearerHeader: Boolean(req.headers?.authorization?.startsWith?.('Bearer ')),
+        tokenKind,
+        hasUserId: Boolean(auth?.userId),
+        isAdmin: auth?.isAdmin === true,
+        reason,
+      });
+      return res.status(403).json({ error: 'Admin required' });
+    }
     if (!hasDb() || !sql) return res.status(503).json({ error: 'Service unavailable' });
 
     try {

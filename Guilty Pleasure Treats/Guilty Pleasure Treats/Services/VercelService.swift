@@ -1592,8 +1592,16 @@ extension VercelService {
 
     /// Create event (admin). POST /api/events. Customers receive push notification.
     func createEvent(_ event: Event) async throws -> Event {
-        guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
+        guard let base = baseURL, let token = authToken else {
+            #if DEBUG
+            print("[Events] createEvent: missing baseURL or authToken (signed in?)")
+            #endif
+            throw VercelNotConfiguredError()
+        }
         let url = base.appendingPathComponent("api/events")
+        #if DEBUG
+        print("[Events] createEvent POST \(url.absoluteString) tokenLength=\(token.count)")
+        #endif
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -1607,6 +1615,12 @@ extension VercelService {
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
+        #if DEBUG
+        if !(200...299).contains(http.statusCode) {
+            let snippet = String(data: data, encoding: .utf8).map { String($0.prefix(500)) } ?? ""
+            print("[Events] createEvent HTTP \(http.statusCode) body: \(snippet)")
+        }
+        #endif
         try validateResponse(http, data: data)
         return try decoder.decode(Event.self, from: data)
     }
