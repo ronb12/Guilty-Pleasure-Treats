@@ -65,10 +65,13 @@ export function sessionHasAdminAccess(session) {
 /**
  * Same as sessionHasAdminAccess, then reads `users.is_admin` (+ email) by session.userId when the in-memory flag is wrong
  * (JWT/session drift, driver types). Also applies ADMIN_GRANT_EMAILS to the DB email when session.email was empty.
- * Matches `neon_auth_id` so a subject-shaped id still resolves when linked.
+ * Any truthy `session.isAdmin` matches POST /api/products (`if (!session?.isAdmin)`).
+ * `neon_auth_id` is queried in a second statement so a missing column cannot invalidate the whole lookup.
  */
 export async function sessionHasAdminAccessResolved(session, sqlTag) {
   if (!session?.userId) return false;
+  // Loose truthy check — same effective rule as api/products.js POST.
+  if (session.isAdmin) return true;
   if (sessionHasAdminAccess(session)) return true;
   if (!sqlTag) return false;
   const rawUid = String(session.userId).trim();
@@ -80,19 +83,27 @@ export async function sessionHasAdminAccessResolved(session, sqlTag) {
       WHERE lower(u.id::text) = lower(${canon})
          OR lower(u.id::text) = lower(${rawUid})
          OR lower(replace(u.id::text, '-', '')) = lower(replace(${rawUid}, '-', ''))
-         OR (
-           u.neon_auth_id IS NOT NULL
-           AND (
-             TRIM(u.neon_auth_id) = TRIM(${rawUid})
-             OR LOWER(TRIM(u.neon_auth_id)) = LOWER(TRIM(${rawUid}))
-             OR REPLACE(TRIM(u.neon_auth_id), '-', '') = REPLACE(TRIM(${rawUid}), '-', '')
-           )
-         )
       LIMIT 1
     `,
-    'session_resolve_is_admin'
+    'session_resolve_is_admin_by_id'
   );
-  const row = rows[0];
+  let row = rows[0];
+  if (!row) {
+    const byNeon = await awaitNeonRows(
+      sqlTag`
+        SELECT is_admin, email FROM users u
+        WHERE u.neon_auth_id IS NOT NULL
+          AND (
+            TRIM(u.neon_auth_id) = TRIM(${rawUid})
+            OR LOWER(TRIM(u.neon_auth_id)) = LOWER(TRIM(${rawUid}))
+            OR REPLACE(TRIM(u.neon_auth_id), '-', '') = REPLACE(TRIM(${rawUid}), '-', '')
+          )
+        LIMIT 1
+      `,
+      'session_resolve_is_admin_by_neon_id'
+    );
+    row = byNeon[0];
+  }
   if (!row) return false;
   if (coerceAdminFlag(row.is_admin)) return true;
   return emailMatchesAdminGrant(row.email);

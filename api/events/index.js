@@ -48,9 +48,7 @@ export default async function handler(req, res) {
       if (wantsAll) {
         if (!token) return res.status(401).json({ error: 'Unauthorized', code: 'no_token' });
         if (!session?.userId) return res.status(401).json({ error: 'Unauthorized', code: 'invalid_session' });
-        // Match POST /api/products: trust getSession().isAdmin first, then DB/grant fallback (avoids false 403 if the extra query fails).
-        const adminOk =
-          !!session?.isAdmin || (await sessionHasAdminAccessResolved(session, sql));
+        const adminOk = await sessionHasAdminAccessResolved(session, sql);
         if (!adminOk) {
           return res.status(403).json({ error: 'Admin required', code: 'not_admin' });
         }
@@ -97,8 +95,7 @@ export default async function handler(req, res) {
       console.warn('[events] POST auth failed', { reason: 'invalid_or_expired_session', tokenKind });
       return res.status(401).json({ error: 'Unauthorized', code: 'invalid_session' });
     }
-    const allowed =
-      !!session?.isAdmin || (await sessionHasAdminAccessResolved(session, sql));
+    const allowed = await sessionHasAdminAccessResolved(session, sql);
     if (!allowed) {
       console.warn('[events] POST auth failed (not admin)', {
         hasUserId: true,

@@ -54,8 +54,7 @@ export default async function handler(req, res) {
     const session = token ? await getSession(token) : null;
     if (!token) return res.status(401).json({ error: 'Unauthorized', code: 'no_token' });
     if (!session?.userId) return res.status(401).json({ error: 'Unauthorized', code: 'invalid_session' });
-    const allowed =
-      !!session?.isAdmin || (await sessionHasAdminAccessResolved(session, sql));
+    const allowed = await sessionHasAdminAccessResolved(session, sql);
     if (!allowed) {
       return res.status(403).json({ error: 'Admin required', code: 'not_admin' });
     }
