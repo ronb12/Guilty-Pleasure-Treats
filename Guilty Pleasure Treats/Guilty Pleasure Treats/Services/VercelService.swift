@@ -1590,17 +1590,17 @@ extension VercelService {
         }
     }
 
-    /// Create event (admin). POST /api/events. Customers receive push notification.
-    func createEvent(_ event: Event) async throws -> Event {
+    /// Create event (admin). POST /api/events — same pattern as `addProduct`: Bearer JSON body, return server id.
+    func addEvent(_ event: Event) async throws -> String {
         guard let base = baseURL, let token = authToken else {
             #if DEBUG
-            print("[Events] createEvent: missing baseURL or authToken (signed in?)")
+            print("[Events] addEvent: missing baseURL or authToken (signed in?)")
             #endif
             throw VercelNotConfiguredError()
         }
         let url = base.appendingPathComponent("api/events")
         #if DEBUG
-        print("[Events] createEvent POST \(url.absoluteString) tokenLength=\(token.count)")
+        print("[Events] addEvent POST \(url.absoluteString) tokenLength=\(token.count)")
         #endif
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
@@ -1618,11 +1618,16 @@ extension VercelService {
         #if DEBUG
         if !(200...299).contains(http.statusCode) {
             let snippet = String(data: data, encoding: .utf8).map { String($0.prefix(500)) } ?? ""
-            print("[Events] createEvent HTTP \(http.statusCode) body: \(snippet)")
+            print("[Events] addEvent HTTP \(http.statusCode) body: \(snippet)")
         }
         #endif
         try validateResponse(http, data: data)
-        return try decoder.decode(Event.self, from: data)
+        let j = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let id = Self.stringId(from: j?["id"])
+        guard let id, !id.isEmpty else {
+            throw VercelAPIError(message: "Server did not return an event id. Try again or check the API.", statusCode: http.statusCode, requestId: nil, debugCopyPayload: nil)
+        }
+        return id
     }
 
     /// Update event (admin). PATCH /api/events/:id.

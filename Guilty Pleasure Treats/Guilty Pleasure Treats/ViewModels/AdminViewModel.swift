@@ -1063,6 +1063,8 @@ final class AdminViewModel: ObservableObject {
 
     @discardableResult
     func createEvent(title: String, eventDescription: String?, startAt: Date?, endAt: Date?, imageURL: String?, location: String?) async -> Bool {
+        errorMessage = nil
+        successMessage = nil
         let event = Event(
             id: "",
             title: title,
@@ -1074,16 +1076,16 @@ final class AdminViewModel: ObservableObject {
             createdAt: nil
         )
         do {
-            _ = try await api.createEvent(event)
+            _ = try await api.addEvent(event)
             successMessage = "Event created. Customers will be notified."
             await loadEvents()
             return true
         } catch {
             #if DEBUG
             if let v = error as? VercelAPIError {
-                print("[Events] createEvent failed: \(v.supportDebugText)")
+                print("[Events] addEvent failed: \(v.supportDebugText)")
             } else {
-                print("[Events] createEvent failed: \(error)")
+                print("[Events] addEvent failed: \(error)")
             }
             #endif
             errorMessage = FriendlyErrorMessage.message(for: error)
@@ -1093,6 +1095,8 @@ final class AdminViewModel: ObservableObject {
 
     @discardableResult
     func updateEvent(id: String, title: String?, eventDescription: String?, startAt: Date?, endAt: Date?, imageURL: String?, location: String?) async -> Bool {
+        errorMessage = nil
+        successMessage = nil
         do {
             try await api.updateEvent(id: id, title: title, eventDescription: eventDescription, startAt: startAt, endAt: endAt, imageURL: imageURL, location: location)
             successMessage = "Event updated."

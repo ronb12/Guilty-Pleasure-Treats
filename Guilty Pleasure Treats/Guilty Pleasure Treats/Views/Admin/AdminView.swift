@@ -5363,9 +5363,11 @@ private struct AdminEventFormSheet: View {
                     TextField("Address or venue", text: $location)
                 }
             }
+            .frame(maxWidth: .infinity)
             .macOSGroupedFormStyle()
             .macOSEditSheetPadding()
             .navigationTitle(event == nil ? "New event" : "Edit event")
+            .inlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onDismiss)
@@ -5377,6 +5379,8 @@ private struct AdminEventFormSheet: View {
                         Task { @MainActor in
                             let t = title.trimmingCharacters(in: .whitespaces)
                             guard !t.isEmpty, !isSaving else { return }
+                            isSaving = true
+                            defer { isSaving = false }
                             await saveEvent()
                         }
                     }
@@ -5414,9 +5418,6 @@ private struct AdminEventFormSheet: View {
     }
 
     private func saveEvent() async {
-        isSaving = true
-        defer { isSaving = false }
-
         let start = useStartDate ? startAt : nil
         let end = useEndDate ? endAt : nil
         let finalImageURL: String?
