@@ -28,7 +28,7 @@ enum AuthError: LocalizedError {
         case .invalidEmail:
             return "The email address is badly formatted."
         case .wrongPassword:
-            return "The password is invalid or the user does not have a password."
+            return "Incorrect email or password."
         case .userNotFound:
             return "There is no user record corresponding to this identifier. The user may have been deleted."
         case .emailAlreadyInUse:
@@ -381,6 +381,11 @@ final class AuthService: ObservableObject {
             return .useAppleSignIn
         }
         if statusCode == 401 {
+            // Our API returns 401 for wrong credentials; avoid Firebase’s misleading “does not have a password” copy.
+            let trimmed = apiError.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty, trimmed.lowercased() != "sign in failed" {
+                return .server(trimmed)
+            }
             return .wrongPassword
         }
         if statusCode == 409 || lower.contains("already in use") || lower.contains("already exists") {

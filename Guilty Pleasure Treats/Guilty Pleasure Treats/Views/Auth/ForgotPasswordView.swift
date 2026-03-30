@@ -112,7 +112,7 @@ private extension ForgotPasswordView {
             if let token = try await AuthService.shared.requestPasswordReset(email: trimmed) {
                 onToken(token)
             } else {
-                successMessage = "No password reset is available for this email. Try Sign in with Apple if you use that, or create a new account."
+                successMessage = "We couldn’t start a password reset for this email. If you use Sign in with Apple, use that instead. Otherwise confirm the email matches your account or contact support."
             }
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)

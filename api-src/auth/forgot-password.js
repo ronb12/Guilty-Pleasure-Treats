@@ -54,8 +54,10 @@ async function findResettableUser(emailNorm) {
     }
   }
 
-  const hasLocalPassword = u.password_hash != null && String(u.password_hash).length > 0;
-  if (hasCredential || hasLocalPassword) {
+  const hasLocalPassword =
+    u.password_hash != null && String(u.password_hash).trim().length >= 10;
+  const hasNeonLink = u.neon_auth_id != null && String(u.neon_auth_id).trim() !== '';
+  if (hasCredential || hasLocalPassword || hasNeonLink) {
     return { userId: u.id, neonUserId };
   }
   return null;
