@@ -3,9 +3,10 @@
  * Body: { email, password }
  * Returns: 200 { token, user: { uid, email, displayName, isAdmin, points } } or 401/500 { error }
  *
- * Uses Neon Auth when NEON_AUTH_URL is set. Optional fallback: set ADMIN_FALLBACK_EMAIL and
- * ADMIN_FALLBACK_PASSWORD in Vercel env; if Neon sign-in fails and credentials match, sign in
- * with a DB session (so you can log in as admin without Neon Auth).
+ * Sign-in order (maximizes success when Neon password and DB password_hash differ):
+ *   1) Neon Auth (email/password as configured in Neon)
+ *   2) public.users.password_hash (bcrypt — e.g. set via SQL / tooling)
+ *   3) ADMIN_FALLBACK_EMAIL + ADMIN_FALLBACK_PASSWORD (Vercel env)
  */
 import { neonAuthSignIn, isNeonAuthConfigured } from '../../api/lib/neonAuth.js';
 import {
@@ -20,6 +21,44 @@ import { sql, hasDb, awaitNeonRows } from '../../api/lib/db.js';
 function json(res, status, data) {
   res.setHeader('Content-Type', 'application/json');
   res.status(status).json(data);
+}
+
+/** @returns {Promise<{ token: string, user: object } | null>} */
+async function loginWithDbPasswordHash(email, password) {
+  if (!hasDb() || !sql) return null;
+  let rows;
+  try {
+    rows = await sql`
+      SELECT id, email, display_name, phone, is_admin, points, password_hash
+      FROM users
+      WHERE LOWER(email) = ${email.toLowerCase()}
+      LIMIT 1
+    `;
+  } catch (e) {
+    console.error('[auth/login] db user lookup failed', e?.message ?? e);
+    return null;
+  }
+  const userRow = Array.isArray(rows) ? rows[0] : rows;
+  if (!userRow) return null;
+  const hash = userRow.password_hash != null ? String(userRow.password_hash).trim() : '';
+  if (hash.length < 10) return null;
+  if (!(await verifyPassword(password, hash))) return null;
+  const session = await createSession(userRow.id);
+  if (!session) {
+    console.error('[auth/login] createSession failed after valid bcrypt for', email.toLowerCase());
+    return null;
+  }
+  return {
+    token: session.id,
+    user: {
+      id: userRow.id,
+      email: userRow.email,
+      display_name: userRow.display_name,
+      phone: userRow.phone ?? null,
+      is_admin: coerceAdminFlag(userRow.is_admin),
+      points: Number(userRow.points ?? 0),
+    },
+  };
 }
 
 export default async function handler(req, res) {
@@ -43,42 +82,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    let result = null;
-
-    // Prefer public.users password_hash when present (admin / legacy) so login works even if
-    // Neon Auth rejects (wrong Neon password, Auth domain issues) or prod DB differs from Neon Auth store.
-    if (hasDb() && sql) {
-      const dbUsers = await awaitNeonRows(
-        sql`
-        SELECT id, email, display_name, phone, is_admin, points, password_hash
-        FROM users
-        WHERE LOWER(email) = ${email.toLowerCase()}
-        LIMIT 1
-      `,
-        'login_db_user_lookup'
-      );
-      const userRow = dbUsers[0];
-      const hash = userRow?.password_hash != null ? String(userRow.password_hash).trim() : '';
-      if (userRow && hash.length >= 10 && (await verifyPassword(password, hash))) {
-        const session = await createSession(userRow.id);
-        if (session) {
-          result = {
-            token: session.id,
-            user: {
-              id: userRow.id,
-              email: userRow.email,
-              display_name: userRow.display_name,
-              phone: userRow.phone ?? null,
-              is_admin: coerceAdminFlag(userRow.is_admin),
-              points: Number(userRow.points ?? 0),
-            },
-          };
-        }
-      }
-    }
+    let result = await neonAuthSignIn(email, password);
 
     if (!result || !result.token || !result.user) {
-      result = await neonAuthSignIn(email, password);
+      result = await loginWithDbPasswordHash(email, password);
     }
 
     // Optional: admin fallback when Neon Auth rejects and no public.users password match
@@ -122,7 +129,7 @@ export default async function handler(req, res) {
     }
 
     if (!result || !result.token || !result.user) {
-      json(res, 401, { error: 'Invalid email or password.' });
+      json(res, 401, { error: 'Invalid email or password.', code: 'invalid_credentials' });
       return;
     }
     const u = result.user;
