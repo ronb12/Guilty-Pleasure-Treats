@@ -7,6 +7,7 @@ import { sql, hasDb } from '../lib/db.js';
 import { getTokenFromRequest, getSession, sessionHasAdminAccess } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
 import { ensureEventsTable } from '../lib/eventsSchema.js';
+import { updateLegacyEventDateTime } from '../lib/eventsCompat.js';
 
 function rowToEvent(row) {
   if (!row) return null;
@@ -87,7 +88,10 @@ export default async function handler(req, res) {
 
       if (title != null) await sql`UPDATE events SET title = ${title}, updated_at = NOW() WHERE id = ${id}`;
       if (description !== undefined) await sql`UPDATE events SET description = ${description}, updated_at = NOW() WHERE id = ${id}`;
-      if (startAt !== undefined) await sql`UPDATE events SET start_at = ${startAt ? new Date(startAt) : null}, updated_at = NOW() WHERE id = ${id}`;
+      if (startAt !== undefined) {
+        await sql`UPDATE events SET start_at = ${startAt ? new Date(startAt) : null}, updated_at = NOW() WHERE id = ${id}`;
+        await updateLegacyEventDateTime(sql, id, startAt);
+      }
       if (endAt !== undefined) await sql`UPDATE events SET end_at = ${endAt ? new Date(endAt) : null}, updated_at = NOW() WHERE id = ${id}`;
       if (imageUrl !== undefined) await sql`UPDATE events SET image_url = ${imageUrl || null}, updated_at = NOW() WHERE id = ${id}`;
       if (location !== undefined) await sql`UPDATE events SET location = ${location || null}, updated_at = NOW() WHERE id = ${id}`;

@@ -6,6 +6,7 @@ import { sql, hasDb, awaitNeonRows } from '../lib/db.js';
 import { getTokenFromRequest, getSession, coerceAdminFlag, sessionHasAdminAccess } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
 import { ensureEventsTable } from '../lib/eventsSchema.js';
+import { insertEventRow } from '../../api/lib/eventsCompat.js';
 
 function rowToEvent(row) {
   if (!row) return null;
@@ -113,17 +114,20 @@ export default async function handler(req, res) {
     const location = body.location != null ? String(body.location).trim() : null;
 
     try {
-      const inserted = await awaitNeonRows(
-        sql`
-        INSERT INTO events (title, description, start_at, end_at, image_url, location)
-        VALUES (${title}, ${description || null}, ${startAt ? new Date(startAt) : null}, ${endAt ? new Date(endAt) : null}, ${imageUrl || null}, ${location || null})
-        RETURNING id, title, description, start_at, end_at, image_url, location, created_at
-      `,
-        'events_POST_insert'
-      );
+      const inserted = await insertEventRow(sql, {
+        title,
+        description,
+        startAt,
+        endAt,
+        imageUrl,
+        location,
+      });
       const row = inserted[0];
       if (!row) {
-        return res.status(503).json({ error: 'Database unavailable. Try again in a moment.' });
+        return res.status(503).json({
+          error: 'Could not save event (database rejected the row). If this persists, check the events table schema.',
+          code: 'insert_failed',
+        });
       }
       const eventId = row?.id?.toString?.() ?? row?.id;
 
