@@ -14,11 +14,13 @@ function apnsConfiguredFromEnv() {
 
 export default function handler(req, res) {
   const hasDb = !!(process.env.POSTGRES_URL || process.env.DATABASE_URL);
+  const neonAuth = !!(process.env.NEON_AUTH_URL && String(process.env.NEON_AUTH_URL).trim());
   res.setHeader('Content-Type', 'application/json');
   res.status(200).json({
     ok: true,
     service: 'Guilty Pleasure Treats API',
     database: hasDb,
+    neonAuthConfigured: neonAuth,
     apnsConfigured: apnsConfiguredFromEnv(),
     apnsSandbox: process.env.APNS_SANDBOX === 'true',
     timestamp: new Date().toISOString(),
