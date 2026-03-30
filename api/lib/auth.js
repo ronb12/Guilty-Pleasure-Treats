@@ -192,17 +192,21 @@ async function getSessionImpl(sessionId) {
       const u = freshList[0] || user;
       const jwtUid = canonicalUserIdForSession(u.id) || String(u.id).trim();
       if (!jwtUid) return null;
+      const emailFromRow = u.email != null && String(u.email).trim() !== '' ? String(u.email).trim() : null;
+      const emailFromJwt =
+        payload.email != null && String(payload.email).trim() !== '' ? String(payload.email).trim() : null;
+      const sessionEmail = emailFromRow ?? emailFromJwt;
       // Match /api/auth/login + /api/auth/apple: isAdmin includes ADMIN_GRANT_EMAILS, not only users.is_admin.
       const isAdmin = sessionHasAdminAccess({
         userId: jwtUid,
-        email: u.email ?? null,
+        email: sessionEmail,
         isAdmin: u.is_admin,
       });
       return {
         id: sid,
         userId: jwtUid,
         expiresAt: null,
-        email: u.email,
+        email: sessionEmail,
         displayName: u.display_name,
         phone: u.phone ?? null,
         isAdmin,
