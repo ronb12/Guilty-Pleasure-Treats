@@ -11,6 +11,8 @@ import Combine
 import AuthenticationServices
 
 private let tokenKey = "com.guiltypleasuretreats.authToken"
+private let cachedUserProfileKey = "com.guiltypleasuretreats.cachedUserProfile"
+private let storedUidKey = "com.guiltypleasuretreats.authUid"
 
 /// Auth errors using Firebase-style messages (mirrors Firebase Auth error copy).
 enum AuthError: LocalizedError {
@@ -91,21 +93,53 @@ final class AuthService: ObservableObject {
             if let profile = try await VercelService.shared.fetchUserProfileWithToken(token) {
                 debugLog("[Auth] restoreSession: success uid=\(profile.uid)")
                 userProfile = profile
+                persistCachedProfile(profile)
                 authState = .signedIn(VercelUser(uid: profile.uid, email: profile.email, displayName: profile.displayName, phone: profile.phone))
             } else {
-                debugLog("[Auth] restoreSession: fetchUserProfileWithToken returned nil (401 or invalid response)")
-                UserDefaults.standard.removeObject(forKey: tokenKey)
-                VercelService.shared.authToken = nil
-                authState = .signedOut
-                userProfile = nil
+                debugLog("[Auth] restoreSession: /me failed; keeping token until user signs out")
+                applyOfflineSignedInStateFromCache()
+                Task { @MainActor in await refreshProfile() }
             }
         } catch {
             debugLog("[Auth] restoreSession error: \(error)")
-            UserDefaults.standard.removeObject(forKey: tokenKey)
-            VercelService.shared.authToken = nil
-            authState = .signedOut
-            userProfile = nil
+            applyOfflineSignedInStateFromCache()
+            Task { @MainActor in await refreshProfile() }
         }
+    }
+
+    /// Last good profile for offline or when /me temporarily fails. Cleared on sign-out.
+    private func persistCachedProfile(_ profile: UserProfile) {
+        if let data = try? JSONEncoder().encode(profile) {
+            UserDefaults.standard.set(data, forKey: cachedUserProfileKey)
+        }
+        let uid = profile.uid.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !uid.isEmpty {
+            UserDefaults.standard.set(uid, forKey: storedUidKey)
+        }
+    }
+
+    private func loadCachedUserProfile() -> UserProfile? {
+        guard let data = UserDefaults.standard.data(forKey: cachedUserProfileKey),
+              let p = try? JSONDecoder().decode(UserProfile.self, from: data) else { return nil }
+        return p
+    }
+
+    /// Stay signed in with last known account; only `signOut` / `deleteAccount` clear the session.
+    private func applyOfflineSignedInStateFromCache() {
+        if let cached = loadCachedUserProfile() {
+            userProfile = cached
+            authState = .signedIn(VercelUser(uid: cached.uid, email: cached.email, displayName: cached.displayName, phone: cached.phone))
+            return
+        }
+        let uid = UserDefaults.standard.string(forKey: storedUidKey)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !uid.isEmpty {
+            let minimal = UserProfile(uid: uid, email: nil, displayName: nil, phone: nil, isAdmin: false, points: 0, createdAt: nil, completedOrderCount: 0, marketingEmailOptIn: true, foodAllergies: nil)
+            userProfile = minimal
+            authState = .signedIn(VercelUser(uid: uid, email: nil, displayName: nil, phone: nil))
+            return
+        }
+        userProfile = nil
+        authState = .signedIn(VercelUser(uid: "", email: nil, displayName: "Signed in", phone: nil))
     }
 
     private func saveToken(_ token: String) {
@@ -115,6 +149,8 @@ final class AuthService: ObservableObject {
 
     private func clearToken() {
         UserDefaults.standard.removeObject(forKey: tokenKey)
+        UserDefaults.standard.removeObject(forKey: cachedUserProfileKey)
+        UserDefaults.standard.removeObject(forKey: storedUidKey)
         VercelService.shared.authToken = nil
     }
 
@@ -172,6 +208,7 @@ final class AuthService: ObservableObject {
             foodAllergies: user["foodAllergies"] as? String
         )
         authState = .signedIn(VercelUser(uid: uid, email: user["email"] as? String, displayName: user["displayName"] as? String, phone: user["phone"] as? String))
+        if let p = userProfile { persistCachedProfile(p) }
         Task { @MainActor in
             await NotificationService.shared.registerPushTokenWithBackend()
             await refreshProfile()
@@ -234,6 +271,7 @@ final class AuthService: ObservableObject {
             foodAllergies: user["foodAllergies"] as? String
         )
         authState = .signedIn(VercelUser(uid: uid, email: user["email"] as? String, displayName: user["displayName"] as? String, phone: user["phone"] as? String))
+        if let p = userProfile { persistCachedProfile(p) }
         Task { @MainActor in await NotificationService.shared.registerPushTokenWithBackend() }
     }
 
@@ -328,6 +366,7 @@ final class AuthService: ObservableObject {
             foodAllergies: user["foodAllergies"] as? String
         )
         authState = .signedIn(VercelUser(uid: uid, email: user["email"] as? String, displayName: user["displayName"] as? String, phone: user["phone"] as? String))
+        if let p = userProfile { persistCachedProfile(p) }
         Task { @MainActor in await NotificationService.shared.registerPushTokenWithBackend() }
     }
 
@@ -340,18 +379,18 @@ final class AuthService: ObservableObject {
         await refreshProfile()
     }
 
-    /// Refresh user profile from API (e.g. after points change).
+    /// Refresh user profile from API (e.g. after points change). Does not sign out or clear profile on failure.
     func refreshProfile() async {
         guard case .signedIn(let user) = authState else { return }
+        guard VercelService.shared.authToken != nil else { return }
         do {
             if let profile = try await VercelService.shared.fetchUserProfile(uid: user.uid) {
                 userProfile = profile
+                persistCachedProfile(profile)
                 authState = .signedIn(VercelUser(uid: profile.uid, email: profile.email, displayName: profile.displayName, phone: profile.phone))
-            } else {
-                userProfile = nil
             }
         } catch {
-            userProfile = nil
+            debugLog("[Auth] refreshProfile failed: \(error)")
         }
     }
 
