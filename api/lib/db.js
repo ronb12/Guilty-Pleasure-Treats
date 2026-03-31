@@ -50,8 +50,10 @@ function sanitizeConnectionString(raw) {
   s = s.replace(/[?&]channel_binding=[^&]*/gi, '');
   s = s.replace(/\?&/, '?');
   s = s.replace(/&&+/g, '&');
-  // Removing "?channel_binding=...&" can leave "/dbname&sslmode=..." — first param must use "?".
+  // Removing "?channel_binding=...&" can leave "/dbname&sslmode=..." — Postgres then treats the whole path as the db name.
   s = s.replace(/(\/[\w.-]+)&(?=[\w.]+=)/i, '$1?');
+  // Broader: "/dbname&sslmode=" (ampersand in path) → "/dbname?sslmode=" — exclude "&" from path segment.
+  s = s.replace(/(\/[^/?#&]+)&([a-zA-Z_][a-zA-Z0-9_.-]*=)/g, '$1?$2');
   if (s.endsWith('?') || s.endsWith('&')) s = s.slice(0, -1);
   return s;
 }

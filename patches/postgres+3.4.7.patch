@@ -1,0 +1,30 @@
+diff --git a/node_modules/postgres/cjs/src/connection.js b/node_modules/postgres/cjs/src/connection.js
+index 589d363..267697c 100644
+--- a/node_modules/postgres/cjs/src/connection.js
++++ b/node_modules/postgres/cjs/src/connection.js
+@@ -350,7 +350,9 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+   }
+ 
+   function reconnect() {
+-    setTimeout(connect, closedDate ? closedDate + delay - performance.now() : 0)
++    const ms = closedDate ? closedDate + delay - performance.now() : 0
++    // Node 20+ warns (and clamps to 1ms) if delay is negative; can happen when reconnect is overdue.
++    setTimeout(connect, Math.max(0, ms))
+   }
+ 
+   function connected() {
+diff --git a/node_modules/postgres/src/connection.js b/node_modules/postgres/src/connection.js
+index c3f554a..5c1c079 100644
+--- a/node_modules/postgres/src/connection.js
++++ b/node_modules/postgres/src/connection.js
+@@ -350,7 +350,9 @@ function Connection(options, queues = {}, { onopen = noop, onend = noop, onclose
+   }
+ 
+   function reconnect() {
+-    setTimeout(connect, closedDate ? closedDate + delay - performance.now() : 0)
++    const ms = closedDate ? closedDate + delay - performance.now() : 0
++    // Node 20+ warns (and clamps to 1ms) if delay is negative; can happen when reconnect is overdue.
++    setTimeout(connect, Math.max(0, ms))
+   }
+ 
+   function connected() {

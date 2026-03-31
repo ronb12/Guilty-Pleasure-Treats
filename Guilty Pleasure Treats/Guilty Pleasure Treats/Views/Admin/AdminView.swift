@@ -177,6 +177,14 @@ struct AdminView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(AppConstants.Colors.secondary)
                 #endif
+                .onChange(of: selectedTab) { _, newTab in
+                    if newTab == 6 {
+                        Task {
+                            await viewModel.loadOrdersForAnalytics()
+                            await viewModel.loadAnalyticsSummary()
+                        }
+                    }
+                }
                 .onAppear { applyPendingPushAction() }
                 .onChange(of: notificationService.pendingPushAction) { _, _ in applyPendingPushAction() }
                 .onAppear {
@@ -4456,7 +4464,8 @@ struct AdminCakeOptionEditSheet: View {
 
 struct AdminAnalyticsView: View {
     @ObservedObject var viewModel: AdminViewModel
-    @State private var selectedPeriod: AnalyticsPeriod = .thisWeek
+    /// Default to all time so paid orders are visible even if the calendar week boundary or first-load timing would hide them under “This week”.
+    @State private var selectedPeriod: AnalyticsPeriod = .allTime
 
     private var ordersByDay: [(date: Date, count: Int, revenue: Double)] {
         Array(viewModel.ordersByDay(for: selectedPeriod).prefix(14))
@@ -4497,11 +4506,6 @@ struct AdminAnalyticsView: View {
                 }
             }
             .refreshable {
-                await viewModel.loadOrdersForAnalytics()
-                await viewModel.loadAnalyticsSummary()
-            }
-            .task {
-                // Orders drive all period metrics; ignore Orders-tab filters (see loadOrdersForAnalytics).
                 await viewModel.loadOrdersForAnalytics()
                 await viewModel.loadAnalyticsSummary()
             }

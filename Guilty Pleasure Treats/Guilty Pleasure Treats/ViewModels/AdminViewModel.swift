@@ -76,6 +76,8 @@ struct AdminCustomer: Identifiable {
 final class AdminViewModel: ObservableObject {
     @Published var products: [Product] = []
     @Published var orders: [Order] = []
+    /// Full order list for Analytics only (always unfiltered). Separate from `orders` so Orders-tab filters and failed analytics loads never wipe charts or the orders list.
+    @Published var analyticsOrders: [Order] = []
     /// Admin Orders tab: passed to API as query filters (server filters in memory on the admin list).
     @Published var adminOrderStatusFilter: String = ""
     @Published var adminOrderFulfillmentFilter: String = ""
@@ -203,11 +205,11 @@ final class AdminViewModel: ObservableObject {
     }
     
     var totalRevenue: Double {
-        orders.filter { $0.statusEnum != .cancelled }.reduce(0.0) { $0 + $1.total }
+        analyticsOrders.filter { $0.statusEnum != .cancelled }.reduce(0.0) { $0 + $1.total }
     }
     
     var completedOrderCount: Int {
-        orders.filter { $0.statusEnum != .cancelled }.count
+        analyticsOrders.filter { $0.statusEnum != .cancelled }.count
     }
     
     var ordersByDay: [(date: Date, count: Int, revenue: Double)] {
@@ -218,13 +220,13 @@ final class AdminViewModel: ObservableObject {
 
     /// Orders that are not cancelled, filtered by period.
     func completedOrders(in period: AnalyticsPeriod) -> [Order] {
-        let list = orders.filter { $0.statusEnum != .cancelled }
+        let list = analyticsOrders.filter { $0.statusEnum != .cancelled }
         return period.filter(list, calendar: .current)
     }
 
     /// Count of orders still in pipeline (Pending, Confirmed, Preparing, Ready).
     var pendingOrderCount: Int {
-        orders.filter { o in
+        analyticsOrders.filter { o in
             guard let s = o.statusEnum else { return false }
             return s != .cancelled && s != .completed
         }.count
@@ -261,7 +263,7 @@ final class AdminViewModel: ObservableObject {
         _ = period.dateRange(relativeTo: now, calendar: calendar)
         let (prevStart, prevEnd) = period.previousDateRange(relativeTo: now, calendar: calendar)
         let current = completedOrders(in: period).reduce(0.0) { $0 + $1.total }
-        let prevOrders = orders.filter { o in
+        let prevOrders = analyticsOrders.filter { o in
             guard o.statusEnum != .cancelled, let d = o.createdAt else { return false }
             return d >= prevStart && d < prevEnd
         }
@@ -279,7 +281,7 @@ final class AdminViewModel: ObservableObject {
 
     /// Status funnel: count by status for the period (completed + cancelled for full funnel).
     func statusFunnel(for period: AnalyticsPeriod) -> [(status: String, count: Int)] {
-        let list = period.filter(orders, calendar: .current)
+        let list = period.filter(analyticsOrders, calendar: .current)
         let grouped = Dictionary(grouping: list) { $0.status }
         return OrderStatus.allCases.map { status in
             (status: status.rawValue, count: grouped[status.rawValue]?.count ?? 0)
@@ -817,28 +819,18 @@ final class AdminViewModel: ObservableObject {
         }
     }
 
-    /// Analytics uses in-memory `orders` for all charts; must ignore Orders-tab filters or metrics look empty when filters are narrow.
+    /// Loads an unfiltered snapshot into `analyticsOrders` for charts. Does not modify `orders` (Orders tab).
     func loadOrdersForAnalytics() async {
         do {
-            ordersLoadError = nil
-            orders = try await api.fetchAllOrders(
+            analyticsOrders = try await api.fetchAllOrders(
                 status: nil,
                 fulfillmentType: nil,
                 search: nil,
                 dateFrom: nil,
                 dateTo: nil
             )
-            if let first = orders.first, let id = first.id, let createdAt = first.createdAt {
-                NotificationService.shared.addNewOrderInAppIfNeeded(
-                    orderId: id,
-                    customerName: first.customerName,
-                    total: first.total,
-                    orderCreatedAt: createdAt
-                )
-            }
         } catch {
-            orders = []
-            ordersLoadError = FriendlyErrorMessage.message(for: error)
+            analyticsOrders = []
             #if DEBUG
             print("[Admin] loadOrdersForAnalytics failed: \(error)")
             #endif
