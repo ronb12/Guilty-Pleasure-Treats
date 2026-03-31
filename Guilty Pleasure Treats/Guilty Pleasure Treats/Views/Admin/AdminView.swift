@@ -5295,7 +5295,7 @@ struct AdminEventsView: View {
     }
 }
 
-/// Create or edit event: title, description, start/end, photo or PDF attachment, location.
+/// Create or edit event: title, description, start/end, photo (library on iOS + file picker) or PDF, location.
 private struct AdminEventFormSheet: View {
     @ObservedObject var viewModel: AdminViewModel
     let event: Event?
@@ -5314,6 +5314,9 @@ private struct AdminEventFormSheet: View {
     @State private var selectedAttachmentData: Data?
     @State private var selectedAttachmentContentType: String?
     @State private var showAttachmentPicker = false
+    /// iOS: same UIImagePicker photo library as products; document picker alone is Files-oriented.
+    @State private var showEventPhotoLibraryPicker = false
+    @State private var pickedLibraryImage: PlatformImage?
     @State private var isSaving = false
 
     private var attachmentLabel: String {
@@ -5370,10 +5373,18 @@ private struct AdminEventFormSheet: View {
                             }
                         }
                     } else {
+                        #if os(iOS)
+                        Button {
+                            showEventPhotoLibraryPicker = true
+                        } label: {
+                            Label("Photo from library", systemImage: "photo.on.rectangle.angled")
+                                .foregroundStyle(AppConstants.Colors.accent)
+                        }
+                        #endif
                         Button {
                             showAttachmentPicker = true
                         } label: {
-                            Label("Add photo or PDF", systemImage: "plus.circle.fill")
+                            Label("File or PDF…", systemImage: "folder.badge.plus")
                                 .foregroundStyle(AppConstants.Colors.accent)
                         }
                     }
@@ -5428,6 +5439,23 @@ private struct AdminEventFormSheet: View {
             .sheet(isPresented: $showAttachmentPicker) {
                 EventDocumentPicker(pickedData: $selectedAttachmentData, pickedContentType: $selectedAttachmentContentType)
             }
+            #if os(iOS)
+            .sheet(isPresented: $showEventPhotoLibraryPicker) {
+                ImagePicker(image: $pickedLibraryImage)
+            }
+            .onChange(of: pickedLibraryImage) { _, img in
+                guard let img else { return }
+                if let j = img.jpegData(compressionQuality: 0.9) {
+                    selectedAttachmentData = j
+                    selectedAttachmentContentType = "image/jpeg"
+                } else if let p = img.pngData() {
+                    selectedAttachmentData = p
+                    selectedAttachmentContentType = "image/png"
+                }
+                pickedLibraryImage = nil
+                showEventPhotoLibraryPicker = false
+            }
+            #endif
             .onAppear {
                 viewModel.dismissProductBanner()
                 if let e = event {
