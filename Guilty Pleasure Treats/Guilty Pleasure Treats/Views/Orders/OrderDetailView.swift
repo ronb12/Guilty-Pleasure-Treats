@@ -559,7 +559,7 @@ struct OrderDetailView: View {
                     .foregroundStyle(AppConstants.Colors.textSecondary)
                 Spacer()
             }
-            if let date = displayOrder.scheduledPickupDate {
+            if let date = displayOrder.fulfillmentScheduledDateForDisplay {
                 HStack {
                     Text(displayOrder.fulfillmentEnum == .shipping ? "Ship date" : (displayOrder.fulfillmentEnum == .delivery ? "Delivery date" : "Pickup time"))
                         .font(.caption)

@@ -63,6 +63,13 @@ if (fields.trackingNumber !== '1ZTEST') fail('row number');
 if (fields.trackingStatusDetail !== 'In transit') fail('row detail trim');
 if (!fields.trackingUpdatedAt) fail('row updated at');
 if (!fields.trackingUrl) fail('row url');
+const rowWithLabeled = parcelTrackingFieldsFromRow({
+  tracking_carrier: 'usps',
+  tracking_number: '123',
+  tracking_updated_at: new Date('2025-01-15T12:00:00.000Z'),
+  parcel_labeled_at: new Date('2025-01-14T10:00:00.000Z'),
+});
+if (!rowWithLabeled.parcelLabeledAt) fail('parcelLabeledAt');
 const empty = parcelTrackingFieldsFromRow({});
 if (empty.trackingUrl !== null) fail('empty row url null');
 ok('parcelTrackingFieldsFromRow');

@@ -83,7 +83,8 @@ export default async function handler(req, res) {
                subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
                stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
                custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents,
-               tracking_carrier, tracking_number, tracking_status_detail, tracking_updated_at
+               tracking_carrier, tracking_number, tracking_status_detail, tracking_updated_at,
+               parcel_labeled_at
         FROM orders WHERE id = ${id}
       `;
       if (!row) return res.status(404).json({ error: 'Order not found' });
@@ -213,6 +214,20 @@ export default async function handler(req, res) {
             WHERE id = ${id}
           `;
           didUpdate = true;
+          const shouldStampParcelLabeledAt =
+            isShippingFulfillmentType(orderRow.fulfillment_type) &&
+            !hadValidTrackingBefore &&
+            hasValidParcelTracking(carrier, number);
+          if (shouldStampParcelLabeledAt) {
+            try {
+              await sql`
+                UPDATE orders SET parcel_labeled_at = COALESCE(parcel_labeled_at, NOW())
+                WHERE id = ${id}
+              `;
+            } catch (stampErr) {
+              console.warn('[orders/id] parcel_labeled_at', stampErr?.message ?? stampErr);
+            }
+          }
           try {
             await completeShippingOrderIfTrackingDelivered(sql, id, detail);
           } catch (e) {
@@ -241,7 +256,8 @@ export default async function handler(req, res) {
                subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
                stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
                custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents,
-               tracking_carrier, tracking_number, tracking_status_detail, tracking_updated_at
+               tracking_carrier, tracking_number, tracking_status_detail, tracking_updated_at,
+               parcel_labeled_at
         FROM orders WHERE id = ${id}
       `;
       return res.status(200).json(rowToOrder(updated) ?? { id });

@@ -139,6 +139,8 @@ struct Order: Identifiable, Codable, Equatable {
     var trackingNumber: String? = nil
     var trackingStatusDetail: String? = nil
     var trackingUpdatedAt: Date? = nil
+    /// When carrier + tracking were first saved for **Shipping** (server `parcel_labeled_at`). Used for “Ship date” in UI.
+    var parcelLabeledAt: Date? = nil
     /// Public carrier track page URL when carrier and number are set (server-computed).
     var trackingUrl: String? = nil
 
@@ -171,6 +173,7 @@ struct Order: Identifiable, Codable, Equatable {
         case trackingNumber
         case trackingStatusDetail
         case trackingUpdatedAt
+        case parcelLabeledAt
         case trackingUrl
     }
     
@@ -186,6 +189,17 @@ struct Order: Identifiable, Codable, Equatable {
     var statusDisplayLabel: String {
         guard let e = statusEnum else { return status }
         return e.displayLabel(for: fulfillmentEnum)
+    }
+
+    /// Date shown for **Ship date** / **Delivery date** / **Pickup time** on detail and confirmation.
+    /// For shipping, prefer when tracking was first entered; otherwise checkout “preferred ship” date.
+    var fulfillmentScheduledDateForDisplay: Date? {
+        switch fulfillmentEnum {
+        case .shipping:
+            return parcelLabeledAt ?? scheduledPickupDate
+        case .delivery, .pickup, .none:
+            return scheduledPickupDate
+        }
     }
 
     /// True when both carrier and tracking number are set (required server-side before marking a shipping order ready).

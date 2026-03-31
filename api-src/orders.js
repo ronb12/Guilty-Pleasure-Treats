@@ -83,6 +83,7 @@ export default async function handler(req, res) {
                  o.stripe_payment_intent_id, o.manual_paid_at, o.created_at, o.updated_at, o.estimated_ready_time,
                  o.custom_cake_order_ids, o.ai_cake_design_ids, o.promo_code, o.tip_cents,
                  o.tracking_carrier, o.tracking_number, o.tracking_status_detail, o.tracking_updated_at,
+                 o.parcel_labeled_at,
                  COALESCE(u.points, 0)::int AS user_points
           FROM orders o
           LEFT JOIN users u ON o.user_id::text = u.id::text
@@ -96,6 +97,7 @@ export default async function handler(req, res) {
                  o.stripe_payment_intent_id, o.manual_paid_at, o.created_at, o.updated_at, o.estimated_ready_time,
                  o.custom_cake_order_ids, o.ai_cake_design_ids, o.promo_code, o.tip_cents,
                  o.tracking_carrier, o.tracking_number, o.tracking_status_detail, o.tracking_updated_at,
+                 o.parcel_labeled_at,
                  COALESCE(u.points, 0)::int AS user_points
           FROM orders o
           LEFT JOIN users u ON o.user_id::text = u.id::text
@@ -385,7 +387,8 @@ export default async function handler(req, res) {
                  subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status,
                  stripe_payment_intent_id, manual_paid_at, created_at, updated_at, estimated_ready_time,
                  custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents,
-                 tracking_carrier, tracking_number, tracking_status_detail, tracking_updated_at
+                 tracking_carrier, tracking_number, tracking_status_detail, tracking_updated_at,
+                 parcel_labeled_at
           FROM orders WHERE id = ${orderId} LIMIT 1
         `;
         return r;
@@ -447,7 +450,7 @@ export default async function handler(req, res) {
         RETURNING id, user_id, customer_name, customer_phone, customer_email, customer_allergies, delivery_address, items,
           subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status, stripe_payment_intent_id,
           manual_paid_at, created_at, updated_at, estimated_ready_time, custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents,
-          tracking_carrier, tracking_number, tracking_status_detail, tracking_updated_at
+          tracking_carrier, tracking_number, tracking_status_detail, tracking_updated_at, parcel_labeled_at
       `;
       } catch (insertErr) {
         if (insertErr?.code !== '42703') throw insertErr;
@@ -461,7 +464,7 @@ export default async function handler(req, res) {
         RETURNING id, user_id, customer_name, customer_phone, customer_email, delivery_address, items,
           subtotal, tax, total, fulfillment_type, scheduled_pickup_date, status, stripe_payment_intent_id,
           manual_paid_at, created_at, updated_at, estimated_ready_time, custom_cake_order_ids, ai_cake_design_ids, promo_code, tip_cents,
-          tracking_carrier, tracking_number, tracking_status_detail, tracking_updated_at
+          tracking_carrier, tracking_number, tracking_status_detail, tracking_updated_at, parcel_labeled_at
       `;
       }
       const order = rowToOrder(row);

@@ -18,7 +18,7 @@ import { setCors, handleOptions } from '../../api/lib/cors.js';
 import { ensureOrdersOptionalColumns } from '../lib/ordersSchema.js';
 import { parcelTrackingFieldsFromRow } from '../../api/lib/parcelTrackingUrls.js';
 import { completeShippingOrderIfTrackingDelivered } from '../../api/lib/completeOrderIfTrackingDelivered.js';
-import { hasValidParcelTracking } from '../../api/lib/shippingReadyTrackingRule.js';
+import { hasValidParcelTracking, isShippingFulfillmentType } from '../../api/lib/shippingReadyTrackingRule.js';
 
 function timingSafeEqualStrings(a, b) {
   const x = Buffer.from(String(a ?? ''), 'utf8');
@@ -115,6 +115,21 @@ export default async function handler(req, res) {
       WHERE id = ${orderId}
     `;
 
+    const shouldStampParcelLabeledAt =
+      isShippingFulfillmentType(cur.fulfillment_type) &&
+      !hadValidTrackingBefore &&
+      hasValidParcelTracking(carrier, number);
+    if (shouldStampParcelLabeledAt) {
+      try {
+        await sql`
+          UPDATE orders SET parcel_labeled_at = COALESCE(parcel_labeled_at, NOW())
+          WHERE id = ${orderId}
+        `;
+      } catch (stampErr) {
+        console.warn('[webhooks/carrier-tracking] parcel_labeled_at', stampErr?.message ?? stampErr);
+      }
+    }
+
     let orderAutoCompleted = false;
     try {
       const r = await completeShippingOrderIfTrackingDelivered(sql, orderId, detail);
@@ -139,7 +154,7 @@ export default async function handler(req, res) {
     }
 
     const [row] = await sql`
-      SELECT id, tracking_carrier, tracking_number, tracking_status_detail, tracking_updated_at
+      SELECT id, tracking_carrier, tracking_number, tracking_status_detail, tracking_updated_at, parcel_labeled_at
       FROM orders WHERE id = ${orderId}
     `;
     const fields = parcelTrackingFieldsFromRow(row || {});

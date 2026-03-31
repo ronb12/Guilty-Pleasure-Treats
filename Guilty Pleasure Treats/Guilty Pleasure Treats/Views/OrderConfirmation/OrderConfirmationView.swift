@@ -54,7 +54,7 @@ struct OrderConfirmationView: View {
                     }
                     .font(.subheadline)
                     
-                    if let date = order.scheduledPickupDate {
+                    if let date = order.fulfillmentScheduledDateForDisplay {
                         HStack {
                             Text(order.fulfillmentEnum == .shipping ? "Ship date" : (order.fulfillmentEnum == .delivery ? "Delivery date" : "Pickup time"))
                             Spacer()

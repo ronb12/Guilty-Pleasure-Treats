@@ -11,6 +11,7 @@ export async function ensureOrdersOptionalColumns(sql) {
     () => sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_number TEXT`,
     () => sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_status_detail TEXT`,
     () => sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_updated_at TIMESTAMPTZ`,
+    () => sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS parcel_labeled_at TIMESTAMPTZ`,
   ];
   for (const run of alters) {
     try {

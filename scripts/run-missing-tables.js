@@ -133,6 +133,7 @@ async function main() {
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_number TEXT`;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_status_detail TEXT`;
     await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_updated_at TIMESTAMPTZ`;
+    await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS parcel_labeled_at TIMESTAMPTZ`;
     await sql`CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`;

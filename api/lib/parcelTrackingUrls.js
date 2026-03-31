@@ -55,6 +55,9 @@ export function parcelTrackingFieldsFromRow(row) {
     trackingUpdatedAt: row.tracking_updated_at
       ? new Date(row.tracking_updated_at).toISOString()
       : null,
+    parcelLabeledAt: row.parcel_labeled_at
+      ? new Date(row.parcel_labeled_at).toISOString()
+      : null,
     trackingUrl: url,
   };
 }
