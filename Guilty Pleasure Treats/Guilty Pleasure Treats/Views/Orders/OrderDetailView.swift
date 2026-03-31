@@ -84,6 +84,12 @@ struct OrderDetailView: View {
             .macOSSheetTopPadding()
         }
         .background(AppConstants.Colors.secondary)
+        .refreshable {
+            await refreshOrderFromServer()
+            if !isAdmin, displayOrder.id != nil, displayOrder.statusEnum == .completed {
+                await loadOrderReview()
+            }
+        }
         .navigationTitle(orderTitle)
         .inlineNavigationTitle()
         .confirmationDialog("Update status", isPresented: $showStatusPicker) {
@@ -461,40 +467,46 @@ struct OrderDetailView: View {
                 }
                 .padding(.vertical, 4)
             } else {
-                HStack(alignment: .top, spacing: 0) {
-                    let pipeline = Self.statusPipeline(for: displayOrder.fulfillmentEnum)
-                    let labels = Self.statusStepLabels(for: displayOrder.fulfillmentEnum)
-                    let currentIdx = Self.pipelineIndex(for: displayOrder.statusEnum, pipeline: pipeline)
-                    ForEach(Array(pipeline.enumerated()), id: \.offset) { index, stepStatus in
-                        let isReached = currentIdx >= index
-                        let isCurrent = displayOrder.statusEnum == stepStatus
-                        HStack(spacing: 0) {
-                            VStack(spacing: 4) {
-                                ZStack {
-                                    Circle()
-                                        .fill(isReached ? (isCurrent ? statusColor : Color.green) : Color.gray.opacity(0.3))
-                                        .frame(width: 28, height: 28)
-                                    if isReached {
-                                        Image(systemName: isCurrent ? "circle.fill" : "checkmark")
-                                            .font(isCurrent ? .system(size: 10) : .caption.weight(.semibold))
-                                            .foregroundStyle(.white)
+                // Shipping/delivery pipelines have 6 steps — scroll horizontally on phones so "Done" stays reachable.
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .top, spacing: 0) {
+                        let pipeline = Self.statusPipeline(for: displayOrder.fulfillmentEnum)
+                        let labels = Self.statusStepLabels(for: displayOrder.fulfillmentEnum)
+                        let currentIdx = Self.pipelineIndex(for: displayOrder.statusEnum, pipeline: pipeline)
+                        let stepWidth = pipeline.count >= 6 ? CGFloat(68) : CGFloat(72)
+                        ForEach(Array(pipeline.enumerated()), id: \.offset) { index, stepStatus in
+                            let isReached = currentIdx >= index
+                            let isCurrent = displayOrder.statusEnum == stepStatus
+                            HStack(spacing: 0) {
+                                VStack(spacing: 4) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(isReached ? (isCurrent ? statusColor : Color.green) : Color.gray.opacity(0.3))
+                                            .frame(width: 28, height: 28)
+                                        if isReached {
+                                            Image(systemName: isCurrent ? "circle.fill" : "checkmark")
+                                                .font(isCurrent ? .system(size: 10) : .caption.weight(.semibold))
+                                                .foregroundStyle(.white)
+                                        }
                                     }
+                                    Text(labels[index])
+                                        .font(.caption2)
+                                        .foregroundStyle(isReached ? AppConstants.Colors.textPrimary : AppConstants.Colors.textSecondary)
+                                        .multilineTextAlignment(.center)
+                                        .lineLimit(2)
+                                        .fixedSize(horizontal: false, vertical: true)
                                 }
-                                Text(labels[index])
-                                    .font(.caption2)
-                                    .foregroundStyle(isReached ? AppConstants.Colors.textPrimary : AppConstants.Colors.textSecondary)
-                                    .multilineTextAlignment(.center)
-                                    .lineLimit(2)
-                            }
-                            .frame(width: 72)
-                            if index < pipeline.count - 1 {
-                                Rectangle()
-                                    .fill(isReached && index < currentIdx ? Color.green.opacity(0.6) : Color.gray.opacity(0.25))
-                                    .frame(height: 2)
-                                    .padding(.top, 14)
+                                .frame(width: stepWidth)
+                                if index < pipeline.count - 1 {
+                                    Rectangle()
+                                        .fill(isReached && index < currentIdx ? Color.green.opacity(0.6) : Color.gray.opacity(0.25))
+                                        .frame(width: 12, height: 2)
+                                        .padding(.top, 14)
+                                }
                             }
                         }
                     }
+                    .padding(.trailing, 8)
                 }
             }
         }
