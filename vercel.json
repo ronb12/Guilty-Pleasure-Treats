@@ -2,6 +2,10 @@
   "version": 2,
   "buildCommand": "npm run vercel:sync",
   "outputDirectory": "website",
+  "functions": {
+    "api/[[...path]].js": { "maxDuration": 60 },
+    "api/index.js": { "maxDuration": 60 }
+  },
   "crons": [
     {
       "path": "/api/cron/poll-usps-tracking",
@@ -10,7 +14,7 @@
   ],
   "env": {
     "NODE_OPTIONS": "--no-deprecation",
-    "NEON_FETCH_TIMEOUT_MS": "60000"
+    "NEON_FETCH_TIMEOUT_MS": "90000"
   },
   "rewrites": [
     { "source": "/api/stripe/webhook", "destination": "/api/stripe-webhook" },

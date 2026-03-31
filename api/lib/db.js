@@ -21,7 +21,7 @@ if (connectionString) {
 
 /** Optional longer timeout for cold starts / flaky edge (merged into neon fetch). */
 function neonFetchOptions() {
-  const ms = Number(process.env.NEON_FETCH_TIMEOUT_MS || '45000');
+  const ms = Number(process.env.NEON_FETCH_TIMEOUT_MS || '90000');
   if (!Number.isFinite(ms) || ms <= 0) return {};
   try {
     if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
@@ -31,14 +31,43 @@ function neonFetchOptions() {
   return {};
 }
 
-let _sql = null;
+function isTransientDbError(e) {
+  const parts = [
+    e?.message,
+    e?.sourceError?.message,
+    e?.cause?.message,
+    e?.name,
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return /timeout|aborted|fetch failed|ECONNRESET|UND_ERR|ECONNREFUSED|socket hang up|network|TimeoutError|DOMException/i.test(
+    parts
+  );
+}
+
+async function runSqlWithRetry(executor) {
+  try {
+    return await executor();
+  } catch (e) {
+    if (!isTransientDbError(e)) throw e;
+    await new Promise((r) => setTimeout(r, 500));
+    return await executor();
+  }
+}
+
+let _baseSql = null;
 try {
-  _sql = connectionString ? neon(connectionString, { ...neonFetchOptions() }) : null;
+  _baseSql = connectionString ? neon(connectionString, { ...neonFetchOptions() }) : null;
 } catch (err) {
   console.error('Neon db init error', err);
 }
 
-export const sql = _sql;
+/** Tagged-template SQL client; one retry on transient connection/timeout errors (Vercel cold start + burst traffic). */
+export const sql = _baseSql
+  ? function sql(strings, ...values) {
+      return runSqlWithRetry(() => _baseSql(strings, ...values));
+    }
+  : null;
 
 export function hasDb() {
   return !!connectionString;
@@ -49,7 +78,12 @@ export function hasDb() {
  */
 export async function awaitNeonRows(queryPromise, label = 'query') {
   const result = await Promise.resolve(queryPromise).catch((err) => {
-    console.error(`[db] ${label}`, err?.message ?? err);
+    const transient = isTransientDbError(err);
+    if (transient) {
+      console.warn(`[db] ${label} (transient)`, err?.message ?? err);
+    } else {
+      console.error(`[db] ${label}`, err?.message ?? err);
+    }
     return [];
   });
   return Array.isArray(result) ? result : [];

@@ -1,7 +1,7 @@
 /**
  * Ensures `events` exists (Neon / Postgres). Safe to call on every request.
  * Uses awaitNeonRows so Neon `fetch failed` does not surface as unhandled rejections.
- * (Local helper: api-src/lib/db.js is CJS; keep this file ESM-safe for the catch-all router.)
+ * Local awaitNeonRows (duplicated) so this module stays self-contained for schema-only calls.
  */
 async function awaitNeonRows(queryPromise, label = 'query') {
   const result = await Promise.resolve(queryPromise).catch((err) => {
