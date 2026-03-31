@@ -121,7 +121,7 @@ struct OrderRowView: View {
                     .font(.caption)
                     .foregroundStyle(AppConstants.Colors.textSecondary)
                 Spacer()
-                Text(order.status)
+                Text(order.statusDisplayLabel)
                     .font(.caption)
                     .fontWeight(.medium)
                     .foregroundStyle(statusColor)
@@ -135,7 +135,7 @@ struct OrderRowView: View {
                     Text("Order status:")
                         .font(.caption)
                         .foregroundStyle(AppConstants.Colors.textSecondary)
-                    Text(order.status)
+                    Text(order.statusDisplayLabel)
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundStyle(statusColor)
@@ -170,7 +170,7 @@ struct OrderRowView: View {
                     }
                     .confirmationDialog("Update status", isPresented: $showStatusPicker) {
                         ForEach(OrderStatus.allCases, id: \.self) { status in
-                            Button(status.rawValue) { onUpdateStatus(order, status) }
+                            Button(status.displayLabel(for: order.fulfillmentEnum)) { onUpdateStatus(order, status) }
                         }
                         Button("Cancel", role: .cancel) {}
                     } message: {
@@ -195,6 +195,7 @@ struct OrderRowView: View {
     private var statusColor: Color {
         switch order.statusEnum {
         case .completed: return .green
+        case .delivered: return .green
         case .cancelled: return .red
         case .ready: return .blue
         default: return AppConstants.Colors.accent

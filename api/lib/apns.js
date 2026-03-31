@@ -4,6 +4,8 @@
  * For development use APNS_SANDBOX=true.
  */
 import { ApnsClient, Notification } from 'apns2';
+import { customerOrderStatusMessage } from './orderStatusCustomerMessage.js';
+import { hasValidParcelTracking, isShippingFulfillmentType } from './shippingReadyTrackingRule.js';
 
 /** True when Vercel has all required APNs auth env vars (pushes will not send until this is true). */
 export function isApnsConfigured() {
@@ -108,14 +110,62 @@ export async function notifyNewOrder(deviceTokens, orderId, customerName, total)
 
 /**
  * Send "order status update" push to the customer who placed the order.
+ * @param {string|null|undefined} fulfillmentType — order row fulfillment_type (Pickup / Delivery / Shipping)
+ * @param {{ messageOverride?: string }} [options] — e.g. delivery confirmed while DB status is Completed
  */
-export async function notifyOrderStatusUpdate(deviceToken, orderId, status) {
+export async function notifyOrderStatusUpdate(deviceToken, orderId, status, fulfillmentType = null, options = {}) {
   if (!deviceToken) return false;
-  const statusText = String(status || 'updated').replace(/_/g, ' ');
   const title = 'Order update';
-  const body = `Your order is now: ${statusText}. Tap to view.`;
+  const body =
+    options.messageOverride ?? customerOrderStatusMessage(status, fulfillmentType);
   const data = { type: 'order_status', orderId: orderId || '' };
   return sendPushNotification(deviceToken, title, body, data);
+}
+
+/**
+ * Customer push when a shipping order first has carrier + tracking number saved (admin or webhook).
+ * Uses `order_status` in the payload so the app opens the order like other order updates.
+ */
+export async function notifyTrackingNumberAvailable(deviceToken, orderId) {
+  if (!deviceToken) return false;
+  const title = 'Tracking available';
+  const body = 'Your tracking number is now available. Tap to view your order.';
+  const data = { type: 'order_status', orderId: orderId || '' };
+  return sendPushNotification(deviceToken, title, body, data);
+}
+
+/**
+ * Notify signed-in customer when parcel tracking becomes valid for the first time on a shipping order.
+ * @param {boolean} hadValidBefore — true if carrier + number were already valid before this update
+ */
+export async function notifyCustomerTrackingNumberAvailable(
+  sql,
+  orderId,
+  userId,
+  fulfillmentType,
+  hadValidBefore,
+  carrier,
+  number
+) {
+  if (!sql || !orderId || !userId) return;
+  if (hadValidBefore) return;
+  if (!isShippingFulfillmentType(fulfillmentType)) return;
+  if (!hasValidParcelTracking(carrier, number)) return;
+  try {
+    const tokenRows = await sql`
+      SELECT device_token FROM push_tokens
+      WHERE user_id = ${userId}
+        AND device_token IS NOT NULL AND TRIM(device_token) != ''
+    `;
+    if (!tokenRows?.length) return;
+    for (const row of tokenRows) {
+      if (row.device_token) {
+        await notifyTrackingNumberAvailable(row.device_token, orderId);
+      }
+    }
+  } catch (e) {
+    console.warn('[APNs] tracking available push', e?.message ?? e);
+  }
 }
 
 /**

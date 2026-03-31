@@ -7,19 +7,6 @@
 
 import SwiftUI
 
-/// One step in the track-order status bar (Ordered → Confirmed → Preparing → Ready → Done).
-private struct TrackOrderStep {
-    let status: OrderStatus
-    let label: String
-    private static let order: [OrderStatus] = [.pending, .confirmed, .preparing, .ready, .completed]
-    func reached(by current: OrderStatus?) -> Bool {
-        guard let current = current, let stepIdx = Self.order.firstIndex(of: status),
-              let currentIdx = Self.order.firstIndex(of: current) else { return false }
-        return currentIdx >= stepIdx
-    }
-    func isCurrent(_ current: OrderStatus?) -> Bool { current == status }
-}
-
 struct OrderDetailView: View {
     let order: Order
     let isAdmin: Bool
@@ -101,7 +88,7 @@ struct OrderDetailView: View {
         .inlineNavigationTitle()
         .confirmationDialog("Update status", isPresented: $showStatusPicker) {
             ForEach(OrderStatus.allCases, id: \.self) { status in
-                Button(status.rawValue) {
+                Button(status.displayLabel(for: displayOrder.fulfillmentEnum)) {
                     proposeStatusUpdate(status)
                 }
             }
@@ -381,7 +368,7 @@ struct OrderDetailView: View {
                     .font(.headline)
                     .foregroundStyle(AppConstants.Colors.textPrimary)
                 Spacer()
-                Text(displayOrder.status)
+                Text(displayOrder.statusDisplayLabel)
                     .font(.caption)
                     .fontWeight(.medium)
                     .foregroundStyle(statusColor)
@@ -459,7 +446,7 @@ struct OrderDetailView: View {
                     .foregroundStyle(AppConstants.Colors.textSecondary)
             }
             if !isAdmin {
-                Text("Current status: \(displayOrder.status)")
+                Text("Current status: \(displayOrder.statusDisplayLabel)")
                     .font(.caption)
                     .fontWeight(.medium)
                     .foregroundStyle(statusColor)
@@ -475,9 +462,12 @@ struct OrderDetailView: View {
                 .padding(.vertical, 4)
             } else {
                 HStack(alignment: .top, spacing: 0) {
-                    ForEach(Array(Self.trackOrderSteps.enumerated()), id: \.offset) { index, step in
-                        let isReached = step.reached(by: displayOrder.statusEnum)
-                        let isCurrent = step.isCurrent(displayOrder.statusEnum)
+                    let pipeline = Self.statusPipeline(for: displayOrder.fulfillmentEnum)
+                    let labels = Self.statusStepLabels(for: displayOrder.fulfillmentEnum)
+                    let currentIdx = Self.pipelineIndex(for: displayOrder.statusEnum, pipeline: pipeline)
+                    ForEach(Array(pipeline.enumerated()), id: \.offset) { index, stepStatus in
+                        let isReached = currentIdx >= index
+                        let isCurrent = displayOrder.statusEnum == stepStatus
                         HStack(spacing: 0) {
                             VStack(spacing: 4) {
                                 ZStack {
@@ -490,16 +480,16 @@ struct OrderDetailView: View {
                                             .foregroundStyle(.white)
                                     }
                                 }
-                                Text(step.label)
+                                Text(labels[index])
                                     .font(.caption2)
                                     .foregroundStyle(isReached ? AppConstants.Colors.textPrimary : AppConstants.Colors.textSecondary)
                                     .multilineTextAlignment(.center)
                                     .lineLimit(2)
                             }
                             .frame(width: 72)
-                            if index < Self.trackOrderSteps.count - 1 {
+                            if index < pipeline.count - 1 {
                                 Rectangle()
-                                    .fill(isReached && !isCurrent ? Color.green.opacity(0.6) : Color.gray.opacity(0.25))
+                                    .fill(isReached && index < currentIdx ? Color.green.opacity(0.6) : Color.gray.opacity(0.25))
                                     .frame(height: 2)
                                     .padding(.top, 14)
                             }
@@ -514,13 +504,36 @@ struct OrderDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.cardCornerRadius))
     }
 
-    private static let trackOrderSteps: [TrackOrderStep] = [
-        TrackOrderStep(status: .pending, label: "Ordered"),
-        TrackOrderStep(status: .confirmed, label: "Confirmed"),
-        TrackOrderStep(status: .preparing, label: "Preparing"),
-        TrackOrderStep(status: .ready, label: "Ready"),
-        TrackOrderStep(status: .completed, label: "Done"),
-    ]
+    private static func statusPipeline(for fulfillment: FulfillmentType?) -> [OrderStatus] {
+        switch fulfillment ?? .pickup {
+        case .pickup:
+            return [.pending, .confirmed, .preparing, .ready, .completed]
+        case .delivery, .shipping:
+            return [.pending, .confirmed, .preparing, .ready, .delivered, .completed]
+        }
+    }
+
+    private static func statusStepLabels(for fulfillment: FulfillmentType?) -> [String] {
+        switch fulfillment ?? .pickup {
+        case .pickup:
+            return ["Ordered", "Confirmed", "Preparing", "Ready for pickup", "Done"]
+        case .delivery:
+            return ["Ordered", "Confirmed", "Preparing", "Out for delivery", "Delivered", "Done"]
+        case .shipping:
+            return ["Ordered", "Confirmed", "Preparing", "Shipped", "Delivered", "Done"]
+        }
+    }
+
+    /// Rank of `status` along the fulfillment pipeline (for progress segments).
+    private static func pipelineIndex(for status: OrderStatus?, pipeline: [OrderStatus]) -> Int {
+        guard let s = status, s != .cancelled else { return -1 }
+        if let i = pipeline.firstIndex(of: s) { return i }
+        if s == .delivered, !pipeline.contains(.delivered), let c = pipeline.firstIndex(of: .completed) {
+            return max(0, c - 1)
+        }
+        if s == .completed, let i = pipeline.firstIndex(of: .completed) { return i }
+        return -1
+    }
 
     private var fulfillmentCard: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -706,6 +719,7 @@ struct OrderDetailView: View {
     private var statusColor: Color {
         switch displayOrder.statusEnum {
         case .completed: return .green
+        case .delivered: return .green
         case .cancelled: return .red
         case .ready: return .blue
         default: return AppConstants.Colors.accent

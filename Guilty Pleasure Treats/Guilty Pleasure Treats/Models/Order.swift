@@ -12,8 +12,24 @@ enum OrderStatus: String, Codable, CaseIterable {
     case confirmed = "Confirmed"
     case preparing = "Preparing"
     case ready = "Ready for Pickup"
+    /// Hand-off complete: local delivery dropped off or parcel marked delivered (before `Completed` closes the order).
+    case delivered = "Delivered"
     case completed = "Completed"
     case cancelled = "Cancelled"
+
+    /// UI + admin picker label, accounting for fulfillment (same `ready` DB value → Shipped vs Out for delivery vs Ready for pickup).
+    func displayLabel(for fulfillment: FulfillmentType?) -> String {
+        switch self {
+        case .ready:
+            switch fulfillment {
+            case .shipping: return "Shipped"
+            case .delivery: return "Out for delivery"
+            case .pickup, .none: return "Ready for pickup"
+            }
+        case .delivered: return "Delivered"
+        default: return rawValue
+        }
+    }
 }
 
 enum FulfillmentType: String, Codable, CaseIterable {
@@ -165,6 +181,12 @@ struct Order: Identifiable, Codable, Equatable {
     
     var statusEnum: OrderStatus? { OrderStatus(rawValue: status) }
     var fulfillmentEnum: FulfillmentType? { FulfillmentType(rawValue: fulfillmentType) }
+
+    /// Customer- and admin-friendly status line (uses fulfillment for the `ready` step).
+    var statusDisplayLabel: String {
+        guard let e = statusEnum else { return status }
+        return e.displayLabel(for: fulfillmentEnum)
+    }
 
     /// True when both carrier and tracking number are set (required server-side before marking a shipping order ready).
     var hasParcelTrackingForShipping: Bool {

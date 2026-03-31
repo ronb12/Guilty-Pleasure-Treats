@@ -1173,7 +1173,7 @@ private struct AdminOrderRowCompactView: View {
             Text("\(order.items.count) items · \(order.total.currencyFormatted)")
                 .font(.caption)
                 .foregroundStyle(AppConstants.Colors.textSecondary)
-            Text(order.status)
+            Text(order.statusDisplayLabel)
                 .font(.caption)
                 .fontWeight(.medium)
                 .foregroundStyle(statusColor)
@@ -1189,6 +1189,7 @@ private struct AdminOrderRowCompactView: View {
     private var statusColor: Color {
         switch order.statusEnum {
         case .completed: return .green
+        case .delivered: return .green
         case .cancelled: return .red
         case .ready: return .blue
         default: return AppConstants.Colors.accent
@@ -2347,7 +2348,7 @@ struct CustomerDetailSheet: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(order.createdAt?.shortDateString ?? "—")
                                 .font(.caption)
-                            Text(order.status)
+                            Text(order.statusDisplayLabel)
                                 .font(.caption)
                                 .foregroundStyle(AppConstants.Colors.accent)
                             Text("\(order.items.count) items · \(order.total.currencyFormatted)")

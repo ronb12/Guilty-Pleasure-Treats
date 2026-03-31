@@ -141,6 +141,30 @@ export default async function handler(req, res) {
             console.error('[orders/id] loyalty award', loyaltyErr);
           }
         }
+        if (orderRow.user_id) {
+          try {
+            const tokenRows = await sql`
+              SELECT device_token FROM push_tokens
+              WHERE user_id = ${orderRow.user_id}
+                AND device_token IS NOT NULL AND TRIM(device_token) != ''
+            `;
+            if (tokenRows?.length) {
+              const { notifyOrderStatusUpdate } = await import('../../api/lib/apns.js');
+              for (const row of tokenRows) {
+                if (row.device_token) {
+                  await notifyOrderStatusUpdate(
+                    row.device_token,
+                    id,
+                    body.status,
+                    orderRow.fulfillment_type
+                  );
+                }
+              }
+            }
+          } catch (pushErr) {
+            console.warn('[orders/id] status push', pushErr?.message ?? pushErr);
+          }
+        }
       }
       if (body.manualPaidAt != null || body.manual_paid_at !== undefined) {
         const v = body.manualPaidAt ?? body.manual_paid_at;
@@ -160,6 +184,7 @@ export default async function handler(req, res) {
           const [cur] = await sql`
             SELECT tracking_carrier, tracking_number, tracking_status_detail FROM orders WHERE id = ${id}
           `;
+          const hadValidTrackingBefore = hasValidParcelTracking(cur?.tracking_carrier, cur?.tracking_number);
           let carrier = cur?.tracking_carrier ?? null;
           let number = cur?.tracking_number ?? null;
           let detail = cur?.tracking_status_detail ?? null;
@@ -192,6 +217,20 @@ export default async function handler(req, res) {
             await completeShippingOrderIfTrackingDelivered(sql, id, detail);
           } catch (e) {
             console.warn('[orders/id] auto-complete from tracking', e?.message ?? e);
+          }
+          try {
+            const { notifyCustomerTrackingNumberAvailable } = await import('../../api/lib/apns.js');
+            await notifyCustomerTrackingNumberAvailable(
+              sql,
+              id,
+              orderRow.user_id,
+              orderRow.fulfillment_type,
+              hadValidTrackingBefore,
+              carrier,
+              number
+            );
+          } catch (pushErr) {
+            console.warn('[orders/id] tracking available push', pushErr?.message ?? pushErr);
           }
         }
       }

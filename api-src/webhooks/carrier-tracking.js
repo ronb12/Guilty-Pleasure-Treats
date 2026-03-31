@@ -18,6 +18,7 @@ import { setCors, handleOptions } from '../../api/lib/cors.js';
 import { ensureOrdersOptionalColumns } from '../lib/ordersSchema.js';
 import { parcelTrackingFieldsFromRow } from '../../api/lib/parcelTrackingUrls.js';
 import { completeShippingOrderIfTrackingDelivered } from '../../api/lib/completeOrderIfTrackingDelivered.js';
+import { hasValidParcelTracking } from '../../api/lib/shippingReadyTrackingRule.js';
 
 function timingSafeEqualStrings(a, b) {
   const x = Buffer.from(String(a ?? ''), 'utf8');
@@ -76,10 +77,12 @@ export default async function handler(req, res) {
 
   try {
     const [cur] = await sql`
-      SELECT tracking_carrier, tracking_number, tracking_status_detail
+      SELECT tracking_carrier, tracking_number, tracking_status_detail, fulfillment_type, user_id
       FROM orders WHERE id = ${orderId}
     `;
     if (!cur) return res.status(404).json({ error: 'Order not found' });
+
+    const hadValidTrackingBefore = hasValidParcelTracking(cur.tracking_carrier, cur.tracking_number);
 
     let carrier = cur.tracking_carrier ?? null;
     let number = cur.tracking_number ?? null;
@@ -118,6 +121,21 @@ export default async function handler(req, res) {
       orderAutoCompleted = r.completed === true;
     } catch (e) {
       console.warn('[webhooks/carrier-tracking] auto-complete', e?.message ?? e);
+    }
+
+    try {
+      const { notifyCustomerTrackingNumberAvailable } = await import('../../api/lib/apns.js');
+      await notifyCustomerTrackingNumberAvailable(
+        sql,
+        orderId,
+        cur.user_id,
+        cur.fulfillment_type,
+        hadValidTrackingBefore,
+        carrier,
+        number
+      );
+    } catch (pushErr) {
+      console.warn('[webhooks/carrier-tracking] tracking available push', pushErr?.message ?? pushErr);
     }
 
     const [row] = await sql`

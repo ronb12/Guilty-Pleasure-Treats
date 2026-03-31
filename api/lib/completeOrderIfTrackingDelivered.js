@@ -67,7 +67,12 @@ export async function completeShippingOrderIfTrackingDelivered(sql, orderId, mer
       if (tokenRows?.length) {
         const { notifyOrderStatusUpdate } = await import('./apns.js');
         for (const t of tokenRows) {
-          if (t.device_token) await notifyOrderStatusUpdate(t.device_token, oid, 'Completed');
+          if (t.device_token) {
+            await notifyOrderStatusUpdate(t.device_token, oid, 'Completed', 'shipping', {
+              messageOverride:
+                'Your shipment was delivered. Order complete — thanks for ordering!',
+            });
+          }
         }
       }
     } catch (e) {

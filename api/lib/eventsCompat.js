@@ -1,6 +1,7 @@
 /**
- * Production Neon may use a legacy `events` shape (NOT NULL `date`, `location`, `description`)
- * alongside `start_at` / `image_url`. Inserts that omit `date` fail silently via awaitNeonRows → empty result.
+ * Production Neon may use a legacy `events` shape (NOT NULL `date`, `location`, …).
+ * Never use awaitNeonRows for information_schema or INSERT — errors became [] and we cached
+ * an empty column set, so every insert used the wrong shape and "saved" nothing.
  */
 import { awaitNeonRows } from './db.js';
 
@@ -10,19 +11,32 @@ let cachedAt = 0;
 
 const DEFAULT_LEGACY_LOCATION = 'Guilty Pleasure Treats';
 
+function invalidateColumnCache() {
+  cachedCols = null;
+  cachedAt = 0;
+}
+
 export async function getEventsColumnSet(sql) {
   const now = Date.now();
-  if (cachedCols && now - cachedAt < COL_TTL_MS) return cachedCols;
-  const rows = await awaitNeonRows(
-    sql`
-    SELECT column_name FROM information_schema.columns
-    WHERE table_schema = 'public' AND table_name = 'events'
-  `,
-    'events_info_columns'
-  );
-  cachedCols = new Set(rows.map((r) => String(r.column_name)));
-  cachedAt = now;
-  return cachedCols;
+  if (cachedCols && cachedCols.size > 0 && now - cachedAt < COL_TTL_MS) {
+    return cachedCols;
+  }
+  let rows;
+  try {
+    rows = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = 'events'
+    `;
+  } catch (e) {
+    console.error('[eventsCompat] getEventsColumnSet failed', e?.message ?? e);
+    return new Set();
+  }
+  const set = new Set((rows || []).map((r) => String(r.column_name)));
+  if (set.size > 0) {
+    cachedCols = set;
+    cachedAt = now;
+  }
+  return set;
 }
 
 function businessTZ() {
@@ -56,64 +70,89 @@ export function parseEventDate(v) {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** @returns {Promise<Array>} RETURNING rows or [] */
-export async function insertEventRow(sql, p) {
+async function insertLegacyShape(sql, p) {
   const { title, description, startAt, endAt, imageUrl, location } = p;
   const descText = description != null && String(description).trim() ? String(description).trim() : '';
-  const locModern =
-    location != null && String(location).trim() ? String(location).trim() : null;
   const locLegacy =
     location != null && String(location).trim() ? String(location).trim() : DEFAULT_LEGACY_LOCATION;
   const startD = parseEventDate(startAt);
   const endD = parseEventDate(endAt);
   const img = imageUrl != null && String(imageUrl).trim() ? String(imageUrl).trim() : null;
+  const base = startD ?? new Date();
+  const dateStr = legacyDateStr(base);
+  const timeStr = startD ? legacyTimeStr(startD) : null;
 
+  return sql`
+    INSERT INTO events (
+      title,
+      date,
+      time,
+      location,
+      description,
+      display_order,
+      start_at,
+      end_at,
+      image_url
+    )
+    VALUES (
+      ${title},
+      ${dateStr},
+      ${timeStr},
+      ${locLegacy},
+      ${descText},
+      0,
+      ${startD},
+      ${endD},
+      ${img}
+    )
+    RETURNING id, title, description, start_at, end_at, image_url, location, created_at
+  `;
+}
+
+async function insertModernShape(sql, p) {
+  const { title, description, startAt, endAt, imageUrl, location } = p;
+  const descText = description != null && String(description).trim() ? String(description).trim() : '';
+  const locModern =
+    location != null && String(location).trim() ? String(location).trim() : null;
+  const startD = parseEventDate(startAt);
+  const endD = parseEventDate(endAt);
+  const img = imageUrl != null && String(imageUrl).trim() ? String(imageUrl).trim() : null;
+
+  return sql`
+    INSERT INTO events (title, description, start_at, end_at, image_url, location)
+    VALUES (${title}, ${descText || null}, ${startD}, ${endD}, ${img}, ${locModern})
+    RETURNING id, title, description, start_at, end_at, image_url, location, created_at
+  `;
+}
+
+function shouldRetryAsLegacy(err) {
+  const code = err?.code;
+  const msg = String(err?.message || err || '');
+  if (code === '23502' && /date|not null/i.test(msg)) return true;
+  if (code === '42703') return true;
+  return /column .* does not exist|null value in column "date"/i.test(msg);
+}
+
+/** @returns {Promise<Array>} RETURNING rows */
+export async function insertEventRow(sql, p) {
   const cols = await getEventsColumnSet(sql);
   const hasLegacyDate = cols.has('date');
 
   if (hasLegacyDate) {
-    const base = startD ?? new Date();
-    const dateStr = legacyDateStr(base);
-    const timeStr = startD ? legacyTimeStr(startD) : null;
-
-    return awaitNeonRows(
-      sql`
-      INSERT INTO events (
-        title,
-        date,
-        time,
-        location,
-        description,
-        display_order,
-        start_at,
-        end_at,
-        image_url
-      )
-      VALUES (
-        ${title},
-        ${dateStr},
-        ${timeStr},
-        ${locLegacy},
-        ${descText},
-        0,
-        ${startD},
-        ${endD},
-        ${img}
-      )
-      RETURNING id, title, description, start_at, end_at, image_url, location, created_at
-    `,
-      'events_POST_insert_legacy'
-    );
+    return insertLegacyShape(sql, p);
   }
 
-  return awaitNeonRows(
-    sql`
-    INSERT INTO events (title, description, start_at, end_at, image_url, location)
-    VALUES (${title}, ${descText || null}, ${startD}, ${endD}, ${img}, ${locModern})
-    RETURNING id, title, description, start_at, end_at, image_url, location, created_at
-  `,
-    'events_POST_insert_modern'
-  );
+  try {
+    return await insertModernShape(sql, p);
+  } catch (e) {
+    if (shouldRetryAsLegacy(e)) {
+      console.warn('[eventsCompat] modern insert failed, retrying legacy shape', e?.code, e?.message ?? e);
+      invalidateColumnCache();
+      await getEventsColumnSet(sql);
+      return insertLegacyShape(sql, p);
+    }
+    throw e;
+  }
 }
 
 /** When `events.date` exists, keep legacy text columns in sync with `start_at` changes. */

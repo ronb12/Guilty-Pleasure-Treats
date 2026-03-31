@@ -1,14 +1,22 @@
 /**
  * PATCH /api/orders/update-status — update order status and/or pickup_time (admin or owner).
  * Body: { orderId: string (uuid), status?: string, pickup_time?: iso date string, ready_by?: iso date string }
- * Status: pending | confirmed | in_progress | ready | completed | cancelled
+ * Status: pending | confirmed | in_progress | ready | delivered | completed | cancelled
  * Shipping fulfillment: status `ready` requires tracking_carrier + tracking_number already on the order (save via PATCH /api/orders/:id tracking fields first).
  */
 const { withCors } = require('../../api/lib/cors');
 const { getAuth } = require('../../api/lib/auth');
 const { sql } = require('../../api/lib/db');
 
-const ALLOWED_STATUSES = ['pending', 'confirmed', 'in_progress', 'ready', 'completed', 'cancelled'];
+const ALLOWED_STATUSES = [
+  'pending',
+  'confirmed',
+  'in_progress',
+  'ready',
+  'delivered',
+  'completed',
+  'cancelled',
+];
 
 async function handler(req, res) {
   if (req.method === 'OPTIONS') return withCors(req, res, () => res.status(204).end());
@@ -27,7 +35,9 @@ async function handler(req, res) {
   if (!orderId) return res.status(400).json({ error: 'orderId required' });
   if (!status && !pickup_time && ready_by === undefined) return res.status(400).json({ error: 'Provide status, pickup_time, or ready_by' });
 
-  if (status && !ALLOWED_STATUSES.includes(status)) return res.status(400).json({ error: 'Invalid status' });
+  if (status && !ALLOWED_STATUSES.includes(String(status).trim().toLowerCase())) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
 
   try {
     const {
@@ -54,7 +64,9 @@ async function handler(req, res) {
       return res.status(400).json(shippingReadyRequiresTrackingError());
     }
 
-    if (status) await sql`UPDATE orders SET status = ${status}, updated_at = NOW() WHERE id = ${orderId}`;
+    if (status) {
+      await sql`UPDATE orders SET status = ${String(status).trim()}, updated_at = NOW() WHERE id = ${orderId}`;
+    }
     if (pickup_time !== undefined) await sql`UPDATE orders SET pickup_time = ${pickup_time ? new Date(pickup_time) : null} WHERE id = ${orderId}`;
     if (ready_by !== undefined) await sql`UPDATE orders SET ready_by = ${ready_by ? new Date(ready_by) : null} WHERE id = ${orderId}`;
 
@@ -77,7 +89,9 @@ async function handler(req, res) {
         if (tokenRows?.length) {
           const { notifyOrderStatusUpdate } = await import('../../api/lib/apns.js');
           for (const row of tokenRows) {
-            if (row.device_token) await notifyOrderStatusUpdate(row.device_token, orderId, status);
+            if (row.device_token) {
+              await notifyOrderStatusUpdate(row.device_token, orderId, status, order.fulfillment_type);
+            }
           }
         }
       } catch (e) {
