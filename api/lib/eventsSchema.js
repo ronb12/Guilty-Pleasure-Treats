@@ -1,11 +1,22 @@
 /**
  * Ensures `events` exists (Neon / Postgres). Safe to call on every request.
  * Uses awaitNeonRows so Neon `fetch failed` does not surface as unhandled rejections.
+ * Skips DDL for the lifetime of the serverless instance once `events` is readable.
  */
 import { awaitNeonRows } from './db.js';
 
+const eventsSchemaKey = '__gpt_events_table_ready';
+
 export async function ensureEventsTable(sql) {
   if (!sql) return;
+  if (globalThis[eventsSchemaKey]) return;
+  try {
+    await sql`SELECT 1 FROM events LIMIT 1`;
+    globalThis[eventsSchemaKey] = true;
+    return;
+  } catch (_) {
+    /* table missing or not yet readable — run DDL below */
+  }
   await awaitNeonRows(
     sql`
     CREATE TABLE IF NOT EXISTS events (
@@ -39,4 +50,10 @@ export async function ensureEventsTable(sql) {
     sql`CREATE INDEX IF NOT EXISTS idx_events_start_at ON events(start_at ASC) WHERE start_at IS NOT NULL`,
     'events_schema_idx'
   );
+  try {
+    await sql`SELECT 1 FROM events LIMIT 1`;
+    globalThis[eventsSchemaKey] = true;
+  } catch (_) {
+    /* keep eventsSchemaKey false so a later request can retry migrations */
+  }
 }

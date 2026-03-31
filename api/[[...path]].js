@@ -309,7 +309,7 @@ export default async function handler(req, res) {
     res.status(200).json({
       ok: true,
       service: 'Guilty Pleasure Treats API',
-      database: !!(process.env.POSTGRES_URL || process.env.DATABASE_URL),
+      database: !!(process.env.NEON_POOL_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL),
       apnsConfigured,
       apnsSandbox: process.env.APNS_SANDBOX === 'true',
       timestamp: new Date().toISOString(),

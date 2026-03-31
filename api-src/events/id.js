@@ -9,6 +9,12 @@ import { setCors, handleOptions } from '../lib/cors.js';
 import { ensureEventsTable } from '../lib/eventsSchema.js';
 import { updateLegacyEventDateTime } from '../../api/lib/eventsCompat.js';
 
+function normalizeImageUrl(v) {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s.length ? s : null;
+}
+
 function rowToEvent(row) {
   if (!row) return null;
   return {
@@ -17,7 +23,7 @@ function rowToEvent(row) {
     description: row.description ?? null,
     start_at: row.start_at ? new Date(row.start_at).toISOString() : null,
     end_at: row.end_at ? new Date(row.end_at).toISOString() : null,
-    image_url: row.image_url ?? null,
+    image_url: normalizeImageUrl(row.image_url),
     location: row.location ?? null,
     created_at: row.created_at ? new Date(row.created_at).toISOString() : null,
   };

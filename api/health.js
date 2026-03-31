@@ -13,7 +13,7 @@ function apnsConfiguredFromEnv() {
 }
 
 export default function handler(req, res) {
-  const hasDb = !!(process.env.POSTGRES_URL || process.env.DATABASE_URL);
+  const hasDb = !!(process.env.NEON_POOL_URL || process.env.POSTGRES_URL || process.env.DATABASE_URL);
   const neonAuth = !!(process.env.NEON_AUTH_URL && String(process.env.NEON_AUTH_URL).trim());
   res.setHeader('Content-Type', 'application/json');
   res.status(200).json({

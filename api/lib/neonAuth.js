@@ -139,10 +139,10 @@ async function getOrCreateUserFromNeonPayloadImplBody(payload) {
 
 /**
  * Proxy sign-in to Neon Auth: POST sign-in/email, then GET token (with cookie), return JWT + user.
- * Never throws — network/JSON/JWKS failures return null so login can fall back to DB password.
+ * Never throws. `ok: false` + `phase: 'user_sync'` means Neon accepted credentials but public.users sync failed (DB).
  */
 export async function neonAuthSignIn(email, password) {
-  if (!NEON_AUTH_URL) return null;
+  if (!NEON_AUTH_URL) return { ok: false, phase: 'config' };
   try {
     const origin = getAuthOrigin();
     const signInRes = await fetch(`${NEON_AUTH_URL}/sign-in/email`, {
@@ -156,28 +156,28 @@ export async function neonAuthSignIn(email, password) {
     });
     const setCookie = signInRes.headers.get('set-cookie') || signInRes.headers.get('Set-Cookie');
     const cookieValue = setCookie ? setCookie.split(';')[0].trim() : null;
-    if (!cookieValue || !signInRes.ok) return null;
+    if (!cookieValue || !signInRes.ok) return { ok: false, phase: 'neon_signin', status: signInRes.status };
     const tokenRes = await fetch(`${NEON_AUTH_URL}/token`, {
       method: 'GET',
       headers: { Cookie: cookieValue },
     });
-    if (!tokenRes.ok) return null;
+    if (!tokenRes.ok) return { ok: false, phase: 'token', status: tokenRes.status };
     let tokenJson;
     try {
       tokenJson = await tokenRes.json();
     } catch {
-      return null;
+      return { ok: false, phase: 'token_json' };
     }
     const jwt = tokenJson?.token;
-    if (!jwt) return null;
+    if (!jwt) return { ok: false, phase: 'jwt_missing' };
     const payload = await verifyNeonJWT(jwt);
-    if (!payload) return null;
+    if (!payload) return { ok: false, phase: 'jwt_verify' };
     const user = await getOrCreateUserFromNeonPayload(payload);
-    if (!user) return null;
-    return { token: jwt, user };
+    if (!user) return { ok: false, phase: 'user_sync' };
+    return { ok: true, token: jwt, user };
   } catch (e) {
     console.error('[neonAuth] signIn', e?.message ?? e);
-    return null;
+    return { ok: false, phase: 'error', message: String(e?.message || e) };
   }
 }
 

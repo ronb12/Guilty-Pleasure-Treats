@@ -5155,6 +5155,43 @@ struct AdminReviewsView: View {
     }
 }
 
+private let adminEventListThumbnailSize: CGFloat = 64
+
+@ViewBuilder
+private func adminEventListThumbnail(event: Event) -> some View {
+    if let url = event.resolvedImageURL {
+        AsyncImage(url: url) { phase in
+            switch phase {
+            case .empty:
+                ProgressView()
+                    .frame(width: adminEventListThumbnailSize, height: adminEventListThumbnailSize)
+            case .success(let image):
+                image
+                    .resizable()
+                    .scaledToFill()
+            case .failure:
+                Image(systemName: "photo")
+                    .font(.title2)
+                    .foregroundStyle(AppConstants.Colors.accent.opacity(0.4))
+            @unknown default:
+                EmptyView()
+            }
+        }
+        .frame(width: adminEventListThumbnailSize, height: adminEventListThumbnailSize)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .id(url.absoluteString)
+    } else {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(AppConstants.Colors.accent.opacity(0.08))
+            Image(systemName: "calendar")
+                .font(.title2)
+                .foregroundStyle(AppConstants.Colors.accent.opacity(0.35))
+        }
+        .frame(width: adminEventListThumbnailSize, height: adminEventListThumbnailSize)
+    }
+}
+
 struct AdminEventsView: View {
     @ObservedObject var viewModel: AdminViewModel
     @State private var showAddEvent = false
@@ -5204,6 +5241,7 @@ struct AdminEventsView: View {
                             eventToEdit = event
                         } label: {
                             HStack(alignment: .top, spacing: 12) {
+                                adminEventListThumbnail(event: event)
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text(event.title)
                                         .font(.headline)
@@ -5324,6 +5362,10 @@ private struct AdminEventFormSheet: View {
         return (selectedAttachmentContentType == "application/pdf") ? "PDF attached" : "Photo attached"
     }
 
+    private var trimmedPastedImageURL: String {
+        imageURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -5394,6 +5436,47 @@ private struct AdminEventFormSheet: View {
                         .keyboardType(.URL)
                         .autocapitalization(.none)
                         #endif
+                    // Preview so admins can confirm the image before save (library/file pick or pasted URL).
+                    #if os(iOS)
+                    if let data = selectedAttachmentData, !data.isEmpty, let uiImg = UIImage(data: data) {
+                        Image(uiImage: uiImg)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 180)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    #else
+                    if let data = selectedAttachmentData, !data.isEmpty, let nsImg = NSImage(data: data) {
+                        Image(nsImage: nsImg)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 180)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    #endif
+                    if selectedAttachmentData == nil,
+                       !trimmedPastedImageURL.isEmpty,
+                       let previewURL = URL(string: trimmedPastedImageURL) {
+                        AsyncImage(url: previewURL) { phase in
+                            switch phase {
+                            case .empty:
+                                ProgressView().frame(maxHeight: 120)
+                            case .success(let img):
+                                img
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(maxHeight: 180)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                            case .failure:
+                                Label("Could not load this image URL", systemImage: "exclamationmark.triangle")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            @unknown default:
+                                EmptyView()
+                            }
+                        }
+                        .id(trimmedPastedImageURL)
+                    }
                 }
                 Section("Location (optional)") {
                     TextField("Address or venue", text: $location)

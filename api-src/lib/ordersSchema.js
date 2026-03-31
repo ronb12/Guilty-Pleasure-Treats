@@ -1,6 +1,6 @@
 /**
  * Legacy `orders` rows may lack columns added for analytics / checkout.
- * @param {import('@neondatabase/serverless').NeonQueryFunction} sql
+ * @param {(strings: TemplateStringsArray, ...values: unknown[]) => Promise<unknown>} sql
  */
 export async function ensureOrdersOptionalColumns(sql) {
   if (!sql) return;

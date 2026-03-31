@@ -1402,7 +1402,7 @@ final class VercelService {
         try validateResponse(http, data: respData)
         let json = try JSONSerialization.jsonObject(with: respData) as? [String: Any]
         guard let urlString = json?["url"] as? String else { throw VercelAPIError(message: "No url in response") }
-        return urlString
+        return urlString.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Upload image as JSON (base64). Use when multipart fails (e.g. on some serverless runtimes). 4.5 MB body limit.
@@ -1420,7 +1420,7 @@ final class VercelService {
         try validateResponse(http, data: respData)
         let json = try JSONSerialization.jsonObject(with: respData) as? [String: Any]
         guard let urlString = json?["url"] as? String else { throw VercelAPIError(message: "No url in response") }
-        return urlString
+        return urlString.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - Helpers
@@ -1610,7 +1610,9 @@ extension VercelService {
         if let d = event.eventDescription { body["description"] = d }
         if let d = event.startAt { body["start_at"] = ISO8601DateFormatter().string(from: d) }
         if let d = event.endAt { body["end_at"] = ISO8601DateFormatter().string(from: d) }
-        if let u = event.imageURL { body["image_url"] = u }
+        if let u = event.imageURL?.trimmingCharacters(in: .whitespacesAndNewlines), !u.isEmpty {
+            body["image_url"] = u
+        }
         if let loc = event.location { body["location"] = loc }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, res) = try await session.data(for: req)

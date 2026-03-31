@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct Event: Identifiable, Codable {
+struct Event: Identifiable, Codable, Hashable {
     var id: String
     var title: String
     var eventDescription: String?
@@ -63,7 +63,12 @@ struct Event: Identifiable, Codable {
         eventDescription = try c.decodeIfPresent(String.self, forKey: .eventDescription)
         startAt = try c.decodeIfPresent(Date.self, forKey: .startAt)
         endAt = try c.decodeIfPresent(Date.self, forKey: .endAt)
-        imageURL = try c.decodeIfPresent(String.self, forKey: .imageURL)
+        if let raw = try c.decodeIfPresent(String.self, forKey: .imageURL) {
+            let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            imageURL = t.isEmpty ? nil : t
+        } else {
+            imageURL = nil
+        }
         location = try c.decodeIfPresent(String.self, forKey: .location)
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
     }
@@ -75,8 +80,21 @@ struct Event: Identifiable, Codable {
         try c.encodeIfPresent(eventDescription, forKey: .eventDescription)
         try c.encodeIfPresent(startAt, forKey: .startAt)
         try c.encodeIfPresent(endAt, forKey: .endAt)
-        try c.encodeIfPresent(imageURL, forKey: .imageURL)
+        let trimmedImage = imageURL?.trimmingCharacters(in: .whitespacesAndNewlines)
+        try c.encodeIfPresent(
+            (trimmedImage?.isEmpty == false) ? trimmedImage : nil,
+            forKey: .imageURL
+        )
         try c.encodeIfPresent(location, forKey: .location)
         try c.encodeIfPresent(createdAt, forKey: .createdAt)
+    }
+}
+
+extension Event {
+    /// Public image URL for `AsyncImage`, after trimming. Handles occasional newline-padded values from APIs/DB.
+    var resolvedImageURL: URL? {
+        guard let raw = imageURL?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+        if let u = URL(string: raw), u.scheme != nil { return u }
+        return nil
     }
 }

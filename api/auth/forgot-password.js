@@ -57,7 +57,6 @@ async function findResettableUser(emailNorm) {
   const hasLocalPassword =
     u.password_hash != null && String(u.password_hash).trim().length >= 10;
   const hasNeonLink = u.neon_auth_id != null && String(u.neon_auth_id).trim() !== '';
-  // Allow reset if linked to Neon Auth even when neon_auth.account lookup fails (schema / provider id drift).
   if (hasCredential || hasLocalPassword || hasNeonLink) {
     return { userId: u.id, neonUserId };
   }

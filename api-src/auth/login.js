@@ -73,9 +73,10 @@ export default async function handler(req, res) {
 
   const body = req.body || {};
   const email = typeof body.email === 'string' ? body.email.trim() : '';
-  const password = typeof body.password === 'string' ? body.password.trim() : '';
+  // Do not trim password: must match signup (api-src/auth/signup.js) and Neon Auth, which hash the raw string.
+  const password = typeof body.password === 'string' ? body.password : '';
 
-  if (!email || !password) {
+  if (!email || !password.trim()) {
     json(res, 400, { error: 'Email and password are required' });
     return;
   }
@@ -98,7 +99,19 @@ export default async function handler(req, res) {
     }
 
     if (!result || !result.token || !result.user) {
-      result = await neonAuthSignIn(email, password);
+      const neon = await neonAuthSignIn(email, password);
+      if (neon?.ok) {
+        result = { token: neon.token, user: neon.user };
+      } else if (neon && neon.ok === false && neon.phase === 'user_sync') {
+        json(res, 503, {
+          error:
+            'Sign-in succeeded but your account could not be loaded. Try again in a moment. If this continues, contact support.',
+          code: 'account_sync_failed',
+        });
+        return;
+      } else {
+        result = null;
+      }
     }
 
     // Optional: admin fallback when Neon Auth rejects and no public.users password match
