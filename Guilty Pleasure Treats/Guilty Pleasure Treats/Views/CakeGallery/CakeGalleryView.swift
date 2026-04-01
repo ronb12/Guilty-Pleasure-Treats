@@ -195,33 +195,8 @@ struct GalleryDetailSheet: View {
                 }
             }
             .sheet(isPresented: $showQuoteContact) {
-                ContactView(
-                    initialSubject: "Quote: \(item.title)",
-                    initialMessage: Self.quoteMessageBody(for: item),
-                    messageSource: "gallery_quote",
-                    galleryItemTitle: item.title
-                )
+                GalleryQuoteRequestView(item: item)
             }
         }
-    }
-
-    private static func quoteMessageBody(for item: GalleryCakeItem) -> String {
-        var lines: [String] = [
-            "I’m interested in a custom order based on this gallery design.",
-            "",
-            "Design: \(item.title)",
-            "Gallery ID: \(item.id)",
-        ]
-        if let u = item.imageUrl, !u.isEmpty {
-            lines.append("Reference photo: \(u)")
-        }
-        if let d = item.description, !d.isEmpty {
-            lines.append("")
-            lines.append("Notes from listing: \(d)")
-        }
-        lines.append("")
-        lines.append("Please reply with pricing and next steps. (Event date, servings, or changes welcome below.)")
-        lines.append("")
-        return lines.joined(separator: "\n")
     }
 }

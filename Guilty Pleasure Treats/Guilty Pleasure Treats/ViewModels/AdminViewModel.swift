@@ -1435,7 +1435,7 @@ final class AdminViewModel: ObservableObject {
         await loadCakeGallery()
     }
 
-    func updateGalleryItem(_ item: GalleryCakeItem, imageUrl: String? = nil, title: String? = nil, description: String? = nil, category: String? = nil, price: Double? = nil) async {
+    func updateGalleryItem(_ item: GalleryCakeItem, imageUrl: String? = nil, title: String, description: String?, category: String?, price: Double?) async {
         let id = item.id
         do {
             try await api.updateGalleryCake(id: id, imageUrl: imageUrl, title: title, description: description, category: category, price: price)

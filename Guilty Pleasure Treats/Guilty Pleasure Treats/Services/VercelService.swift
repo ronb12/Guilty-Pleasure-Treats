@@ -1283,19 +1283,21 @@ final class VercelService {
         return try decoder.decode(GalleryCakeItem.self, from: data)
     }
 
-    func updateGalleryCake(id: String, imageUrl: String? = nil, title: String? = nil, description: String? = nil, category: String? = nil, price: Double? = nil, displayOrder: Int? = nil) async throws {
+    /// PATCH gallery item. Sends explicit JSON `null` for description, category, and price when nil so the API clears them (quote-only = clear price).
+    func updateGalleryCake(id: String, imageUrl: String? = nil, title: String, description: String?, category: String?, price: Double?, displayOrder: Int? = nil) async throws {
         guard authToken != nil else { throw VercelNotConfiguredError() }
         guard let url = apiIDURL(resource: "cake-gallery", id: id) else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
         req.httpMethod = "PATCH"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("Bearer \(authToken!)", forHTTPHeaderField: "Authorization")
-        var body: [String: Any] = [:]
+        var body: [String: Any] = [
+            "title": title,
+            "description": description ?? NSNull(),
+            "category": category ?? NSNull(),
+            "price": price.map { $0 as Any } ?? NSNull(),
+        ]
         if let u = imageUrl { body["imageUrl"] = u }
-        if let t = title { body["title"] = t }
-        if let d = description { body["description"] = d }
-        if let c = category { body["category"] = c }
-        if let p = price { body["price"] = p }
         if let o = displayOrder { body["displayOrder"] = o }
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (_, res) = try await session.data(for: req)
