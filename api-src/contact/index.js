@@ -1,10 +1,10 @@
 /**
  * GET /api/contact - list contact messages (admin only).
- *   Query: ?quotesOnly=1 — only gallery quote requests (source = gallery_quote).
- *   Query: ?excludeQuotes=1 — general contact only (excludes gallery_quote).
+ *   Query: ?quotesOnly=1 — gallery quote requests (rows in quote_requests + contact_messages).
+ *   Query: ?excludeQuotes=1 — general contact only (no row in quote_requests).
  * POST /api/contact - submit a contact message (public).
  * Body: { name?, email, subject?, message, userId?, orderId?, source?, galleryItemTitle? }.
- * source=gallery_quote → admin push title "Gallery quote request" (gallery Request a quote).
+ * source=gallery_quote → inserts contact_messages + quote_requests; admin push "Gallery quote request".
  */
 import { sql, hasDb } from '../lib/db.js';
 import { getTokenFromRequest, getSession } from '../lib/auth.js';
@@ -47,17 +47,17 @@ export default async function handler(req, res) {
       let rows;
       if (quotesOnly) {
         rows = await sql`
-          SELECT id, name, email, subject, message, user_id, order_id, source, gallery_item_title, read_at, created_at
-          FROM contact_messages
-          WHERE source = 'gallery_quote'
-          ORDER BY created_at DESC
+          SELECT c.id, c.name, c.email, c.subject, c.message, c.user_id, c.order_id, c.source, c.gallery_item_title, c.read_at, c.created_at
+          FROM contact_messages c
+          INNER JOIN quote_requests q ON q.contact_message_id = c.id
+          ORDER BY c.created_at DESC
           LIMIT 500
         `;
       } else if (excludeQuotes) {
         rows = await sql`
           SELECT id, name, email, subject, message, user_id, order_id, source, gallery_item_title, read_at, created_at
           FROM contact_messages
-          WHERE source IS NULL OR source <> 'gallery_quote'
+          WHERE NOT EXISTS (SELECT 1 FROM quote_requests q WHERE q.contact_message_id = contact_messages.id)
           ORDER BY created_at DESC
           LIMIT 500
         `;
@@ -104,6 +104,17 @@ export default async function handler(req, res) {
         RETURNING id
       `;
       const messageId = inserted?.id?.toString?.() ?? null;
+      if (messageId && sourceStored === 'gallery_quote') {
+        try {
+          await sql`
+            INSERT INTO quote_requests (contact_message_id, gallery_item_title)
+            VALUES (${inserted.id}, ${galleryTitleStored})
+          `;
+        } catch (qrErr) {
+          console.error('[contact] quote_requests insert', qrErr?.message ?? qrErr);
+          throw qrErr;
+        }
+      }
       if (messageId) {
         try {
           const adminRows = await sql`

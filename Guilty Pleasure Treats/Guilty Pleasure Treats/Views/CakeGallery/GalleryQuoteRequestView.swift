@@ -16,6 +16,7 @@ struct GalleryQuoteRequestView: View {
 
     @State private var name = ""
     @State private var email = ""
+    @State private var phone = ""
     @State private var eventDateText = ""
     @State private var servingsText = ""
     @State private var notes = ""
@@ -53,7 +54,7 @@ struct GalleryQuoteRequestView: View {
                             .foregroundStyle(AppConstants.Colors.textSecondary)
 
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Name (optional)")
+                            Text("Name")
                                 .font(.subheadline.weight(.medium))
                             TextField("Your name", text: $name)
                                 .textFieldStyle(.roundedBorder)
@@ -68,6 +69,16 @@ struct GalleryQuoteRequestView: View {
                                 #if os(iOS)
                                 .keyboardType(.emailAddress)
                                 .autocapitalization(.none)
+                                #endif
+                        }
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Phone")
+                                .font(.subheadline.weight(.medium))
+                            TextField("Mobile number", text: $phone)
+                                .textFieldStyle(.roundedBorder)
+                                .textContentType(.telephoneNumber)
+                                #if os(iOS)
+                                .keyboardType(.phonePad)
                                 #endif
                         }
                         VStack(alignment: .leading, spacing: 8) {
@@ -109,7 +120,7 @@ struct GalleryQuoteRequestView: View {
                             .foregroundStyle(.white)
                             .clipShape(RoundedRectangle(cornerRadius: AppConstants.Layout.buttonCornerRadius))
                         }
-                        .disabled(isLoading || email.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(isLoading || !canSubmitQuote)
                     }
                 }
                 .padding(AppConstants.Layout.screenHorizontalPadding)
@@ -129,6 +140,14 @@ struct GalleryQuoteRequestView: View {
                 if email.isEmpty, let e = auth.currentUser?.email { email = e }
             }
         }
+    }
+
+    /// Name, email, and phone are required before sending.
+    private var canSubmitQuote: Bool {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let e = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let p = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !n.isEmpty && !e.isEmpty && !p.isEmpty
     }
 
     @ViewBuilder
@@ -169,9 +188,19 @@ struct GalleryQuoteRequestView: View {
     }
 
     private func submit() async {
-        let trimmedEmail = email.trimmingCharacters(in: .whitespaces)
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedPhone = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            errorMessage = "Please enter your name."
+            return
+        }
         guard !trimmedEmail.isEmpty else {
             errorMessage = "Please enter your email."
+            return
+        }
+        guard !trimmedPhone.isEmpty else {
+            errorMessage = "Please enter your phone number."
             return
         }
         isLoading = true
@@ -179,13 +208,14 @@ struct GalleryQuoteRequestView: View {
         defer { isLoading = false }
         let messageBody = Self.composedMessage(
             item: item,
+            phone: trimmedPhone,
             eventDateText: eventDateText,
             servingsText: servingsText,
             notes: notes
         )
         do {
             try await api.submitContactMessage(
-                name: name.isEmpty ? nil : name.trimmingCharacters(in: .whitespaces),
+                name: trimmedName,
                 email: trimmedEmail,
                 subject: "Quote: \(item.title)",
                 message: messageBody,
@@ -203,6 +233,7 @@ struct GalleryQuoteRequestView: View {
     /// Message text for the bakery (no gallery UUID; optional photo URL for staff who read email outside the app).
     private static func composedMessage(
         item: GalleryCakeItem,
+        phone: String,
         eventDateText: String,
         servingsText: String,
         notes: String
@@ -211,6 +242,7 @@ struct GalleryQuoteRequestView: View {
             "I’d like a quote for this gallery design.",
             "",
             "Design: \(item.title)",
+            "Phone: \(phone)",
         ]
         if let d = item.description, !d.isEmpty {
             lines.append("Listing notes: \(d)")

@@ -16,7 +16,14 @@ Pull from Vercel (creates `.env.neon` — **do not commit**):
 vercel env pull .env.neon --environment=production
 ```
 
-Ensure the file contains `POSTGRES_URL` or `DATABASE_URL` (Neon connection string).
+Ensure the file contains a usable DB URL. The migration script accepts, in order: `POSTGRES_URL`, `DATABASE_URL`, **`DATABASE_URL_UNPOOLED`**, `NEON_POOL_URL`.
+
+If **`vercel env pull`** leaves `POSTGRES_URL` / `DATABASE_URL` **empty** but sets `DATABASE_URL_UNPOOLED`, migrations still work. For **runtime** and cleaner pulls, set a **non-empty pooled** URL in Vercel (Production):
+
+1. [Neon Console](https://console.neon.tech) → your project → **Connect** → choose **Pooled** / **Connection pooling** (hostname contains `pooler`).
+2. [Vercel](https://vercel.com) → your project → **Settings** → **Environment Variables** → Production → add or edit **`DATABASE_URL`** (or **`POSTGRES_URL`**) with that pooled string. Redeploy so serverless picks it up.
+
+Alternatively set **`NEON_POOL_URL`** to the pooled string (see `api/lib/db.js`).
 
 ```bash
 npm run neon:migrate

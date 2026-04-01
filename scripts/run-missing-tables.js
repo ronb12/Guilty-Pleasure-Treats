@@ -13,9 +13,15 @@
  */
 import { neon } from '@neondatabase/serverless';
 
-const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+const connectionString =
+  process.env.POSTGRES_URL?.trim() ||
+  process.env.DATABASE_URL?.trim() ||
+  process.env.DATABASE_URL_UNPOOLED?.trim() ||
+  process.env.NEON_POOL_URL?.trim();
 if (!connectionString) {
-  console.error('Set POSTGRES_URL. Run: vercel env pull .env.neon --environment=production');
+  console.error(
+    'Set POSTGRES_URL or DATABASE_URL (or DATABASE_URL_UNPOOLED after vercel env pull). Run: vercel env pull .env.neon --environment=production'
+  );
   process.exit(1);
 }
 
@@ -255,6 +261,30 @@ async function main() {
     await sql`CREATE INDEX IF NOT EXISTS idx_contact_message_replies_message_id ON contact_message_replies(contact_message_id)`;
     console.log('contact_message_replies OK');
 
+    // quote_requests (gallery “Request a quote”; one row per contact thread — visible as its own table in Neon)
+    await sql`
+      CREATE TABLE IF NOT EXISTS quote_requests (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        contact_message_id UUID NOT NULL REFERENCES contact_messages(id) ON DELETE CASCADE,
+        gallery_item_title TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE UNIQUE INDEX IF NOT EXISTS idx_quote_requests_contact_message_id ON quote_requests(contact_message_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_quote_requests_created_at ON quote_requests(created_at DESC)`;
+    console.log('quote_requests OK');
+    try {
+      await sql`
+        INSERT INTO quote_requests (contact_message_id, gallery_item_title, created_at)
+        SELECT m.id, m.gallery_item_title, m.created_at
+        FROM contact_messages m
+        WHERE m.source = 'gallery_quote'
+          AND NOT EXISTS (SELECT 1 FROM quote_requests r WHERE r.contact_message_id = m.id)
+      `;
+    } catch (e) {
+      console.warn('quote_requests backfill:', e?.message ?? e);
+    }
+
     // cake_gallery
     await sql`
       CREATE TABLE IF NOT EXISTS cake_gallery (
@@ -457,7 +487,7 @@ async function main() {
     const coreTables = [
       'users', 'sessions', 'password_reset_tokens', 'orders', 'products',
       'custom_cake_orders', 'ai_cake_designs', 'admin_messages', 'contact_messages',
-      'contact_message_replies', 'cake_gallery', 'product_categories', 'customers',
+      'contact_message_replies', 'quote_requests', 'cake_gallery', 'product_categories', 'customers',
       'push_tokens', 'events', 'reviews', 'promotions', 'loyalty_rewards', 'business_settings',
       'order_idempotency',
     ];
@@ -467,7 +497,7 @@ async function main() {
         AND tablename IN (
           'users', 'sessions', 'password_reset_tokens', 'orders', 'products',
           'custom_cake_orders', 'ai_cake_designs', 'admin_messages', 'contact_messages',
-          'contact_message_replies', 'cake_gallery', 'product_categories', 'customers',
+          'contact_message_replies', 'quote_requests', 'cake_gallery', 'product_categories', 'customers',
           'push_tokens', 'events', 'reviews', 'promotions', 'loyalty_rewards', 'business_settings',
           'order_idempotency'
         )
