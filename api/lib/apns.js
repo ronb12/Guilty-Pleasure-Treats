@@ -198,6 +198,39 @@ export async function notifyNewMessage(deviceTokens, messageId, fromName, subjec
 }
 
 /**
+ * Admin push when a customer requests a quote from the cake gallery (contact form with source gallery_quote).
+ * Same `new_message` type so Admin → Messages opens the thread.
+ */
+export async function notifyGalleryQuoteRequest(deviceTokens, messageId, fromLine, designTitle) {
+  if (!Array.isArray(deviceTokens) || deviceTokens.length === 0) return;
+  const title = 'Gallery quote request';
+  const nameOrEmail = fromLine && String(fromLine).trim() ? String(fromLine).trim() : 'Customer';
+  const design = designTitle && String(designTitle).trim() ? String(designTitle).trim() : 'Gallery design';
+  const body = `${nameOrEmail} — ${design}`;
+  const data = {
+    type: 'new_message',
+    messageId: messageId || '',
+    orderId: '',
+    galleryQuote: '1',
+  };
+  const client = cachedClient ?? getClient();
+  if (!client) return;
+  cachedClient = client;
+  const notifications = deviceTokens.map((token) =>
+    new Notification(token, {
+      alert: { title, body },
+      sound: 'default',
+      data,
+    })
+  );
+  try {
+    await client.sendMany(notifications);
+  } catch (err) {
+    console.error('APNs sendMany gallery quote', err?.reason ?? err);
+  }
+}
+
+/**
  * Send "message from store" push to customer(s) when admin sends a message.
  */
 export async function notifyAdminMessage(deviceTokens, adminMessageId, title, body) {

@@ -44,12 +44,15 @@ struct CakeGalleryView: View {
         .refreshable { await viewModel.load() }
         .onAppear { Task { await viewModel.load() } }
         .sheet(item: $selectedItem) { item in
-            GalleryDetailSheet(item: item) {
-                Task {
-                    await viewModel.orderItem(item)
-                    selectedItem = nil
+            GalleryDetailSheet(
+                item: item,
+                onAddToCart: {
+                    Task {
+                        await viewModel.orderItem(item)
+                        selectedItem = nil
+                    }
                 }
-            }
+            )
         }
         .alert("Added to Cart", isPresented: $viewModel.addedToCart) {
             Button("OK", role: .cancel) { viewModel.addedToCart = false }
@@ -102,6 +105,10 @@ struct GalleryCard: View {
                     Text(p.currencyFormatted)
                         .font(.subheadline)
                         .foregroundStyle(AppConstants.Colors.accent)
+                } else {
+                    Text("Price on request")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
                 }
             }
             .padding(12)
@@ -116,8 +123,10 @@ struct GalleryCard: View {
 
 struct GalleryDetailSheet: View {
     let item: GalleryCakeItem
-    var onOrder: () -> Void
+    /// When the item has a list price — add AI design line to cart at that price.
+    var onAddToCart: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var showQuoteContact = false
 
     var body: some View {
         NavigationStack {
@@ -153,12 +162,26 @@ struct GalleryDetailSheet: View {
                                 .font(.title3)
                                 .fontWeight(.semibold)
                                 .foregroundStyle(AppConstants.Colors.accent)
+                        } else {
+                            Text("Custom pricing")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
+                            Text("We’ll confirm details and price after you reach out.")
+                                .font(.subheadline)
+                                .foregroundStyle(AppConstants.Colors.textSecondary)
                         }
                     }
-                    PrimaryButton(title: "Order this", action: {
-                        onOrder()
-                        dismiss()
-                    })
+                    if item.price != nil {
+                        PrimaryButton(title: "Add to cart", action: {
+                            onAddToCart()
+                            dismiss()
+                        })
+                    } else {
+                        PrimaryButton(title: "Request a quote", action: {
+                            showQuoteContact = true
+                        })
+                    }
                 }
                 .padding(AppConstants.Layout.screenHorizontalPadding)
             }
@@ -171,6 +194,34 @@ struct GalleryDetailSheet: View {
                         .foregroundStyle(AppConstants.Colors.accent)
                 }
             }
+            .sheet(isPresented: $showQuoteContact) {
+                ContactView(
+                    initialSubject: "Quote: \(item.title)",
+                    initialMessage: Self.quoteMessageBody(for: item),
+                    messageSource: "gallery_quote",
+                    galleryItemTitle: item.title
+                )
+            }
         }
+    }
+
+    private static func quoteMessageBody(for item: GalleryCakeItem) -> String {
+        var lines: [String] = [
+            "I’m interested in a custom order based on this gallery design.",
+            "",
+            "Design: \(item.title)",
+            "Gallery ID: \(item.id)",
+        ]
+        if let u = item.imageUrl, !u.isEmpty {
+            lines.append("Reference photo: \(u)")
+        }
+        if let d = item.description, !d.isEmpty {
+            lines.append("")
+            lines.append("Notes from listing: \(d)")
+        }
+        lines.append("")
+        lines.append("Please reply with pricing and next steps. (Event date, servings, or changes welcome below.)")
+        lines.append("")
+        return lines.joined(separator: "\n")
     }
 }

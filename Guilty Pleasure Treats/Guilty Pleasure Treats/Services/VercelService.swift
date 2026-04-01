@@ -625,7 +625,17 @@ final class VercelService {
     // MARK: - Contact messages
 
     /// Submit a contact message (no auth required). orderId is optional (message about a specific order).
-    func submitContactMessage(name: String?, email: String, subject: String?, message: String, userId: String?, orderId: String?) async throws {
+    /// `source` / `galleryItemTitle`: e.g. `gallery_quote` + title for gallery “Request a quote” (distinct admin push).
+    func submitContactMessage(
+        name: String?,
+        email: String,
+        subject: String?,
+        message: String,
+        userId: String?,
+        orderId: String?,
+        source: String? = nil,
+        galleryItemTitle: String? = nil
+    ) async throws {
         guard let base = baseURL else { throw VercelNotConfiguredError() }
         let url = base.appendingPathComponent("api/contact")
         var req = URLRequest(url: url)
@@ -639,6 +649,10 @@ final class VercelService {
             "userId": userId,
         ]
         if let oid = orderId, !oid.isEmpty { body["orderId"] = oid }
+        if let s = source?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty { body["source"] = s }
+        if let t = galleryItemTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !t.isEmpty {
+            body["galleryItemTitle"] = t
+        }
         req.httpBody = try JSONSerialization.data(withJSONObject: body.compactMapValues { $0 })
         let (data, res) = try await session.data(for: req)
         guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }

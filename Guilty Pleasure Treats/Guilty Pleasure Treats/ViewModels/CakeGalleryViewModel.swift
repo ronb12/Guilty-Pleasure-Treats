@@ -2,7 +2,7 @@
 //  CakeGalleryViewModel.swift
 //  Guilty Pleasure Treats
 //
-//  Loads cake gallery and handles "order this design" (saves as AI design and adds to cart).
+//  Loads gallery; priced items add AI design to cart; unpriced items use Request a quote (Contact).
 //
 
 import Foundation
@@ -30,9 +30,13 @@ final class CakeGalleryViewModel: ObservableObject {
         }
     }
 
+    /// Adds priced gallery design to cart as an AI cake design line. Call only when `item.price != nil`.
     func orderItem(_ item: GalleryCakeItem) async {
         errorMessage = nil
-        let price = item.price ?? 35.0
+        guard let price = item.price else {
+            errorMessage = "This item doesn’t have a set price. Use Request a quote."
+            return
+        }
         var order = AICakeDesignOrder(
             id: nil,
             userId: auth.currentUser?.uid,

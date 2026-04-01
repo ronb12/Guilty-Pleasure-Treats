@@ -6828,6 +6828,9 @@ struct AddGalleryCakeSheet: View {
                         #if os(iOS)
                     .keyboardType(.decimalPad)
                     #endif
+                    Text("Leave price empty for quote-only: customers tap Request a quote instead of Add to cart.")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
                 }
             }
             .macOSGroupedFormStyle()
@@ -7000,6 +7003,9 @@ struct EditGalleryCakeSheet: View {
                         #if os(iOS)
                     .keyboardType(.decimalPad)
                     #endif
+                    Text("Empty price = quote-only. Set a price to allow Add to cart at that amount.")
+                        .font(.caption)
+                        .foregroundStyle(AppConstants.Colors.textSecondary)
                 }
             }
             .macOSGroupedFormStyle()

@@ -23,6 +23,10 @@ struct ContactView: View {
 
     var initialSubject: String?
     var initialMessage: String?
+    /// Sent to API as `source` (e.g. `gallery_quote`) for routing / notification copy.
+    var messageSource: String? = nil
+    /// Gallery design title when `messageSource` is `gallery_quote`.
+    var galleryItemTitle: String? = nil
 
     private let api = VercelService.shared
     private let auth = AuthService.shared
@@ -166,7 +170,9 @@ struct ContactView: View {
                 subject: subject.isEmpty ? nil : subject.trimmingCharacters(in: .whitespaces),
                 message: trimmedMessage,
                 userId: auth.currentUser?.uid,
-                orderId: selectedOrderIdForMessage.isEmpty ? nil : selectedOrderIdForMessage
+                orderId: selectedOrderIdForMessage.isEmpty ? nil : selectedOrderIdForMessage,
+                source: messageSource,
+                galleryItemTitle: galleryItemTitle
             )
             success = true
         } catch {

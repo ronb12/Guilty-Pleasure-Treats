@@ -1,6 +1,8 @@
 /**
  * GET /api/contact - list contact messages (admin only).
- * POST /api/contact - submit a contact message (public). Body: { name?, email, subject?, message, userId? }.
+ * POST /api/contact - submit a contact message (public).
+ * Body: { name?, email, subject?, message, userId?, orderId?, source?, galleryItemTitle? }.
+ * source=gallery_quote → admin push title "Gallery quote request" (gallery Request a quote).
  */
 import { sql, hasDb } from '../lib/db.js';
 import { getTokenFromRequest, getSession } from '../lib/auth.js';
@@ -64,6 +66,11 @@ export default async function handler(req, res) {
       const subject = body.subject != null ? String(body.subject).trim() : null;
       const userId = body.userId != null ? String(body.userId) : null;
       const orderId = body.orderId != null && String(body.orderId).trim() !== '' ? String(body.orderId).trim() : null;
+      const source = String(body.source ?? body.messageSource ?? '').trim().toLowerCase();
+      const galleryItemTitle =
+        body.galleryItemTitle != null && String(body.galleryItemTitle).trim() !== ''
+          ? String(body.galleryItemTitle).trim()
+          : null;
       const [inserted] = await sql`
         INSERT INTO contact_messages (name, email, subject, message, user_id, order_id)
         VALUES (${name}, ${email}, ${subject}, ${message}, ${userId}, ${orderId})
@@ -72,10 +79,25 @@ export default async function handler(req, res) {
       const messageId = inserted?.id?.toString?.() ?? null;
       if (messageId) {
         try {
-          const { notifyNewMessage } = await import('../../api/lib/apns.js');
-          const adminRows = await sql`SELECT device_token FROM push_tokens WHERE is_admin = true`;
+          const adminRows = await sql`
+            SELECT device_token FROM push_tokens
+            WHERE is_admin = true AND device_token IS NOT NULL AND TRIM(device_token) != ''
+          `;
           const tokens = (adminRows || []).map((r) => r.device_token).filter(Boolean);
-          if (tokens.length) notifyNewMessage(tokens, messageId, name ?? email, subject ?? message.slice(0, 60), orderId);
+          if (tokens.length) {
+            const { notifyNewMessage, notifyGalleryQuoteRequest } = await import('../../api/lib/apns.js');
+            if (source === 'gallery_quote') {
+              const fromLine = name && name.length > 0 ? name : email;
+              const designTitle =
+                galleryItemTitle ||
+                (subject && /^quote:\s*/i.test(subject) ? subject.replace(/^quote:\s*/i, '').trim() : null) ||
+                subject ||
+                'Gallery design';
+              notifyGalleryQuoteRequest(tokens, messageId, fromLine, designTitle);
+            } else {
+              notifyNewMessage(tokens, messageId, name ?? email, subject ?? message.slice(0, 60), orderId);
+            }
+          }
         } catch (e) {
           console.warn('[contact] push notify', e?.message ?? e);
         }

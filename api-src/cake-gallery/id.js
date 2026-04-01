@@ -7,6 +7,22 @@ import { sql, hasDb } from '../lib/db.js';
 import { getTokenFromRequest, getSession } from '../lib/auth.js';
 import { setCors, handleOptions } from '../lib/cors.js';
 
+/** Vercel may deliver JSON as a string or leave body unset; merge into an object for PATCH. */
+function bodyObject(req) {
+  const raw = req.body;
+  if (raw != null && typeof raw === 'object' && !Buffer.isBuffer(raw)) {
+    return raw;
+  }
+  if (typeof raw === 'string') {
+    try {
+      return raw.trim() ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
+
 function rowToItem(row) {
   if (!row) return null;
   return {
@@ -61,7 +77,7 @@ export default async function handler(req, res) {
         FROM cake_gallery WHERE id = ${id} LIMIT 1
       `;
       if (!existing) return res.status(404).json({ error: 'Not found' });
-      const body = req.body || {};
+      const body = bodyObject(req);
       const imageUrl = body.imageUrl !== undefined ? String(body.imageUrl) : existing.image_url;
       const title = body.title !== undefined ? String(body.title) : existing.title;
       const description = body.description !== undefined ? (body.description == null ? null : String(body.description)) : existing.description;

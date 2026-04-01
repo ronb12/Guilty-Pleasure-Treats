@@ -17,4 +17,7 @@ struct GalleryCakeItem: Identifiable, Codable {
     var displayOrder: Int
     var createdAt: String?
     var updatedAt: String?
+
+    /// No list price — customer must use Request quote (see `CakeGalleryView`).
+    var requiresQuote: Bool { price == nil }
 }
