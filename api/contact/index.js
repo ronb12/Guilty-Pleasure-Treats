@@ -1,5 +1,7 @@
 /**
  * GET /api/contact - list contact messages (admin only).
+ *   Query: ?quotesOnly=1 — only gallery quote requests (source = gallery_quote).
+ *   Query: ?excludeQuotes=1 — general contact only (excludes gallery_quote).
  * POST /api/contact - submit a contact message (public).
  * Body: { name?, email, subject?, message, userId?, orderId?, source?, galleryItemTitle? }.
  * source=gallery_quote → admin push title "Gallery quote request" (gallery Request a quote).
@@ -19,6 +21,8 @@ function rowToMessage(row) {
     message: row.message,
     userId: row.user_id ?? null,
     orderId: row.order_id?.toString?.() ?? row.order_id ?? null,
+    source: row.source ?? null,
+    galleryItemTitle: row.gallery_item_title ?? null,
     readAt: row.read_at ? new Date(row.read_at).toISOString() : null,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
   };
@@ -37,13 +41,34 @@ export default async function handler(req, res) {
     const session = token ? await getSession(token) : null;
     if (!session?.isAdmin) return res.status(403).json({ error: 'Admin required' });
     if (!hasDb() || !sql) return res.status(200).json([]);
+    const quotesOnly = String(req.query?.quotesOnly ?? '') === '1';
+    const excludeQuotes = String(req.query?.excludeQuotes ?? '') === '1';
     try {
-      const rows = await sql`
-        SELECT id, name, email, subject, message, user_id, order_id, read_at, created_at
-        FROM contact_messages
-        ORDER BY created_at DESC
-        LIMIT 500
-      `;
+      let rows;
+      if (quotesOnly) {
+        rows = await sql`
+          SELECT id, name, email, subject, message, user_id, order_id, source, gallery_item_title, read_at, created_at
+          FROM contact_messages
+          WHERE source = 'gallery_quote'
+          ORDER BY created_at DESC
+          LIMIT 500
+        `;
+      } else if (excludeQuotes) {
+        rows = await sql`
+          SELECT id, name, email, subject, message, user_id, order_id, source, gallery_item_title, read_at, created_at
+          FROM contact_messages
+          WHERE source IS NULL OR source <> 'gallery_quote'
+          ORDER BY created_at DESC
+          LIMIT 500
+        `;
+      } else {
+        rows = await sql`
+          SELECT id, name, email, subject, message, user_id, order_id, source, gallery_item_title, read_at, created_at
+          FROM contact_messages
+          ORDER BY created_at DESC
+          LIMIT 500
+        `;
+      }
       return res.status(200).json(rows.map(rowToMessage));
     } catch (err) {
       if (err?.code === '42P01') return res.status(200).json([]);
@@ -66,14 +91,16 @@ export default async function handler(req, res) {
       const subject = body.subject != null ? String(body.subject).trim() : null;
       const userId = body.userId != null ? String(body.userId) : null;
       const orderId = body.orderId != null && String(body.orderId).trim() !== '' ? String(body.orderId).trim() : null;
-      const source = String(body.source ?? body.messageSource ?? '').trim().toLowerCase();
+      const sourceRaw = String(body.source ?? body.messageSource ?? '').trim().toLowerCase();
       const galleryItemTitle =
         body.galleryItemTitle != null && String(body.galleryItemTitle).trim() !== ''
           ? String(body.galleryItemTitle).trim()
           : null;
+      const sourceStored = sourceRaw === 'gallery_quote' ? 'gallery_quote' : null;
+      const galleryTitleStored = sourceStored === 'gallery_quote' ? galleryItemTitle : null;
       const [inserted] = await sql`
-        INSERT INTO contact_messages (name, email, subject, message, user_id, order_id)
-        VALUES (${name}, ${email}, ${subject}, ${message}, ${userId}, ${orderId})
+        INSERT INTO contact_messages (name, email, subject, message, user_id, order_id, source, gallery_item_title)
+        VALUES (${name}, ${email}, ${subject}, ${message}, ${userId}, ${orderId}, ${sourceStored}, ${galleryTitleStored})
         RETURNING id
       `;
       const messageId = inserted?.id?.toString?.() ?? null;
@@ -86,10 +113,10 @@ export default async function handler(req, res) {
           const tokens = (adminRows || []).map((r) => r.device_token).filter(Boolean);
           if (tokens.length) {
             const { notifyNewMessage, notifyGalleryQuoteRequest } = await import('../../api/lib/apns.js');
-            if (source === 'gallery_quote') {
+            if (sourceStored === 'gallery_quote') {
               const fromLine = name && name.length > 0 ? name : email;
               const designTitle =
-                galleryItemTitle ||
+                galleryTitleStored ||
                 (subject && /^quote:\s*/i.test(subject) ? subject.replace(/^quote:\s*/i, '').trim() : null) ||
                 subject ||
                 'Gallery design';

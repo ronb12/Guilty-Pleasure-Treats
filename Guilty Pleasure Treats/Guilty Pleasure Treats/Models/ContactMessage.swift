@@ -16,6 +16,10 @@ struct ContactMessage: Identifiable, Codable, Equatable {
     var userId: String?
     /// When set, the message is about this order; admin can open it from the message.
     var orderId: String?
+    /// From API when submitted as gallery quote (`gallery_quote`).
+    var source: String?
+    /// Gallery design title when `source` is `gallery_quote`.
+    var galleryItemTitle: String?
     var readAt: Date?
     var createdAt: Date?
 
@@ -23,8 +27,15 @@ struct ContactMessage: Identifiable, Codable, Equatable {
         case id, name, email, subject, message
         case userId = "userId"
         case orderId = "orderId"
+        case source
+        case galleryItemTitle = "galleryItemTitle"
         case readAt = "readAt"
         case createdAt = "createdAt"
+    }
+
+    /// Gallery “Request a quote” thread (Admin → Quotes).
+    var isGalleryQuote: Bool {
+        (source ?? "").lowercased() == "gallery_quote"
     }
 
     static func == (lhs: ContactMessage, rhs: ContactMessage) -> Bool {

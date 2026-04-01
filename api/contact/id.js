@@ -16,6 +16,8 @@ function rowToMessage(row) {
     message: row.message,
     userId: row.user_id ?? null,
     orderId: row.order_id?.toString?.() ?? row.order_id ?? null,
+    source: row.source ?? null,
+    galleryItemTitle: row.gallery_item_title ?? null,
     readAt: row.read_at ? new Date(row.read_at).toISOString() : null,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
   };
@@ -39,7 +41,7 @@ export default async function handler(req, res) {
   if ((req.method || '').toUpperCase() === 'GET') {
     try {
       const rows = await sql`
-        SELECT id, name, email, subject, message, user_id, order_id, read_at, created_at
+        SELECT id, name, email, subject, message, user_id, order_id, source, gallery_item_title, read_at, created_at
         FROM contact_messages WHERE id = ${id} LIMIT 1
       `;
       if (!rows.length) return res.status(404).json({ error: 'Not found' });

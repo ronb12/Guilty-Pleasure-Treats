@@ -662,10 +662,25 @@ final class VercelService {
         }
     }
 
+    /// Which inbox to load for GET `/api/contact` (admin only).
+    enum ContactMessageInbox {
+        /// General contact and legacy rows (excludes gallery quote requests).
+        case messages
+        /// Gallery “Request a quote” only.
+        case quotes
+    }
+
     /// Fetch contact messages (admin only).
-    func fetchContactMessages() async throws -> [ContactMessage] {
+    func fetchContactMessages(inbox: ContactMessageInbox = .messages) async throws -> [ContactMessage] {
         guard let base = baseURL, let token = authToken else { throw VercelNotConfiguredError() }
-        let url = base.appendingPathComponent("api/contact")
+        var components = URLComponents(url: base.appendingPathComponent("api/contact"), resolvingAgainstBaseURL: false)
+        switch inbox {
+        case .messages:
+            components?.queryItems = [URLQueryItem(name: "excludeQuotes", value: "1")]
+        case .quotes:
+            components?.queryItems = [URLQueryItem(name: "quotesOnly", value: "1")]
+        }
+        guard let url = components?.url else { throw VercelNotConfiguredError() }
         var req = URLRequest(url: url)
         req.httpMethod = "GET"
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")

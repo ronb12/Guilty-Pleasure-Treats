@@ -93,6 +93,8 @@ final class AdminViewModel: ObservableObject {
     @Published var aiCakeDesignOrders: [AICakeDesignOrder] = []
     @Published var customCakeOptions: CustomCakeOptionsResponse?
     @Published var contactMessages: [ContactMessage] = []
+    /// Gallery quote requests (same API as contact; `source == gallery_quote`).
+    @Published var quoteRequests: [ContactMessage] = []
     @Published var reviews: [Review] = []
     @Published var events: [Event] = []
     @Published var cakeGalleryItems: [GalleryCakeItem] = []
@@ -1055,13 +1057,30 @@ final class AdminViewModel: ObservableObject {
 
     func loadContactMessages() async {
         do {
-            contactMessages = try await api.fetchContactMessages()
+            contactMessages = try await api.fetchContactMessages(inbox: .messages)
         } catch {
             contactMessages = []
             #if DEBUG
             print("[Admin] loadContactMessages failed: \(error)")
             #endif
         }
+    }
+
+    func loadQuoteRequests() async {
+        do {
+            quoteRequests = try await api.fetchContactMessages(inbox: .quotes)
+        } catch {
+            quoteRequests = []
+            #if DEBUG
+            print("[Admin] loadQuoteRequests failed: \(error)")
+            #endif
+        }
+    }
+
+    /// Reloads Messages and Quotes inboxes (e.g. after read or on Admin open).
+    func loadAllContactInboxes() async {
+        await loadContactMessages()
+        await loadQuoteRequests()
     }
 
     func loadReviews() async {
@@ -1141,7 +1160,7 @@ final class AdminViewModel: ObservableObject {
     func markContactMessageRead(_ message: ContactMessage) async {
         do {
             try await api.markContactMessageRead(id: message.id)
-            await loadContactMessages()
+            await loadAllContactInboxes()
         } catch {
             errorMessage = FriendlyErrorMessage.message(for: error)
         }

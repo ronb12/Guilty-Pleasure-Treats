@@ -23,7 +23,7 @@ private func adminTabTitle(_ full: String, short: String) -> String {
 }
 
 #if os(macOS)
-/// Labels for the scrollable admin tab strip (order must match `TabView` tags 0…13 on iOS).
+/// Labels for the scrollable admin tab strip (order must match `TabView` tags 0…14 on iOS).
 private let macOSAdminTabBarItems: [(title: String, icon: String)] = [
     ("Products", "list.bullet"),
     ("Cats", "folder.fill"),
@@ -36,6 +36,7 @@ private let macOSAdminTabBarItems: [(title: String, icon: String)] = [
     ("Events", "calendar"),
     ("Margin", "percent"),
     ("Msgs", "envelope.badge"),
+    ("Quotes", "text.bubble"),
     ("Settings", "gearshape"),
     ("Gallery", "photo.on.rectangle.angled"),
     ("Stock", "shippingbox.fill"),
@@ -77,7 +78,7 @@ struct AdminView: View {
 
                     if !viewModel.lowStockProducts.isEmpty {
                         Button {
-                            selectedTab = 11
+                            selectedTab = 12
                         } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: "exclamationmark.triangle.fill")
@@ -134,14 +135,17 @@ struct AdminView: View {
                             .tabItem { Label(adminTabTitle("Messages", short: "Msgs"), systemImage: "envelope.badge") }
                             .tag(10)
                         adminTabPage(tag: 11)
-                            .tabItem { Label(adminTabTitle("Settings", short: "Settings"), systemImage: "gearshape") }
+                            .tabItem { Label(adminTabTitle("Quotes", short: "Quotes"), systemImage: "text.bubble") }
                             .tag(11)
                         adminTabPage(tag: 12)
-                            .tabItem { Label(adminTabTitle("Gallery", short: "Gallery"), systemImage: "photo.on.rectangle.angled") }
+                            .tabItem { Label(adminTabTitle("Settings", short: "Settings"), systemImage: "gearshape") }
                             .tag(12)
                         adminTabPage(tag: 13)
-                            .tabItem { Label(adminTabTitle("Inventory", short: "Stock"), systemImage: "shippingbox.fill") }
+                            .tabItem { Label(adminTabTitle("Gallery", short: "Gallery"), systemImage: "photo.on.rectangle.angled") }
                             .tag(13)
+                        adminTabPage(tag: 14)
+                            .tabItem { Label(adminTabTitle("Inventory", short: "Stock"), systemImage: "shippingbox.fill") }
+                            .tag(14)
                     }
                     #else
                     ScrollView(.horizontal, showsIndicators: true) {
@@ -198,7 +202,7 @@ struct AdminView: View {
                         await viewModel.loadLoyaltyRewards()
                         await viewModel.loadSpecialOrders()
                         await viewModel.loadCustomCakeOptions()
-                        await viewModel.loadContactMessages()
+                        await viewModel.loadAllContactInboxes()
                         await viewModel.loadReviews()
                         await viewModel.loadEvents()
                         await viewModel.loadCakeGallery()
@@ -230,9 +234,17 @@ struct AdminView: View {
                     selectedTab = 2
                 }
             )
-        case 11: AdminSettingsView(viewModel: viewModel)
-        case 12: AdminCakeGalleryView(viewModel: viewModel)
-        case 13: AdminInventoryView(viewModel: viewModel)
+        case 11:
+            AdminQuoteRequestsView(
+                viewModel: viewModel,
+                onViewOrderFromMessage: { orderId in
+                    viewModel.pendingOrderIdToOpen = orderId
+                    selectedTab = 2
+                }
+            )
+        case 12: AdminSettingsView(viewModel: viewModel)
+        case 13: AdminCakeGalleryView(viewModel: viewModel)
+        case 14: AdminInventoryView(viewModel: viewModel)
         default: EmptyView()
         }
     }
@@ -240,13 +252,18 @@ struct AdminView: View {
     private func applyPendingPushAction() {
         guard let action = notificationService.pendingPushAction else { return }
         switch action {
-        case .openAdminMessages(let mid):
-            selectedTab = 10
-            viewModel.scrollToMessageId = mid
+        case .openAdminMessages(let mid, let isGalleryQuote):
+            Task { @MainActor in
+                await viewModel.loadAllContactInboxes()
+                selectedTab = isGalleryQuote ? 11 : 10
+                viewModel.scrollToMessageId = mid
+                notificationService.clearPendingPushAction()
+            }
+            return
         case .openAdminOrder(orderId: _):
             selectedTab = 2
         case .openAdminInventory:
-            selectedTab = 13
+            selectedTab = 14
         case .openAdminReviews:
             selectedTab = 7
         case .openOrder(orderId: _):
@@ -5713,7 +5730,7 @@ struct AdminContactMessagesView: View {
                     }
                 }
             }
-            .refreshable { await viewModel.loadContactMessages() }
+            .refreshable { await viewModel.loadAllContactInboxes() }
             .onAppear { applyScrollToMessageId() }
             .onChange(of: viewModel.scrollToMessageId) { _, _ in applyScrollToMessageId() }
             .onChange(of: viewModel.contactMessages.count) { _, _ in applyScrollToMessageId() }
@@ -5964,6 +5981,9 @@ struct ContactMessageDetailSheet: View {
                     if let sub = message.subject, !sub.isEmpty {
                         detailRow("Subject", sub)
                     }
+                    if let design = message.galleryItemTitle, !design.isEmpty {
+                        detailRow("Design", design)
+                    }
                     detailRow("Message", message.message)
                     if let created = message.createdAt {
                         detailRow("Received", created.shortDateString)
@@ -6040,7 +6060,7 @@ struct ContactMessageDetailSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
             }
-            .navigationTitle("Contact message")
+            .navigationTitle(message.isGalleryQuote ? "Quote request" : "Contact message")
             .inlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

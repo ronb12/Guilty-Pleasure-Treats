@@ -93,7 +93,7 @@ struct NotificationCenterView: View {
     private func notificationTypeToAction(_ n: AppNotification) -> PendingPushAction {
         switch n.type {
         case .newMessage:
-            return .openAdminMessages(messageId: n.messageId)
+            return .openAdminMessages(messageId: n.messageId, isGalleryQuote: false)
         case .newOrder:
             return .openAdminOrder(orderId: n.orderId)
         case .lowInventory:

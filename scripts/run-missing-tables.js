@@ -239,6 +239,8 @@ async function main() {
     `;
     await sql`CREATE INDEX IF NOT EXISTS idx_contact_messages_created_at ON contact_messages(created_at DESC)`;
     await sql`ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS order_id UUID`;
+    await sql`ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS source TEXT`;
+    await sql`ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS gallery_item_title TEXT`;
     console.log('contact_messages OK');
 
     // contact_message_replies (depends on contact_messages)

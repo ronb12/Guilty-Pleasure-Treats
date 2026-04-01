@@ -16,7 +16,8 @@ import AppKit
 
 /// Action to perform when user taps a push (e.g. open Admin → Messages).
 enum PendingPushAction: Equatable {
-    case openAdminMessages(messageId: String?)
+    /// `isGalleryQuote` true → Admin → Quotes tab; false → Messages tab.
+    case openAdminMessages(messageId: String?, isGalleryQuote: Bool)
     case openAdminOrder(orderId: String?)
     case openAdminInventory
     /// Customer: open Orders tab and show this order.
@@ -281,8 +282,12 @@ extension NotificationService: UNUserNotificationCenterDelegate {
         )
 
         if type == "new_message" {
+            let galleryFlag = (userInfo["galleryQuote"] as? String) == "1"
             DispatchQueue.main.async { [weak self] in
-                self?.pendingPushAction = .openAdminMessages(messageId: messageId?.isEmpty == true ? nil : messageId)
+                self?.pendingPushAction = .openAdminMessages(
+                    messageId: messageId?.isEmpty == true ? nil : messageId,
+                    isGalleryQuote: galleryFlag
+                )
             }
         } else if type == "new_order" {
             DispatchQueue.main.async { [weak self] in
