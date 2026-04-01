@@ -5951,10 +5951,14 @@ struct ContactMessageDetailSheet: View {
     let message: ContactMessage
     var onDismiss: () -> Void
     var onViewOrderFromMessage: (String) -> Void = { _ in }
+    /// When true (e.g. Admin → Quotes), show Delete in the toolbar.
+    var allowDelete: Bool = false
     @Environment(\.dismiss) private var dismiss
     @State private var replyText = ""
     @State private var isSendingReply = false
     @State private var didCopyOrderId = false
+    @State private var confirmDelete = false
+    @State private var isDeleting = false
 
     /// Steps: Received → Read → Replied. Read from readAt. Replied not derived from model (optional future).
     private var contactMessageTrackingSteps: [TrackingStepConfig] {
@@ -5963,6 +5967,10 @@ struct ContactMessageDetailSheet: View {
             TrackingStepConfig(id: 0, label: "Received", isReached: true, isCurrent: !isRead),
             TrackingStepConfig(id: 1, label: "Read", isReached: isRead, isCurrent: isRead),
         ]
+    }
+
+    private var adminMessageBodyText: String {
+        message.messageTextForAdminDisplay
     }
 
     var body: some View {
@@ -5984,7 +5992,50 @@ struct ContactMessageDetailSheet: View {
                     if let design = message.galleryItemTitle, !design.isEmpty {
                         detailRow("Design", design)
                     }
-                    detailRow("Message", message.message)
+                    if let photoURL = message.galleryReferencePhotoURL {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Reference photo")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(AppConstants.Colors.textPrimary)
+                            AsyncImage(url: photoURL) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .scaledToFit()
+                                case .failure:
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "photo.badge.exclamationmark")
+                                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                                        Text("Couldn’t load image. Open the link in Message below if needed.")
+                                            .font(.caption)
+                                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(12)
+                                    .background(AppConstants.Colors.cardBackground)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                default:
+                                    ProgressView()
+                                        .frame(maxWidth: .infinity)
+                                        .padding(24)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(maxHeight: 320)
+                            .background(AppConstants.Colors.cardBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                    }
+                    if message.galleryReferencePhotoURL != nil && adminMessageBodyText.isEmpty {
+                        Text("No additional notes in the message.")
+                            .font(.caption)
+                            .foregroundStyle(AppConstants.Colors.textSecondary)
+                    } else if !adminMessageBodyText.isEmpty {
+                        detailRow("Message", adminMessageBodyText)
+                    } else {
+                        detailRow("Message", message.message)
+                    }
                     if let created = message.createdAt {
                         detailRow("Received", created.shortDateString)
                     }
@@ -6069,6 +6120,14 @@ struct ContactMessageDetailSheet: View {
                         dismiss()
                     }
                 }
+                if allowDelete {
+                    ToolbarItem(placement: .destructiveAction) {
+                        Button("Delete", role: .destructive) {
+                            confirmDelete = true
+                        }
+                        .disabled(isDeleting)
+                    }
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button("Reply via email") {
                         openReplyEmail()
@@ -6076,7 +6135,27 @@ struct ContactMessageDetailSheet: View {
                     .foregroundStyle(AppConstants.Colors.accent)
                 }
             }
+            .confirmationDialog(
+                "Delete this quote request? This cannot be undone.",
+                isPresented: $confirmDelete,
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    Task { await deleteMessageAndDismiss() }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
             .macOSReduceSheetTitleGap()
+        }
+    }
+
+    private func deleteMessageAndDismiss() async {
+        isDeleting = true
+        defer { isDeleting = false }
+        let ok = await viewModel.deleteContactMessage(message)
+        if ok {
+            onDismiss()
+            dismiss()
         }
     }
 

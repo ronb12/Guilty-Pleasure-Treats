@@ -1,6 +1,7 @@
 /**
  * GET /api/contact/:id - get one contact message (admin only).
  * PATCH /api/contact/:id - mark message as read (admin only).
+ * DELETE /api/contact/:id - delete contact message (admin only); cascades quote_requests / replies.
  */
 import { sql, hasDb } from '../lib/db.js';
 import { getTokenFromRequest, getSession } from '../lib/auth.js';
@@ -61,6 +62,19 @@ export default async function handler(req, res) {
     } catch (err) {
       console.error('[contact/id] PATCH', err);
       return res.status(500).json({ error: 'Failed to update message' });
+    }
+  }
+
+  if ((req.method || '').toUpperCase() === 'DELETE') {
+    try {
+      const rows = await sql`
+        DELETE FROM contact_messages WHERE id = ${id} RETURNING id
+      `;
+      if (!rows.length) return res.status(404).json({ error: 'Not found' });
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      console.error('[contact/id] DELETE', err);
+      return res.status(500).json({ error: 'Failed to delete message' });
     }
   }
 

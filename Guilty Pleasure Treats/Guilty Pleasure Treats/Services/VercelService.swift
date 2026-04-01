@@ -702,6 +702,18 @@ final class VercelService {
         try validateResponse(http, data: Data())
     }
 
+    /// Delete a contact message (admin only). Related quote_requests / replies cascade in the database.
+    func deleteContactMessage(id: String) async throws {
+        guard let token = authToken else { throw VercelNotConfiguredError() }
+        guard let url = apiIDURL(resource: "contact", id: id) else { throw VercelNotConfiguredError() }
+        var req = URLRequest(url: url)
+        req.httpMethod = "DELETE"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let (data, res) = try await session.data(for: req)
+        guard let http = res as? HTTPURLResponse else { throw VercelAPIError(message: "Invalid response") }
+        try validateResponse(http, data: data)
+    }
+
     /// Send an in-app reply to a contact message (admin only).
     func replyToContactMessage(messageId: String, body: String) async throws {
         guard let token = authToken else { throw VercelNotConfiguredError() }

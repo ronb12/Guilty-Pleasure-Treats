@@ -17,7 +17,8 @@ struct GalleryQuoteRequestView: View {
     @State private var name = ""
     @State private var email = ""
     @State private var phone = ""
-    @State private var eventDateText = ""
+    @State private var includeEventDate = false
+    @State private var eventDate = Calendar.current.date(byAdding: .day, value: 14, to: Date()) ?? Date()
     @State private var servingsText = ""
     @State private var notes = ""
     @State private var isLoading = false
@@ -81,11 +82,21 @@ struct GalleryQuoteRequestView: View {
                                 .keyboardType(.phonePad)
                                 #endif
                         }
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Event or pickup date (optional)")
+                        VStack(alignment: .leading, spacing: 10) {
+                            Toggle("Include event or pickup date", isOn: $includeEventDate)
                                 .font(.subheadline.weight(.medium))
-                            TextField("e.g. March 15 or Saturday 4/12", text: $eventDateText)
-                                .textFieldStyle(.roundedBorder)
+                            if includeEventDate {
+                                DatePicker(
+                                    "Event or pickup date",
+                                    selection: $eventDate,
+                                    in: Self.eventDateClosedRange,
+                                    displayedComponents: .date
+                                )
+                                #if os(iOS)
+                                .datePickerStyle(.graphical)
+                                #endif
+                                .padding(.vertical, 4)
+                            }
                         }
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Servings or cake size (optional)")
@@ -141,6 +152,21 @@ struct GalleryQuoteRequestView: View {
             }
         }
     }
+
+    /// Today through two years out (event / pickup).
+    private static var eventDateClosedRange: ClosedRange<Date> {
+        let cal = Calendar.current
+        let start = cal.startOfDay(for: Date())
+        let end = cal.date(byAdding: .year, value: 2, to: start) ?? start
+        return start...end
+    }
+
+    private static let messageDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .none
+        return f
+    }()
 
     /// Name, email, and phone are required before sending.
     private var canSubmitQuote: Bool {
@@ -209,7 +235,8 @@ struct GalleryQuoteRequestView: View {
         let messageBody = Self.composedMessage(
             item: item,
             phone: trimmedPhone,
-            eventDateText: eventDateText,
+            includeEventDate: includeEventDate,
+            eventDate: eventDate,
             servingsText: servingsText,
             notes: notes
         )
@@ -234,7 +261,8 @@ struct GalleryQuoteRequestView: View {
     private static func composedMessage(
         item: GalleryCakeItem,
         phone: String,
-        eventDateText: String,
+        includeEventDate: Bool,
+        eventDate: Date,
         servingsText: String,
         notes: String
     ) -> String {
@@ -247,9 +275,8 @@ struct GalleryQuoteRequestView: View {
         if let d = item.description, !d.isEmpty {
             lines.append("Listing notes: \(d)")
         }
-        let ev = eventDateText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !ev.isEmpty {
-            lines.append("Event or pickup date: \(ev)")
+        if includeEventDate {
+            lines.append("Event or pickup date: \(messageDateFormatter.string(from: eventDate))")
         }
         let sv = servingsText.trimmingCharacters(in: .whitespacesAndNewlines)
         if !sv.isEmpty {

@@ -97,6 +97,23 @@ struct AdminQuoteRequestsView: View {
                                 }
                             }
                         }
+                        .buttonStyle(.plain)
+                        #if os(iOS)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                Task { await viewModel.deleteContactMessage(msg) }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                        #endif
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                Task { await viewModel.deleteContactMessage(msg) }
+                            } label: {
+                                Label("Delete quote", systemImage: "trash")
+                            }
+                        }
                     }
                 }
             }
@@ -115,7 +132,8 @@ struct AdminQuoteRequestsView: View {
                     viewModel: viewModel,
                     message: msg,
                     onDismiss: { selectedMessage = nil },
-                    onViewOrderFromMessage: onViewOrderFromMessage
+                    onViewOrderFromMessage: onViewOrderFromMessage,
+                    allowDelete: true
                 )
                 .macOSAdminSheetSize()
             }

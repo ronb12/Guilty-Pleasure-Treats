@@ -7,6 +7,10 @@
 
 import Foundation
 
+private enum GalleryQuoteMessageLines {
+    static let photoLinePrefix = "Design photo link (reference):"
+}
+
 struct ContactMessage: Identifiable, Codable, Equatable {
     var id: String
     var name: String?
@@ -54,5 +58,32 @@ struct ContactMessage: Identifiable, Codable, Equatable {
     var orderReferenceShort: String? {
         guard let oid = linkedOrderId else { return nil }
         return OrderReference.displayCode(from: oid)
+    }
+
+    // MARK: - Gallery quote reference photo (embedded in `message` body)
+
+    /// HTTPS URL from the line `Design photo link (reference): …` in the message body.
+    var galleryReferencePhotoURL: URL? {
+        let prefix = GalleryQuoteMessageLines.photoLinePrefix
+        for line in message.components(separatedBy: .newlines) {
+            let t = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard t.count >= prefix.count else { continue }
+            guard t.lowercased().hasPrefix(prefix.lowercased()) else { continue }
+            let rest = String(t.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let url = URL(string: rest), let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { continue }
+            return url
+        }
+        return nil
+    }
+
+    /// Message body for admin UI: drops the photo URL line when we render the image separately.
+    var messageTextForAdminDisplay: String {
+        guard galleryReferencePhotoURL != nil else { return message }
+        let prefixLower = GalleryQuoteMessageLines.photoLinePrefix.lowercased()
+        let lines = message.components(separatedBy: .newlines)
+        let filtered = lines.filter { line in
+            !line.trimmingCharacters(in: .whitespacesAndNewlines).lowercased().hasPrefix(prefixLower)
+        }
+        return filtered.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

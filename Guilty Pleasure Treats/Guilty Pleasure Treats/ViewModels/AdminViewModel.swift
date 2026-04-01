@@ -1166,6 +1166,22 @@ final class AdminViewModel: ObservableObject {
         }
     }
 
+    /// Permanently remove a contact / quote thread (admin). Cascades DB children (e.g. quote_requests, replies).
+    @discardableResult
+    func deleteContactMessage(_ message: ContactMessage) async -> Bool {
+        errorMessage = nil
+        successMessage = nil
+        do {
+            try await api.deleteContactMessage(id: message.id)
+            await loadAllContactInboxes()
+            successMessage = "Removed."
+            return true
+        } catch {
+            errorMessage = FriendlyErrorMessage.message(for: error)
+            return false
+        }
+    }
+
     /// Send an in-app reply to a contact message (customer will see it in app).
     func replyToContactMessage(messageId: String, body: String) async {
         do {
